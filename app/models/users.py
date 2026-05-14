@@ -1,26 +1,12 @@
-from enum import StrEnum
+from datetime import datetime
 
-from tortoise import fields, models
-
-
-class Gender(StrEnum):
-    MALE = "MALE"
-    FEMALE = "FEMALE"
+from pydantic import BaseModel
 
 
-class User(models.Model):
-    id = fields.BigIntField(primary_key=True)
-    email = fields.CharField(max_length=40)
-    hashed_password = fields.CharField(max_length=128)
-    name = fields.CharField(max_length=20)
-    gender = fields.CharEnumField(enum_type=Gender)
-    birthday = fields.DateField()
-    phone_number = fields.CharField(max_length=11)
-    is_active = fields.BooleanField(default=True)
-    is_admin = fields.BooleanField(default=False)
-    last_login = fields.DatetimeField(null=True)
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-
-    class Meta:
-        table = "users"
+class User(BaseModel):
+    id: str
+    kakao_id: str
+    email: str | None = None
+    nickname: str
+    profile_image: str | None = None
+    created_at: datetime | None = None

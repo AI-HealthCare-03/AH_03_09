@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any, Self
 from uuid import uuid4
 
 from app.core import config
-from app.models.users import User
 from app.core.jwt.exceptions import ExpiredTokenError, TokenBackendError, TokenBackendExpiredError, TokenError
 from app.core.jwt.state import token_backend
 
@@ -76,7 +75,7 @@ class Token:
         self.payload["jti"] = uuid4().hex
 
     @classmethod
-    def for_user(cls, user: User) -> Self:
+    def for_user(cls, user: Any) -> Self:
         token = cls()
         token["user_id"] = user.id
         return token
