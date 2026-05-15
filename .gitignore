@@ -12,3 +12,5 @@ wheels/
 .coverage
 *.coverage
 .coverage.*
+.claude
+.agents
