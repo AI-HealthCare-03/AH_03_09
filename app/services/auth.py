@@ -1,74 +1,72 @@
-from fastapi.exceptions import HTTPException
-from pydantic import EmailStr
+import httpx
+from fastapi import HTTPException
 from starlette import status
-from tortoise.transactions import in_transaction
 
-from app.dtos.auth import LoginRequest, SignUpRequest
+from app.core import config
 from app.models.users import User
 from app.repositories.user_repository import UserRepository
 from app.services.jwt import JwtService
-from app.core.utils.common import normalize_phone_number
 from app.core.jwt.tokens import AccessToken, RefreshToken
-from app.core.utils.security import hash_password, verify_password
+
+KAKAO_TOKEN_URL = "https://kauth.kakao.com/oauth/token"
+KAKAO_USER_URL = "https://kapi.kakao.com/v2/user/me"
 
 
 class AuthService:
-    def __init__(self):
+    def __init__(self) -> None:
         self.user_repo = UserRepository()
         self.jwt_service = JwtService()
 
-    async def signup(self, data: SignUpRequest) -> User:
-        # 이메일 중복 체크
-        await self.check_email_exists(data.email)
+    def get_kakao_auth_url(self) -> str:
+        return (
+            f"https://kauth.kakao.com/oauth/authorize"
+            f"?client_id={config.KAKAO_CLIENT_ID}"
+            f"&redirect_uri={config.KAKAO_REDIRECT_URI}"
+            f"&response_type=code"
+        )
 
-        # 입력받은 휴대폰 번호를 노말라이즈
-        normalized_phone_number = normalize_phone_number(data.phone_number)
-
-        # 휴대폰 번호 중복 체크
-        await self.check_phone_number_exists(normalized_phone_number)
-
-        # 유저 생성
-        async with in_transaction():
-            user = await self.user_repo.create_user(
-                email=data.email,
-                hashed_password=hash_password(data.password),  # 해시화된 비밀번호를 사용
-                name=data.name,
-                phone_number=normalized_phone_number,
-                gender=data.gender,
-                birthday=data.birth_date,
+    async def exchange_kakao_code(self, code: str) -> str:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                KAKAO_TOKEN_URL,
+                data={
+                    "grant_type": "authorization_code",
+                    "client_id": config.KAKAO_CLIENT_ID,
+                    "client_secret": config.KAKAO_CLIENT_SECRET,
+                    "redirect_uri": config.KAKAO_REDIRECT_URI,
+                    "code": code,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="카카오 토큰 발급 실패")
+        return resp.json()["access_token"]
 
-            return user
-
-    async def authenticate(self, data: LoginRequest) -> User:
-        # 이메일로 사용자 조회
-        email = str(data.email)
-        user = await self.user_repo.get_user_by_email(email)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="이메일 또는 비밀번호가 올바르지 않습니다."
+    async def get_kakao_user_info(self, kakao_access_token: str) -> dict:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                KAKAO_USER_URL,
+                headers={"Authorization": f"Bearer {kakao_access_token}"},
             )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="카카오 사용자 정보 조회 실패")
+        return resp.json()
 
-        # 비밀번호 검증
-        if not verify_password(data.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="이메일 또는 비밀번호가 올바르지 않습니다."
-            )
+    async def kakao_login(self, code: str) -> dict[str, AccessToken | RefreshToken]:
+        kakao_token = await self.exchange_kakao_code(code)
+        kakao_info = await self.get_kakao_user_info(kakao_token)
 
-        # 활성 사용자 체크
-        if not user.is_active:
-            raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="비활성화된 계정입니다.")
+        kakao_id = str(kakao_info["id"])
+        kakao_account = kakao_info.get("kakao_account", {})
+        profile = kakao_account.get("profile", {})
+        nickname = profile.get("nickname", "사용자")
+        email = kakao_account.get("email")
+        profile_image = profile.get("profile_image_url")
 
-        return user
-
-    async def login(self, user: User) -> dict[str, AccessToken | RefreshToken]:
-        await self.user_repo.update_last_login(user.id)
+        user = self.user_repo.upsert_kakao_user(
+            kakao_id=kakao_id,
+            nickname=nickname,
+            email=email,
+            profile_image=profile_image,
+        )
         return self.jwt_service.issue_jwt_pair(user)
-
-    async def check_email_exists(self, email: str | EmailStr) -> None:
-        if await self.user_repo.exists_by_email(email):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용중인 이메일입니다.")
-
-    async def check_phone_number_exists(self, phone_number: str) -> None:
-        if await self.user_repo.exists_by_phone_number(phone_number):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용중인 휴대폰 번호입니다.")

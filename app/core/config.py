@@ -22,17 +22,23 @@ class Config(BaseSettings):
     TIMEZONE: zoneinfo.ZoneInfo = field(default_factory=lambda: zoneinfo.ZoneInfo("Asia/Seoul"))
     TEMPLATE_DIR: str = os.path.join(Path(__file__).resolve().parent.parent, "templates")
 
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 3306
-    DB_USER: str = "root"
-    DB_PASSWORD: str = "pw1234"
-    DB_NAME: str = "ai_health"
-    DB_CONNECT_TIMEOUT: int = 5
-    DB_CONNECTION_POOL_MAXSIZE: int = 10
-
     COOKIE_DOMAIN: str = "localhost"
 
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 14 * 24 * 60
     JWT_LEEWAY: int = 5
+
+    # Database (PostgreSQL)
+    DATABASE_URL: str = "postgresql://medifind:medifind_password@localhost:5432/medifind"
+
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+
+    # Kakao OAuth
+    KAKAO_CLIENT_ID: str = ""
+    KAKAO_CLIENT_SECRET: str = ""
+    KAKAO_REDIRECT_URI: str = "http://localhost:3000/auth/kakao/callback"
+
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:3000"
