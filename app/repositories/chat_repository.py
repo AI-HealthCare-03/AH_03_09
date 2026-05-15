@@ -1,69 +1,23 @@
-from pgvector.psycopg import register_vector
+from uuid import UUID
 
-from app.core.db.postgres_client import get_pool
+from app.models.chat import ChatMessage, ChatSession, MessageRole
 
 
 class ChatRepository:
-    def create_conversation(self, user_id: str, title: str = "새 대화") -> dict:
-        with get_pool().connection() as conn:
-            return conn.execute(
-                "INSERT INTO conversations (user_id, title) VALUES (%s, %s) RETURNING *",
-                (user_id, title),
-            ).fetchone()
+    async def create_session(self, user_id: int, title: str = "새 대화") -> ChatSession:
+        return await ChatSession.create(user_id=user_id, title=title)
 
-    def get_conversations(self, user_id: str) -> list[dict]:
-        with get_pool().connection() as conn:
-            return conn.execute(
-                "SELECT * FROM conversations WHERE user_id = %s ORDER BY created_at DESC",
-                (user_id,),
-            ).fetchall()
+    async def get_sessions(self, user_id: int) -> list[ChatSession]:
+        return await ChatSession.filter(user_id=user_id).order_by("-updated_at").all()
 
-    def get_conversation(self, conversation_id: str, user_id: str) -> dict | None:
-        with get_pool().connection() as conn:
-            return conn.execute(
-                "SELECT * FROM conversations WHERE id = %s AND user_id = %s",
-                (conversation_id, user_id),
-            ).fetchone()
+    async def get_session(self, session_id: UUID | str, user_id: int) -> ChatSession | None:
+        return await ChatSession.filter(id=session_id, user_id=user_id).first()
 
-    def get_messages(self, conversation_id: str) -> list[dict]:
-        with get_pool().connection() as conn:
-            return conn.execute(
-                "SELECT * FROM messages WHERE conversation_id = %s ORDER BY created_at ASC",
-                (conversation_id,),
-            ).fetchall()
+    async def create_message(self, session_id: UUID | str, role: MessageRole, content: str) -> ChatMessage:
+        return await ChatMessage.create(session_id=session_id, role=role, content=content)
 
-    def create_message(
-        self, conversation_id: str, role: str, content: str, embedding=None
-    ) -> dict:
-        with get_pool().connection() as conn:
-            register_vector(conn)
-            return conn.execute(
-                """
-                INSERT INTO messages (conversation_id, role, content, embedding)
-                VALUES (%s, %s, %s, %s)
-                RETURNING *
-                """,
-                (conversation_id, role, content, embedding),
-            ).fetchone()
+    async def get_messages(self, session_id: UUID | str, limit: int = 50) -> list[ChatMessage]:
+        return await ChatMessage.filter(session_id=session_id).order_by("created_at").limit(limit).all()
 
-    def search_similar_messages(self, embedding, limit: int = 5) -> list[dict]:
-        """PGvector 코사인 유사도 기반 유사 메시지 검색"""
-        with get_pool().connection() as conn:
-            register_vector(conn)
-            return conn.execute(
-                """
-                SELECT *, (embedding <=> %s) AS distance
-                FROM messages
-                WHERE embedding IS NOT NULL
-                ORDER BY embedding <=> %s
-                LIMIT %s
-                """,
-                (embedding, embedding, limit),
-            ).fetchall()
-
-    def delete_conversation(self, conversation_id: str, user_id: str) -> None:
-        with get_pool().connection() as conn:
-            conn.execute(
-                "DELETE FROM conversations WHERE id = %s AND user_id = %s",
-                (conversation_id, user_id),
-            )
+    async def touch_session(self, session_id: UUID | str) -> None:
+        await ChatSession.filter(id=session_id).update()

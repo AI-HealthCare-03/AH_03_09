@@ -22,6 +22,17 @@ class Config(BaseSettings):
     TIMEZONE: zoneinfo.ZoneInfo = field(default_factory=lambda: zoneinfo.ZoneInfo("Asia/Seoul"))
     TEMPLATE_DIR: str = os.path.join(Path(__file__).resolve().parent.parent, "templates")
 
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_USER: str = "ai_health"
+    DB_PASSWORD: str = "ai_health_pw"
+    DB_NAME: str = "ai_health_db"
+    DB_CONNECTION_POOL_MINSIZE: int = 1
+    DB_CONNECTION_POOL_MAXSIZE: int = 10
+
+    REDIS_URL: str = "redis://localhost:6379"
+    OPENAI_API_KEY: str = ""
+
     COOKIE_DOMAIN: str = "localhost"
 
     JWT_ALGORITHM: str = "HS256"

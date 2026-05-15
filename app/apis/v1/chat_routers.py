@@ -1,59 +1,62 @@
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, status
-from fastapi.responses import ORJSONResponse as Response
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
 
 from app.dependencies.security import get_request_user
+from app.dtos.chat import ChatMessageListResponse, ChatMessageResponse, ChatSessionCreateRequest, ChatSessionResponse
 from app.models.users import User
+from app.repositories.chat_repository import ChatRepository
 from app.services.chat import ChatService
+from app.services.jwt import JwtService
 
 chat_router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@chat_router.post("/conversations", status_code=status.HTTP_201_CREATED)
-async def create_conversation(
-    user: Annotated[User, Depends(get_request_user)],
-    chat_service: Annotated[ChatService, Depends(ChatService)],
-    title: str = Body(default="새 대화", embed=True),
-) -> Response:
-    conv = chat_service.create_conversation(user_id=user.id, title=title)
-    return Response(conv, status_code=status.HTTP_201_CREATED)
+@chat_router.post("/sessions", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
+async def create_session(
+    body: ChatSessionCreateRequest,
+    current_user: Annotated[User, Depends(get_request_user)],
+) -> ChatSessionResponse:
+    session = await ChatService().create_session(user_id=current_user.id, title=body.title)
+    return ChatSessionResponse.model_validate(session)
 
 
-@chat_router.get("/conversations", status_code=status.HTTP_200_OK)
-async def get_conversations(
-    user: Annotated[User, Depends(get_request_user)],
-    chat_service: Annotated[ChatService, Depends(ChatService)],
-) -> Response:
-    convs = chat_service.get_conversations(user_id=user.id)
-    return Response(convs, status_code=status.HTTP_200_OK)
+@chat_router.get("/sessions", response_model=list[ChatSessionResponse])
+async def list_sessions(
+    current_user: Annotated[User, Depends(get_request_user)],
+) -> list[ChatSessionResponse]:
+    sessions = await ChatService().get_user_sessions(user_id=current_user.id)
+    return [ChatSessionResponse.model_validate(s) for s in sessions]
 
 
-@chat_router.get("/conversations/{conversation_id}", status_code=status.HTTP_200_OK)
-async def get_conversation(
-    conversation_id: str,
-    user: Annotated[User, Depends(get_request_user)],
-    chat_service: Annotated[ChatService, Depends(ChatService)],
-) -> Response:
-    conv = chat_service.get_conversation_with_messages(conversation_id=conversation_id, user_id=user.id)
-    return Response(conv, status_code=status.HTTP_200_OK)
+@chat_router.get("/sessions/{session_id}/messages", response_model=ChatMessageListResponse)
+async def list_messages(
+    session_id: UUID,
+    current_user: Annotated[User, Depends(get_request_user)],
+) -> ChatMessageListResponse:
+    messages = await ChatService().get_session_messages(session_id=session_id, user_id=current_user.id)
+    return ChatMessageListResponse(messages=[ChatMessageResponse.model_validate(m) for m in messages])
 
 
-@chat_router.post("/conversations/{conversation_id}/messages", status_code=status.HTTP_200_OK)
-async def send_message(
-    conversation_id: str,
-    user: Annotated[User, Depends(get_request_user)],
-    chat_service: Annotated[ChatService, Depends(ChatService)],
-    content: str = Body(..., embed=True),
-) -> Response:
-    msg = chat_service.send_message(conversation_id=conversation_id, user_id=user.id, content=content)
-    return Response(msg, status_code=status.HTTP_200_OK)
-
-
-@chat_router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_conversation(
-    conversation_id: str,
-    user: Annotated[User, Depends(get_request_user)],
-    chat_service: Annotated[ChatService, Depends(ChatService)],
+@chat_router.websocket("/ws/{session_id}")
+async def websocket_chat(
+    websocket: WebSocket,
+    session_id: str,
+    token: str,
 ) -> None:
-    chat_service.delete_conversation(conversation_id=conversation_id, user_id=user.id)
+    # JWT 검증 (WebSocket은 헤더 인증 대신 query param 사용)
+    try:
+        verified = JwtService().verify_jwt(token=token, token_type="access")
+        user_id: int = verified.payload["user_id"]
+    except HTTPException:
+        await websocket.close(code=1008)
+        return
+
+    # 세션 소유권 확인
+    session = await ChatRepository().get_session(session_id, user_id)
+    if not session:
+        await websocket.close(code=1008)
+        return
+
+    await ChatService().handle_websocket(websocket, session_id, user_id)
