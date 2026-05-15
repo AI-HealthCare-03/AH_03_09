@@ -29,9 +29,8 @@ class Config(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 14 * 24 * 60
     JWT_LEEWAY: int = 5
 
-    # Supabase
-    SUPABASE_URL: str = ""
-    SUPABASE_SERVICE_KEY: str = ""
+    # Database (PostgreSQL)
+    DATABASE_URL: str = "postgresql://medifind:medifind_password@localhost:5432/medifind"
 
     # OpenAI
     OPENAI_API_KEY: str = ""

@@ -28,8 +28,9 @@ app = [
     "openai>=1.0.0",
     "orjson>=3.11.5",
     "passlib[bcrypt]>=1.7.4",
+    "pgvector>=0.3.0",
+    "psycopg[binary,pool]>=3.2.0",
     "pyjwt>=2.10.1",
-    "supabase>=2.0.0",
     "uvicorn>=0.40.0",
 ]
 dev = [
