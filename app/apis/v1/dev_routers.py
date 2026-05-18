@@ -3,6 +3,7 @@
 외부 의존(Kakao OAuth, Redis, AI worker, DB)을 모두 우회하며 메모리 안에 상태를 보관한다.
 운영 환경(ENV=prod)에서는 라우터 자체가 마운트되지 않는다.
 """
+
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -51,6 +52,7 @@ def _get_current_user(
 
 # ---------- 스키마 ----------
 
+
 class DevLoginRequest(BaseModel):
     user_id: str = Field(default="1", description="가짜 사용자 ID")
     kakao_id: str = Field(default="fake-kakao-12345", description="가짜 Kakao ID")
@@ -98,14 +100,15 @@ class DevMessageListResponse(BaseModel):
 
 # ---------- 인증 ----------
 
+
 @dev_router.post(
     "/login",
     response_model=DevLoginResponse,
     status_code=status.HTTP_200_OK,
     summary="가짜 Kakao 로그인",
     description="외부 Kakao API 호출 없이 인메모리 사용자를 생성하고 JWT 토큰을 발급합니다. "
-                "응답의 access_token을 복사해 우측 상단 'Authorize' 버튼에 붙여 넣으면 "
-                "이후 dev 채팅 API를 호출할 수 있습니다.",
+    "응답의 access_token을 복사해 우측 상단 'Authorize' 버튼에 붙여 넣으면 "
+    "이후 dev 채팅 API를 호출할 수 있습니다.",
 )
 def dev_login(body: DevLoginRequest) -> DevLoginResponse:
     user = User(
@@ -136,6 +139,7 @@ def dev_me(user: Annotated[User, Depends(_get_current_user)]) -> User:
 
 
 # ---------- 채팅 세션 ----------
+
 
 @dev_router.post(
     "/chat/sessions",
@@ -183,6 +187,7 @@ def dev_list_sessions(
 
 # ---------- 채팅 메시지 ----------
 
+
 def _generate_fake_reply(user_text: str) -> str:
     """간단한 규칙 기반 가짜 AI 응답."""
     lower = user_text.strip().lower()
@@ -192,7 +197,7 @@ def _generate_fake_reply(user_text: str) -> str:
         return "두통은 수분 부족, 수면 부족, 스트레스 등이 원인일 수 있어요. 증상이 24시간 이상 지속되면 진료를 권장드립니다. (※ 본 응답은 데모용 가짜 데이터입니다.)"
     if any(k in lower for k in ("약", "복용", "처방", "medic")):
         return f"'{user_text}' 관련 정보를 찾고 있어요. (※ 본 응답은 데모용 가짜 데이터이며 실제 의료 자문이 아닙니다.)"
-    return f"[가짜 AI 응답] 당신의 메시지: \"{user_text}\" — 실제 모델은 Redis/AI worker가 연결되면 동작합니다."
+    return f'[가짜 AI 응답] 당신의 메시지: "{user_text}" — 실제 모델은 Redis/AI worker가 연결되면 동작합니다.'
 
 
 @dev_router.post(
@@ -201,7 +206,7 @@ def _generate_fake_reply(user_text: str) -> str:
     status_code=status.HTTP_201_CREATED,
     summary="메시지 전송 (WebSocket 대신 동기 REST)",
     description="유저 메시지를 저장하고 즉시 가짜 AI 응답을 함께 반환합니다. "
-                "WebSocket·Redis·AI worker 없이 Swagger UI에서 채팅 흐름을 검증할 수 있습니다.",
+    "WebSocket·Redis·AI worker 없이 Swagger UI에서 채팅 흐름을 검증할 수 있습니다.",
 )
 def dev_send_message(
     session_id: UUID,
