@@ -1,16 +1,16 @@
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class GuideType(str, Enum):
+class GuideType(StrEnum):
     MEDICATION = "MEDICATION"
     LIFESTYLE = "LIFESTYLE"
     DIET = "DIET"
     EXERCISE = "EXERCISE"
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
     DONE = "DONE"
@@ -112,3 +112,4 @@ class GuideContextResponse(BaseModel):
     medications: list[str]
     disease_codes: list[str]
     key_instructions: list[str]
+
