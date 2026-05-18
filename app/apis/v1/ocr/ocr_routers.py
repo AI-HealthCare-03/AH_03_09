@@ -22,6 +22,7 @@ from app.dtos.ocr.document_dtos import (
 )
 from app.models.users import User
 from app.services.ocr.document_service import OcrDocumentService
+from app.services.ocr.file_validator import validate_upload
 
 ocr_router = APIRouter(prefix="/ocr", tags=["ocr"])
 
@@ -46,8 +47,16 @@ async def upload_document(
     session: _SESSION,
     file: UploadFile,
 ) -> OcrUploadResponse:
-    """파일 업로드 후 비동기 OCR 처리를 시작합니다. (REQ-OCR-001)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    """처방전·약봉투 파일을 S3에 업로드하고 OCR 처리 작업을 생성합니다. (REQ-OCR-001~003)"""
+    content = await validate_upload(file)
+    svc = OcrDocumentService(session)
+    doc = await svc.upload_document(
+        user_id=uuid.UUID(str(current_user.id)),
+        filename=file.filename or "upload",
+        mime_type=file.content_type,  # type: ignore[arg-type]
+        content=content,
+    )
+    return OcrUploadResponse(record_id=doc.record_id, job_id=doc.job_id, ocr_status=doc.ocr_status)
 
 
 @ocr_router.get("/jobs/{job_id}/status", response_model=OcrJobStatusResponse)
@@ -105,7 +114,7 @@ async def update_record(
     session: _SESSION,
 ) -> OcrDocumentResponse:
     """OCR 문서 메타데이터를 수정합니다."""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
 
 
 @ocr_router.delete("/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -115,7 +124,7 @@ async def delete_record(
     session: _SESSION,
 ) -> None:
     """OCR 문서를 소프트 삭제합니다. (REQ-OCR-009)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
 
 
 # ── Medications ───────────────────────────────────────────────────────────────
@@ -142,7 +151,7 @@ async def update_medication(
     session: _SESSION,
 ) -> MedicationResponse:
     """약물 정보를 수정합니다. (REQ-OCR-013)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
 
 
 @ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
@@ -152,7 +161,7 @@ async def confirm_medications(
     session: _SESSION,
 ) -> dict[str, str]:
     """약물 목록 전체를 확인 처리합니다. (REQ-OCR-017)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
 
 
 # ── Disease Codes ─────────────────────────────────────────────────────────────
@@ -179,7 +188,7 @@ async def update_disease_code(
     session: _SESSION,
 ) -> DiseaseCodeResponse:
     """질병 분류기호를 수정합니다. (REQ-OCR-014)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
 
 
 @ocr_router.post("/records/{record_id}/disease-codes/confirm", status_code=status.HTTP_200_OK)
@@ -189,7 +198,7 @@ async def confirm_disease_codes(
     session: _SESSION,
 ) -> dict[str, str]:
     """질병 분류기호 전체를 확인 처리합니다. (REQ-OCR-017)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
 
 
 # ── OCR Result ────────────────────────────────────────────────────────────────
@@ -217,4 +226,4 @@ async def update_ocr_result(
     session: _SESSION,
 ) -> OcrResultResponse:
     """OCR 텍스트를 사용자가 직접 수정합니다. (REQ-OCR-015)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
