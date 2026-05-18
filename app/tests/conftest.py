@@ -12,13 +12,6 @@ def client():
         yield c
 
 
-@pytest.fixture(autouse=True)
-def mock_register_vector():
-    """register_vector가 MagicMock conn으로 호출되지 않도록 항상 패치"""
-    with patch("app.repositories.chat_repository.register_vector"):
-        yield
-
-
 @pytest.fixture
 def mock_db():
     """psycopg3 ConnectionPool mock — get_pool().connection() 컨텍스트 매니저 모사"""
