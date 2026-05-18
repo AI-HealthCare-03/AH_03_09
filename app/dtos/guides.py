@@ -17,6 +17,25 @@ class JobStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class GuideGenerationStatus(StrEnum):
+    DONE = "DONE"
+    SKIPPED = "SKIPPED"
+
+
+class GuideSkipReason(StrEnum):
+    NO_MEDICATION_INFO = "NO_MEDICATION_INFO"
+    NO_DISEASE_INFO = "NO_DISEASE_INFO"
+    LOW_CONFIDENCE_OCR = "LOW_CONFIDENCE_OCR"
+    DRUG_NOT_FOUND = "DRUG_NOT_FOUND"
+
+
+class MedicationMatchStatus(StrEnum):
+    EXACT_DB_MATCH = "EXACT_DB_MATCH"
+    WEB_REFERENCE = "WEB_REFERENCE"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    NOT_FOUND = "NOT_FOUND"
+
+
 # ── 요청 스키마 ──────────────────────────────────────────────────────────────
 
 
@@ -36,6 +55,15 @@ class UpdateFeedbackStatusRequest(BaseModel):
     status: str  # "submitted"
 
 
+# ── 가이드 생성 결과 모델 ─────────────────────────────────────────────────────
+
+
+class GuideGenerationResult(BaseModel):
+    guide_type: GuideType
+    status: GuideGenerationStatus
+    skip_reason: GuideSkipReason | None = None
+
+
 # ── 가이드 섹션 내부 모델 ──────────────────────────────────────────────────────
 
 
@@ -48,6 +76,9 @@ class MedicationItem(BaseModel):
     cautions: list[str]
     missed_dose: str
     storage: str
+    match_status: MedicationMatchStatus | None = None
+    disclaimer: str | None = None
+    source_name: str | None = None
 
 
 class MedicationGuide(BaseModel):
@@ -99,6 +130,7 @@ class GuideResponse(BaseModel):
     lifestyle_guide: LifestyleGuide | None = None
     diet_guide: DietGuide | None = None
     exercise_guide: ExerciseGuide | None = None
+    generation_results: list[GuideGenerationResult] | None = None
 
 
 class FeedbackResponse(BaseModel):
