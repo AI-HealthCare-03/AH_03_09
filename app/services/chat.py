@@ -61,9 +61,7 @@ class ChatService:
                         continue
                     data: str = redis_msg["data"]
                     if data.startswith("[ERROR]"):
-                        await websocket.send_text(
-                            json.dumps({"type": "error", "content": data[7:]})
-                        )
+                        await websocket.send_text(json.dumps({"type": "error", "content": data[7:]}))
                         break
                     if data == "[DONE]":
                         break
