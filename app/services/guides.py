@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 
@@ -105,7 +105,7 @@ async def _run_mock_worker(job_id: str, guide_id: str, guide_types: list[GuideTy
 
     await asyncio.sleep(3)
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     guide = GuideResponse(
         guide_id=guide_id,
@@ -154,7 +154,7 @@ class GuideService:
         if guide_id not in _guides:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
         feedback_id = str(uuid.uuid4())
-        created_at = datetime.now(timezone.utc).isoformat()
+        created_at = datetime.now(UTC).isoformat()
         _feedbacks.setdefault(guide_id, {})
         _feedbacks[guide_id]["feedback_id"] = feedback_id
         _feedbacks[guide_id]["created_at"] = created_at

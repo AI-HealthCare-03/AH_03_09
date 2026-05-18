@@ -38,8 +38,9 @@ def fetch_page(page_no: int) -> tuple[list[dict], int]:
     try:
         data = resp.json()
     except ValueError as e:
-        raise ValueError(f"JSON 파싱 실패 (page {page_no}): {e}\n응답 내용: {resp.text[:500]}")
-
+        raise ValueError(
+        f"JSON 파싱 실패 (page {page_no}): {e}\n응답 내용: {resp.text[:500]}"
+    ) from e
     # 공공데이터포털 응답 구조: {response: {body: ...}} 또는 {body: ...}
     body = data.get("response", data).get("body", {})
 
