@@ -8,15 +8,9 @@ from app.main import app
 
 @pytest.fixture(scope="session")
 def client():
-    with TestClient(app) as c:
-        yield c
-
-
-@pytest.fixture(autouse=True)
-def mock_register_vector():
-    """register_vector가 MagicMock conn으로 호출되지 않도록 항상 패치"""
-    with patch("app.repositories.chat_repository.register_vector"):
-        yield
+    with patch("app.main.init_db"):
+        with TestClient(app) as c:
+            yield c
 
 
 @pytest.fixture
@@ -27,15 +21,6 @@ def mock_db():
         mock_pool.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_pool.connection.return_value.__exit__ = MagicMock(return_value=False)
         yield mock_conn
-
-
-@pytest.fixture
-def mock_openai():
-    with patch("app.services.chat._openai") as mock:
-        choice = MagicMock()
-        choice.message.content = "두통은 긴장성 두통일 수 있습니다. 충분한 휴식을 취하시고 증상이 지속되면 전문의 상담을 권고합니다."
-        mock.chat.completions.create.return_value = MagicMock(choices=[choice])
-        yield mock
 
 
 @pytest.fixture

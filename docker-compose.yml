@@ -1,28 +1,4 @@
 services:
-  # 0. PostgreSQL with PGvector + PostGIS
-  postgres:
-    build:
-      context: .
-      dockerfile: docker/postgres/Dockerfile
-    container_name: postgres
-    environment:
-      POSTGRES_USER: medifind
-      POSTGRES_PASSWORD: medifind_password
-      POSTGRES_DB: medifind
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - ws
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U medifind -d medifind"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   # 1. Redis (JWT refresh token 캐싱)
   redis:
     image: redis:alpine
@@ -128,6 +104,3 @@ volumes:
 networks:
   ws:
     driver: bridge
-
-volumes:
-  postgres_data:
