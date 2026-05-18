@@ -1,11 +1,14 @@
+import asyncio
 import json
 from uuid import UUID
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import HTTPException, WebSocket, WebSocketDisconnect, status
 
 from app.core.redis_client import get_redis
-from app.models.chat import ChatSession, MessageRole
+from app.models.chat import ChatMessage, ChatSession, MessageRole
 from app.repositories.chat_repository import ChatRepository
+
+RESPONSE_TIMEOUT_SECONDS = 60
 
 
 class ChatService:
@@ -23,6 +26,60 @@ class ChatService:
         if not session:
             return []
         return await self.repo.get_messages(session_id)
+
+    async def send_message_sync(
+        self, session_id: UUID | str, user_id: int, content: str
+    ) -> tuple[ChatMessage, ChatMessage]:
+        """Swagger 테스트용 REST 래퍼: WebSocket과 동일한 흐름이지만 모든 스트림을 모아 한 번에 반환."""
+        session = await self.repo.get_session(session_id, user_id)
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
+
+        user_msg = await self.repo.create_message(session_id, MessageRole.USER, content)
+
+        history = await self.repo.get_messages(session_id, limit=20)
+        history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
+
+        redis = await get_redis()
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(f"chat:stream:{session_id}")
+
+        task_payload = json.dumps(
+            {
+                "session_id": str(session_id),
+                "user_message": content,
+                "history": history_payload,
+            }
+        )
+        await redis.publish(f"chat:request:{session_id}", task_payload)
+
+        full_response: list[str] = []
+        error_detail: str | None = None
+        try:
+            async with asyncio.timeout(RESPONSE_TIMEOUT_SECONDS):
+                async for redis_msg in pubsub.listen():
+                    if redis_msg["type"] != "message":
+                        continue
+                    data: str = redis_msg["data"]
+                    if data.startswith("[ERROR]"):
+                        error_detail = data[7:]
+                        break
+                    if data == "[DONE]":
+                        break
+                    full_response.append(data)
+        except asyncio.TimeoutError:
+            error_detail = "AI 응답 시간 초과"
+        finally:
+            await pubsub.unsubscribe(f"chat:stream:{session_id}")
+            await pubsub.aclose()
+
+        if error_detail:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI 응답 실패: {error_detail}")
+
+        complete = "".join(full_response)
+        assistant_msg = await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
+        await self.repo.touch_session(session_id)
+        return user_msg, assistant_msg
 
     async def handle_websocket(self, websocket: WebSocket, session_id: str, user_id: int) -> None:
         await websocket.accept()
