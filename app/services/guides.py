@@ -32,6 +32,7 @@ _feedbacks: dict[str, dict] = {}
 
 # ── Mock 데이터 생성 헬퍼 ─────────────────────────────────────────────────────
 
+
 def _make_medication_guide() -> MedicationGuide:
     return MedicationGuide(
         medications=[
@@ -125,6 +126,7 @@ async def _run_mock_worker(job_id: str, guide_id: str, guide_types: list[GuideTy
 
 
 # ── Service ───────────────────────────────────────────────────────────────────
+
 
 class GuideService:
     async def create_guide_job(self, req: GenerateGuideRequest) -> GenerateGuideResponse:

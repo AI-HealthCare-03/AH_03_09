@@ -19,6 +19,7 @@ class JobStatus(StrEnum):
 
 # ── 요청 스키마 ──────────────────────────────────────────────────────────────
 
+
 class GenerateGuideRequest(BaseModel):
     patient_id: str
     guide_types: list[GuideType]
@@ -36,6 +37,7 @@ class UpdateFeedbackStatusRequest(BaseModel):
 
 
 # ── 가이드 섹션 내부 모델 ──────────────────────────────────────────────────────
+
 
 class MedicationItem(BaseModel):
     name: str
@@ -76,6 +78,7 @@ class ExerciseGuide(BaseModel):
 
 # ── 응답 스키마 ──────────────────────────────────────────────────────────────
 
+
 class GenerateGuideResponse(BaseModel):
     job_id: str
     estimated_seconds: int = 10
@@ -112,4 +115,3 @@ class GuideContextResponse(BaseModel):
     medications: list[str]
     disease_codes: list[str]
     key_instructions: list[str]
-
