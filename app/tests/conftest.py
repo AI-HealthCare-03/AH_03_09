@@ -8,15 +8,9 @@ from app.main import app
 
 @pytest.fixture(scope="session")
 def client():
-    with TestClient(app) as c:
-        yield c
-
-
-@pytest.fixture(autouse=True)
-def mock_register_vector():
-    """register_vector가 MagicMock conn으로 호출되지 않도록 항상 패치"""
-    with patch("app.repositories.chat_repository.register_vector"):
-        yield
+    with patch("app.main.init_db"):
+        with TestClient(app) as c:
+            yield c
 
 
 @pytest.fixture
