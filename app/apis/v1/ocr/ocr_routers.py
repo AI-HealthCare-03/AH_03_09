@@ -1,0 +1,220 @@
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.db.sqlalchemy_client import get_async_session
+from app.dependencies.security import get_request_user
+from app.dtos.ocr.document_dtos import (
+    DiseaseCodeResponse,
+    DiseaseCodeUpdateRequest,
+    MedicationResponse,
+    MedicationUpdateRequest,
+    OcrDocumentDetailResponse,
+    OcrDocumentListResponse,
+    OcrDocumentResponse,
+    OcrDocumentUpdateRequest,
+    OcrJobStatusResponse,
+    OcrResultResponse,
+    OcrResultUpdateRequest,
+    OcrUploadResponse,
+)
+from app.models.users import User
+from app.services.ocr.document_service import OcrDocumentService
+
+ocr_router = APIRouter(prefix="/ocr", tags=["ocr"])
+
+_AUTH = Annotated[User, Depends(get_request_user)]
+_SESSION = Annotated[AsyncSession, Depends(get_async_session)]
+
+
+# ── Utility ───────────────────────────────────────────────────────────────────
+
+
+@ocr_router.get("/health")
+async def health_check() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+# ── Upload & Job status ───────────────────────────────────────────────────────
+
+
+@ocr_router.post("/upload", response_model=OcrUploadResponse, status_code=status.HTTP_202_ACCEPTED)
+async def upload_document(
+    current_user: _AUTH,
+    session: _SESSION,
+    file: UploadFile,
+) -> OcrUploadResponse:
+    """파일 업로드 후 비동기 OCR 처리를 시작합니다. (REQ-OCR-001)"""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+
+
+@ocr_router.get("/jobs/{job_id}/status", response_model=OcrJobStatusResponse)
+async def get_job_status(
+    job_id: uuid.UUID,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrJobStatusResponse:
+    """비동기 OCR 처리 상태를 조회합니다. (REQ-OCR-004)"""
+    svc = OcrDocumentService(session)
+    doc = await svc.get_job_status(job_id, uuid.UUID(str(current_user.id)))
+    return OcrJobStatusResponse(
+        job_id=doc.job_id,
+        record_id=doc.record_id,
+        ocr_status=doc.ocr_status,
+        processing_time_ms=doc.result.processing_time_ms if doc.result else None,
+        error_message=doc.result.error_message if doc.result else None,
+    )
+
+
+# ── OCR Records ───────────────────────────────────────────────────────────────
+
+
+@ocr_router.get("/records", response_model=OcrDocumentListResponse)
+async def list_records(
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrDocumentListResponse:
+    """사용자의 OCR 처리 결과 목록을 조회합니다. (REQ-OCR-007)"""
+    svc = OcrDocumentService(session)
+    docs = await svc.list_documents(uuid.UUID(str(current_user.id)))
+    return OcrDocumentListResponse(
+        documents=[OcrDocumentResponse.model_validate(d) for d in docs],
+        total=len(docs),
+    )
+
+
+@ocr_router.get("/records/{record_id}", response_model=OcrDocumentDetailResponse)
+async def get_record(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrDocumentDetailResponse:
+    """특정 OCR 처리 결과의 상세 정보를 조회합니다. (REQ-OCR-008)"""
+    svc = OcrDocumentService(session)
+    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    return OcrDocumentDetailResponse.model_validate(doc)
+
+
+@ocr_router.patch("/records/{record_id}", response_model=OcrDocumentResponse)
+async def update_record(
+    record_id: int,
+    body: OcrDocumentUpdateRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrDocumentResponse:
+    """OCR 문서 메타데이터를 수정합니다."""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+
+
+@ocr_router.delete("/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_record(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> None:
+    """OCR 문서를 소프트 삭제합니다. (REQ-OCR-009)"""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+
+
+# ── Medications ───────────────────────────────────────────────────────────────
+
+
+@ocr_router.get("/records/{record_id}/medications", response_model=list[MedicationResponse])
+async def list_medications(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> list[MedicationResponse]:
+    """처방전의 약물 목록을 조회합니다. (REQ-OCR-010)"""
+    svc = OcrDocumentService(session)
+    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    return [MedicationResponse.model_validate(m) for m in doc.medications if m.is_active]
+
+
+@ocr_router.patch("/records/{record_id}/medications/{medication_id}", response_model=MedicationResponse)
+async def update_medication(
+    record_id: int,
+    medication_id: int,
+    body: MedicationUpdateRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> MedicationResponse:
+    """약물 정보를 수정합니다. (REQ-OCR-013)"""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+
+
+@ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
+async def confirm_medications(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, str]:
+    """약물 목록 전체를 확인 처리합니다. (REQ-OCR-017)"""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+
+
+# ── Disease Codes ─────────────────────────────────────────────────────────────
+
+
+@ocr_router.get("/records/{record_id}/disease-codes", response_model=list[DiseaseCodeResponse])
+async def list_disease_codes(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> list[DiseaseCodeResponse]:
+    """처방전의 질병 분류기호 목록을 조회합니다. (REQ-OCR-011)"""
+    svc = OcrDocumentService(session)
+    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    return [DiseaseCodeResponse.model_validate(c) for c in doc.disease_codes if c.is_active]
+
+
+@ocr_router.patch("/records/{record_id}/disease-codes/{disease_code_id}", response_model=DiseaseCodeResponse)
+async def update_disease_code(
+    record_id: int,
+    disease_code_id: int,
+    body: DiseaseCodeUpdateRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> DiseaseCodeResponse:
+    """질병 분류기호를 수정합니다. (REQ-OCR-014)"""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+
+
+@ocr_router.post("/records/{record_id}/disease-codes/confirm", status_code=status.HTTP_200_OK)
+async def confirm_disease_codes(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, str]:
+    """질병 분류기호 전체를 확인 처리합니다. (REQ-OCR-017)"""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")
+
+
+# ── OCR Result ────────────────────────────────────────────────────────────────
+
+
+@ocr_router.get("/records/{record_id}/result", response_model=OcrResultResponse)
+async def get_ocr_result(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrResultResponse:
+    """OCR 원본 처리 결과를 조회합니다. (REQ-OCR-012)"""
+    svc = OcrDocumentService(session)
+    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    if doc.result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OCR 결과가 아직 없습니다.")
+    return OcrResultResponse.model_validate(doc.result)
+
+
+@ocr_router.patch("/records/{record_id}/result", response_model=OcrResultResponse)
+async def update_ocr_result(
+    record_id: int,
+    body: OcrResultUpdateRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrResultResponse:
+    """OCR 텍스트를 사용자가 직접 수정합니다. (REQ-OCR-015)"""
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 2에서 구현 예정")

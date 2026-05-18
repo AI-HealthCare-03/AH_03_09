@@ -53,3 +53,13 @@ class Config(BaseSettings):
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
+
+    # Clova OCR
+    CLOVA_OCR_API_URL: str = ""
+    CLOVA_OCR_SECRET_KEY: str = ""
+
+    # AWS S3
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "ap-northeast-2"
+    AWS_S3_BUCKET_NAME: str = ""
