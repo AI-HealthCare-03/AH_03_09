@@ -24,15 +24,6 @@ def mock_db():
 
 
 @pytest.fixture
-def mock_openai():
-    with patch("app.services.chat._openai") as mock:
-        choice = MagicMock()
-        choice.message.content = "두통은 긴장성 두통일 수 있습니다. 충분한 휴식을 취하시고 증상이 지속되면 전문의 상담을 권고합니다."
-        mock.chat.completions.create.return_value = MagicMock(choices=[choice])
-        yield mock
-
-
-@pytest.fixture
 def sample_user():
     return {
         "id": "550e8400-e29b-41d4-a716-446655440000",
