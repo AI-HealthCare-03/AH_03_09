@@ -8,18 +8,9 @@ from app.main import app
 
 @pytest.fixture(scope="session")
 def client():
-    with TestClient(app) as c:
-        yield c
-
-
-@pytest.fixture
-def mock_db():
-    """psycopg3 ConnectionPool mock — get_pool().connection() 컨텍스트 매니저 모사"""
-    with patch("app.core.db.postgres_client._pool") as mock_pool:
-        mock_conn = MagicMock()
-        mock_pool.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
-        mock_pool.connection.return_value.__exit__ = MagicMock(return_value=False)
-        yield mock_conn
+    """TestClient를 `with` 없이 반환해 lifespan(Tortoise.init/DB 연결)을 건너뛴다.
+    DB 호출이 필요한 테스트는 Repository를 직접 mock 한다."""
+    return TestClient(app)
 
 
 @pytest.fixture
@@ -34,23 +25,16 @@ def mock_openai():
 
 
 @pytest.fixture
-def sample_user():
-    return {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "kakao_id": "123456789",
-        "email": "test@example.com",
-        "nickname": "테스트유저",
-        "profile_image": None,
-        "location": None,
-        "created_at": "2026-01-01T00:00:00+00:00",
-    }
+def sample_user_payload():
+    """JWT 발급용 user-like 객체 — Tortoise 인스턴스가 아닌 단순 dict."""
+    return {"id": 1, "kakao_id": "123456789", "email": "test@example.com"}
 
 
 @pytest.fixture
-def auth_headers(sample_user):
-    from app.models.users import User
+def auth_headers(sample_user_payload):
     from app.services.jwt import JwtService
 
-    user = User(**sample_user)
+    user = MagicMock()
+    user.id = sample_user_payload["id"]
     tokens = JwtService().issue_jwt_pair(user)
     return {"Authorization": f"Bearer {str(tokens['access_token'])}"}

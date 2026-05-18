@@ -51,5 +51,5 @@ class Config(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def DATABASE_URL(self) -> str:
+    def DATABASE_URL(self) -> str:  # noqa: N802 — 환경변수 명명 규칙(대문자) 따름
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

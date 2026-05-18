@@ -67,7 +67,7 @@ class ChatService:
                     if data == "[DONE]":
                         break
                     full_response.append(data)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error_detail = "AI 응답 시간 초과"
         finally:
             await pubsub.unsubscribe(f"chat:stream:{session_id}")
