@@ -26,9 +26,9 @@ class TestWithdrawMe:
         mock_soft_delete.assert_awaited_once_with(1)
 
     def test_withdraw_unauthenticated(self, client):
-        """인증 헤더 없이 호출 → 403 (HTTPBearer 기본 동작)."""
+        """인증 헤더 없이 호출 → 401 (HTTPBearer 기본 동작)."""
         response = client.delete("/api/v1/users/me")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_withdraw_inactive_user_rejected(self, client, auth_headers):
         """이미 탈퇴한 사용자(get_user가 None 반환)는 401."""
