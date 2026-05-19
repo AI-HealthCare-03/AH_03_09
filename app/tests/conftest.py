@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock, patch
+import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +12,21 @@ def client():
     """TestClient를 `with` 없이 반환해 lifespan(Tortoise.init/DB 연결)을 건너뛴다.
     DB 호출이 필요한 테스트는 Repository를 직접 mock 한다."""
     return TestClient(app)
+
+
+@pytest.fixture
+def mock_db():
+    """UserRepository.get_user를 mock해서 DB 없이 JWT 인증을 통과시킨다.
+    OCR 라우터가 uuid.UUID(str(current_user.id))를 호출하므로 id는 UUID 타입으로 설정."""
+    fake_user = MagicMock()
+    fake_user.id = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
+
+    with patch(
+        "app.repositories.user_repository.UserRepository.get_user",
+        new_callable=AsyncMock,
+        return_value=fake_user,
+    ):
+        yield MagicMock()
 
 
 @pytest.fixture
