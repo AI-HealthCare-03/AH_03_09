@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -16,13 +16,15 @@ from app.dtos.ocr.document_dtos import (
     OcrDocumentResponse,
     OcrDocumentUpdateRequest,
     OcrJobStatusResponse,
+    OcrPreviewResponse,
     OcrResultResponse,
     OcrResultUpdateRequest,
     OcrUploadResponse,
+    UploadedFileItem,
 )
 from app.models.users import User
 from app.services.ocr.document_service import OcrDocumentService
-from app.services.ocr.file_validator import validate_upload
+from app.services.ocr.file_validator import validate_file_count, validate_upload
 
 ocr_router = APIRouter(prefix="/ocr", tags=["ocr"])
 
@@ -38,25 +40,90 @@ async def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# ── Upload & Job status ───────────────────────────────────────────────────────
+# ── Upload & Preview ──────────────────────────────────────────────────────────
 
 
-@ocr_router.post("/upload", response_model=OcrUploadResponse, status_code=status.HTTP_202_ACCEPTED)
-async def upload_document(
+@ocr_router.post(
+    "/upload",
+    response_model=OcrUploadResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["files"],
+                        "properties": {
+                            "files": {
+                                "type": "array",
+                                "items": {"type": "string", "format": "binary"},
+                                "description": "처방전·약봉투 파일 (최대 5개, JPEG·PNG·PDF)",
+                            }
+                        },
+                    }
+                }
+            },
+            "required": True,
+        }
+    },
+)
+async def upload_documents(
     current_user: _AUTH,
     session: _SESSION,
-    file: UploadFile,
+    files: Annotated[list[UploadFile], File(description="처방전·약봉투 파일 (최대 5개, JPEG·PNG·PDF)")],
 ) -> OcrUploadResponse:
-    """처방전·약봉투 파일을 S3에 업로드하고 OCR 처리 작업을 생성합니다. (REQ-OCR-001~003)"""
-    content = await validate_upload(file)
+    """처방전·약봉투 파일을 S3에 업로드하고 OCR 처리 작업을 생성합니다. (REQ-OCR-002/003)"""
+    validate_file_count(files)
     svc = OcrDocumentService(session)
-    doc = await svc.upload_document(
-        user_id=uuid.UUID(str(current_user.id)),
-        filename=file.filename or "upload",
-        mime_type=file.content_type,  # type: ignore[arg-type]
-        content=content,
-    )
-    return OcrUploadResponse(record_id=doc.record_id, job_id=doc.job_id, ocr_status=doc.ocr_status)
+
+    uploaded: list[UploadedFileItem] = []
+    for file in files:
+        content = await validate_upload(file)
+        doc = await svc.upload_document(
+            user_id=current_user.id,
+            filename=file.filename or "upload",
+            mime_type=file.content_type,  # type: ignore[arg-type]
+            content=content,
+        )
+        uploaded.append(
+            UploadedFileItem(
+                record_id=doc.record_id,
+                job_id=doc.job_id,
+                ocr_status=doc.ocr_status,
+                original_filename=doc.original_filename,
+            )
+        )
+
+    return OcrUploadResponse(uploaded_files=uploaded)
+
+
+@ocr_router.post("/preview", response_model=OcrPreviewResponse, status_code=status.HTTP_200_OK)
+async def preview_file(
+    current_user: _AUTH,  # noqa: ARG001
+    file: UploadFile,
+) -> OcrPreviewResponse:
+    """파일을 DB·S3 저장 없이 유효성만 검사합니다. (REQ-OCR-003)"""
+    try:
+        content = await validate_upload(file)
+        return OcrPreviewResponse(
+            filename=file.filename or "",
+            file_size=len(content),
+            mime_type=file.content_type or "",
+            is_valid=True,
+            message="업로드 가능한 파일입니다.",
+        )
+    except HTTPException as exc:
+        return OcrPreviewResponse(
+            filename=file.filename or "",
+            file_size=0,
+            mime_type=file.content_type or "",
+            is_valid=False,
+            message=str(exc.detail),
+        )
+
+
+# ── Job status ────────────────────────────────────────────────────────────────
 
 
 @ocr_router.get("/jobs/{job_id}/status", response_model=OcrJobStatusResponse)
@@ -67,13 +134,25 @@ async def get_job_status(
 ) -> OcrJobStatusResponse:
     """비동기 OCR 처리 상태를 조회합니다. (REQ-OCR-004)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_job_status(job_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_job_status(job_id, current_user.id)
+
+    ocr_status = doc.ocr_status
+    progress_pct = {"PENDING": 0, "PROCESSING": 50, "DONE": 100, "FAILED": 0}.get(ocr_status, 0)
+    message_map = {
+        "PENDING": "OCR 처리 대기 중입니다.",
+        "PROCESSING": "OCR 처리 중입니다.",
+        "DONE": "OCR 처리가 완료되었습니다.",
+        "FAILED": "OCR 처리에 실패했습니다.",
+    }
+
     return OcrJobStatusResponse(
         job_id=doc.job_id,
         record_id=doc.record_id,
-        ocr_status=doc.ocr_status,
-        processing_time_ms=doc.result.processing_time_ms if doc.result else None,
-        error_message=doc.result.error_message if doc.result else None,
+        status=ocr_status,
+        progress_pct=progress_pct,
+        message=message_map.get(ocr_status),
+        result_url=None,
+        estimated_remaining_seconds=30 if ocr_status == "PENDING" else None,
     )
 
 
@@ -87,7 +166,7 @@ async def list_records(
 ) -> OcrDocumentListResponse:
     """사용자의 OCR 처리 결과 목록을 조회합니다. (REQ-OCR-007)"""
     svc = OcrDocumentService(session)
-    docs = await svc.list_documents(uuid.UUID(str(current_user.id)))
+    docs = await svc.list_documents(current_user.id)
     return OcrDocumentListResponse(
         documents=[OcrDocumentResponse.model_validate(d) for d in docs],
         total=len(docs),
@@ -102,7 +181,7 @@ async def get_record(
 ) -> OcrDocumentDetailResponse:
     """특정 OCR 처리 결과의 상세 정보를 조회합니다. (REQ-OCR-008)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     return OcrDocumentDetailResponse.model_validate(doc)
 
 
@@ -138,7 +217,7 @@ async def list_medications(
 ) -> list[MedicationResponse]:
     """처방전의 약물 목록을 조회합니다. (REQ-OCR-010)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     return [MedicationResponse.model_validate(m) for m in doc.medications if m.is_active]
 
 
@@ -175,7 +254,7 @@ async def list_disease_codes(
 ) -> list[DiseaseCodeResponse]:
     """처방전의 질병 분류기호 목록을 조회합니다. (REQ-OCR-011)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     return [DiseaseCodeResponse.model_validate(c) for c in doc.disease_codes if c.is_active]
 
 
@@ -212,7 +291,7 @@ async def get_ocr_result(
 ) -> OcrResultResponse:
     """OCR 원본 처리 결과를 조회합니다. (REQ-OCR-012)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     if doc.result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OCR 결과가 아직 없습니다.")
     return OcrResultResponse.model_validate(doc.result)

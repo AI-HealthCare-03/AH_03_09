@@ -8,12 +8,16 @@ from tortoise import Tortoise
 from app.apis.v1 import v1_routers
 from app.core import config
 from app.core.db.databases import TORTOISE_ORM
+from app.core.db.sqlalchemy_client import _engine
+from app.models.ocr.base import Base
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await Tortoise.init(config=TORTOISE_ORM)
     await Tortoise.generate_schemas(safe=True)
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
     await Tortoise.close_connections()
 

@@ -72,19 +72,34 @@ class OcrDocumentListResponse(BaseSerializerModel):
     total: int
 
 
-class OcrUploadResponse(BaseSerializerModel):
+class UploadedFileItem(BaseSerializerModel):
     record_id: int
     job_id: uuid.UUID
     ocr_status: str
-    message: str = "업로드 완료. OCR 처리가 시작됩니다."
+    original_filename: str
+
+
+class OcrUploadResponse(BaseSerializerModel):
+    uploaded_files: list[UploadedFileItem]
+    message: str = "업로드가 완료되었습니다. OCR 처리가 시작됩니다."
 
 
 class OcrJobStatusResponse(BaseSerializerModel):
     job_id: uuid.UUID
     record_id: int
-    ocr_status: str
-    processing_time_ms: int | None = None
-    error_message: str | None = None
+    status: str
+    progress_pct: int = 0
+    message: str | None = None
+    result_url: str | None = None
+    estimated_remaining_seconds: int | None = None
+
+
+class OcrPreviewResponse(BaseSerializerModel):
+    filename: str
+    file_size: int
+    mime_type: str
+    is_valid: bool
+    message: str
 
 
 # ── Request schemas ───────────────────────────────────────────────────────────
