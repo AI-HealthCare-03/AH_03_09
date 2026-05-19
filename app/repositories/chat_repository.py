@@ -14,6 +14,10 @@ class ChatSessionRepository:
     async def get_all_by_user(self, user_id: int) -> list[ChatSession]:
         return await self._model.filter(user_id=user_id).order_by("-created_at")
 
+    async def update_title(self, session: ChatSession, title: str) -> None:
+        session.title = title
+        await session.save(update_fields=["title"])
+
     async def delete(self, session: ChatSession) -> None:
         await session.delete()
 

@@ -26,3 +26,4 @@ class ChatTaskPayload(BaseModel):
 class ChatTaskResult(BaseModel):
     task_id: str
     answer: str
+    title: str | None = None

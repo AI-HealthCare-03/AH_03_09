@@ -42,6 +42,22 @@ def _build_system_prompt(payload: ChatTaskPayload) -> str:
     return BASE_SYSTEM_PROMPT + "\n".join(profile_lines)
 
 
+async def _generate_title(user_message: str) -> str:
+    response = await get_client().chat.completions.create(
+        model=settings.OPENAI_CHAT_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": "사용자의 첫 질문을 보고 채팅 세션 제목을 15자 이내 한국어로 생성하세요. 제목만 출력하고 다른 내용은 쓰지 마세요.",
+            },
+            {"role": "user", "content": user_message},
+        ],
+        max_tokens=30,
+        temperature=0.3,
+    )
+    return (response.choices[0].message.content or "새 채팅").strip()
+
+
 async def generate_chat_response(payload: ChatTaskPayload) -> ChatTaskResult:
     system_prompt = _build_system_prompt(payload)
     messages = [{"role": "system", "content": system_prompt}]
@@ -60,4 +76,5 @@ async def generate_chat_response(payload: ChatTaskPayload) -> ChatTaskResult:
     )
 
     answer = response.choices[0].message.content or "응답을 생성할 수 없습니다."
-    return ChatTaskResult(task_id=payload.task_id, answer=answer)
+    title = await _generate_title(payload.user_message) if not payload.history else None
+    return ChatTaskResult(task_id=payload.task_id, answer=answer, title=title)

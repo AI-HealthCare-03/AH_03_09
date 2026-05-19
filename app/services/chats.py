@@ -55,7 +55,7 @@ class ChatService:
         history = await self.message_repo.get_messages_by_session(session_id=session.id)
         health_profile = await self.health_profile_repo.get_by_user_id(user.id)
 
-        ai_response_text = await self._request_ai_response(
+        ai_result = await self._request_ai_response(
             session_id=session.id,
             user_message=data.content,
             history=history,
@@ -63,6 +63,8 @@ class ChatService:
         )
 
         async with in_transaction():
+            if ai_result.get("title") and not history:
+                await self.session_repo.update_title(session, ai_result["title"])
             await self.message_repo.create(
                 session_id=session.id,
                 role=MessageRole.USER,
@@ -71,7 +73,7 @@ class ChatService:
             ai_message = await self.message_repo.create(
                 session_id=session.id,
                 role=MessageRole.ASSISTANT,
-                content=ai_response_text,
+                content=ai_result["answer"],
             )
 
         return ChatMessageResponse.model_validate(ai_message)
@@ -86,7 +88,7 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="채팅 세션을 찾을 수 없습니다.")
         return session
 
-    async def _request_ai_response(self, session_id: int, user_message: str, history: list, health_profile=None) -> str:
+    async def _request_ai_response(self, session_id: int, user_message: str, history: list, health_profile=None) -> dict:
         task_id = uuid.uuid4().hex
         payload = json.dumps({
             "task_id": task_id,
@@ -115,5 +117,4 @@ class ChatService:
                 detail="AI 응답 시간이 초과되었습니다. 다시 시도해 주세요.",
             )
 
-        response_data = json.loads(result[1])
-        return response_data["answer"]
+        return json.loads(result[1])
