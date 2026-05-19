@@ -11,6 +11,8 @@ class User(models.Model):
     birthday = fields.CharField(max_length=4, null=True)  # "MMDD"
     birthyear = fields.CharField(max_length=4, null=True)  # "YYYY"
     phone_number = fields.CharField(max_length=30, null=True)
+    is_active = fields.BooleanField(default=True)
+    deleted_at = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
