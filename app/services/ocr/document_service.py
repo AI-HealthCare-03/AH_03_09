@@ -1,18 +1,25 @@
+import json
+import logging
 import uuid
 
+import redis.asyncio as aioredis
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
+from app.core.redis_client import get_redis
 from app.models.ocr.ocr_document import OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import S3Service
 
+logger = logging.getLogger(__name__)
+
 
 class OcrDocumentService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, redis: aioredis.Redis | None = None) -> None:
         self.session = session
         self.repo = OcrDocumentRepository(session)
+        self._redis = redis
 
     async def list_documents(self, user_id: uuid.UUID) -> list[OcrDocument]:
         return await self.repo.list_by_user(user_id)
@@ -70,4 +77,23 @@ class OcrDocumentService:
         doc = await self.repo.create(doc)
         await self.session.commit()
         await self.session.refresh(doc)
+
+        await self._publish_ocr_job(doc)
+
         return doc
+
+    async def _publish_ocr_job(self, doc: OcrDocument) -> None:
+        payload = {
+            "job_id": str(doc.job_id),
+            "record_id": doc.record_id,
+            "s3_key": doc.s3_key,
+            "s3_bucket": doc.s3_bucket,
+            "user_id": str(doc.user_id),
+            "mime_type": doc.mime_type,
+            "original_filename": doc.original_filename,
+        }
+        try:
+            redis = self._redis or await get_redis()
+            await redis.publish(f"ocr:request:{doc.job_id}", json.dumps(payload))
+        except Exception as exc:
+            logger.error("Failed to publish OCR job (job_id=%s): %s", doc.job_id, exc)

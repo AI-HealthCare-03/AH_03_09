@@ -1,6 +1,7 @@
 import zoneinfo
 from dataclasses import field
 
+from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,17 @@ class Config(BaseSettings):
 
     REDIS_URL: str = "redis://localhost:6379"
     OPENAI_API_KEY: str = ""
+
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_USER: str = "ai_health"
+    DB_PASSWORD: str = "ai_health_pw"
+    DB_NAME: str = "ai_health_db"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def DATABASE_URL(self) -> str:  # noqa: N802
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 config = Config()
