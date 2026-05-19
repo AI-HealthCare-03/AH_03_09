@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS ocr_documents (
     mime_type         VARCHAR(50)  NOT NULL,        -- image/jpeg | image/png | application/pdf
     thumbnail_url     VARCHAR(500),                 -- 썸네일 S3 URL
     doc_type          VARCHAR(20),                  -- 'PRESCRIPTION' | 'MEDICATION_BAG' | 'UNKNOWN'
-    ocr_status        VARCHAR(20)  NOT NULL DEFAULT 'PENDING',  -- 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+    ocr_status        VARCHAR(20)  NOT NULL DEFAULT 'PENDING',  -- 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED'
     issued_date       DATE,                         -- 처방전 발급일
     valid_until       DATE,                         -- 처방전 유효기간
     hospital_name     VARCHAR(200),                 -- 발급 병원명

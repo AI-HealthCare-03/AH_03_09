@@ -44,6 +44,16 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_file_hash(self, user_id: uuid.UUID, file_hash: str) -> OcrDocument | None:
+        result = await self.session.execute(
+            select(OcrDocument).where(
+                OcrDocument.user_id == user_id,
+                OcrDocument.file_hash == file_hash,
+                OcrDocument.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def list_by_user(self, user_id: uuid.UUID) -> list[OcrDocument]:
         result = await self.session.execute(
             select(OcrDocument)

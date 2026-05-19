@@ -15,7 +15,7 @@ from app.models.ocr.base import Base
 class OcrStatus(StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
+    DONE = "DONE"
     FAILED = "FAILED"
 
 

@@ -36,9 +36,21 @@ class OcrDocumentService:
         mime_type: str,
         content: bytes,
     ) -> OcrDocument:
-        """S3 업로드 → DB 레코드 생성 → PENDING 상태로 반환. (REQ-OCR-001/003)"""
+        """중복 검사 → S3 업로드 → DB 레코드 생성 → PENDING 반환. (REQ-OCR-002/003)"""
+        file_hash = S3Service.compute_hash(content)
+
+        existing = await self.repo.get_by_file_hash(user_id, file_hash)
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "이미 업로드된 파일입니다.",
+                    "existing_record_id": existing.record_id,
+                },
+            )
+
         s3_svc = S3Service()
-        s3_key, file_hash = await s3_svc.upload(
+        s3_key, _ = await s3_svc.upload(
             content=content,
             user_id=user_id,
             mime_type=mime_type,
