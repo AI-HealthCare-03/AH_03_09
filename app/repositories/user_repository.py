@@ -5,15 +5,21 @@ from app.models.users import User
 class UserRepository:
     def get_user(self, user_id: str) -> User | None:
         with get_pool().connection() as conn:
-            row = conn.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM users WHERE id = %s", (user_id,)
+            ).fetchone()
         return User(**row) if row else None
 
     def get_by_kakao_id(self, kakao_id: str) -> User | None:
         with get_pool().connection() as conn:
-            row = conn.execute("SELECT * FROM users WHERE kakao_id = %s", (kakao_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM users WHERE kakao_id = %s", (kakao_id,)
+            ).fetchone()
         return User(**row) if row else None
 
-    def upsert_kakao_user(self, kakao_id: str, nickname: str, email: str | None, profile_image: str | None) -> User:
+    def upsert_kakao_user(
+        self, kakao_id: str, nickname: str, email: str | None, profile_image: str | None
+    ) -> User:
         with get_pool().connection() as conn:
             row = conn.execute(
                 """

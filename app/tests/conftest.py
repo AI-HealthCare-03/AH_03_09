@@ -12,6 +12,13 @@ def client():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def mock_register_vector():
+    """register_vector가 MagicMock conn으로 호출되지 않도록 항상 패치"""
+    with patch("app.repositories.chat_repository.register_vector"):
+        yield
+
+
 @pytest.fixture
 def mock_db():
     """psycopg3 ConnectionPool mock — get_pool().connection() 컨텍스트 매니저 모사"""
@@ -26,9 +33,7 @@ def mock_db():
 def mock_openai():
     with patch("app.services.chat._openai") as mock:
         choice = MagicMock()
-        choice.message.content = (
-            "두통은 긴장성 두통일 수 있습니다. 충분한 휴식을 취하시고 증상이 지속되면 전문의 상담을 권고합니다."
-        )
+        choice.message.content = "두통은 긴장성 두통일 수 있습니다. 충분한 휴식을 취하시고 증상이 지속되면 전문의 상담을 권고합니다."
         mock.chat.completions.create.return_value = MagicMock(choices=[choice])
         yield mock
 

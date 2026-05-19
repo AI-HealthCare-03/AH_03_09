@@ -5,21 +5,19 @@ services:
       context: .
       dockerfile: docker/postgres/Dockerfile
     container_name: postgres
-    restart: always
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-      TZ: 'Asia/Seoul'
+      POSTGRES_USER: medifind
+      POSTGRES_PASSWORD: medifind_password
+      POSTGRES_DB: medifind
     ports:
-      - "${DB_EXPOSE_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - ws
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U medifind -d medifind"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,6 +37,28 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  # 2. Database (PostgreSQL + pgvector)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: 'Asia/Seoul'
+    ports:
+      - "${DB_EXPOSE_PORT:-5432}:5432"
+    networks:
+      - ws
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 3. API Server (FastAPI)
   fastapi:
@@ -108,3 +128,6 @@ volumes:
 networks:
   ws:
     driver: bridge
+
+volumes:
+  postgres_data:

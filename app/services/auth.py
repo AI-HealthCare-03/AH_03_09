@@ -3,9 +3,10 @@ from fastapi import HTTPException
 from starlette import status
 
 from app.core import config
-from app.core.jwt.tokens import AccessToken, RefreshToken
+from app.models.users import User
 from app.repositories.user_repository import UserRepository
 from app.services.jwt import JwtService
+from app.core.jwt.tokens import AccessToken, RefreshToken
 
 KAKAO_TOKEN_URL = "https://kauth.kakao.com/oauth/token"
 KAKAO_USER_URL = "https://kapi.kakao.com/v2/user/me"
