@@ -10,7 +10,7 @@ from app.core import config
 from app.core.redis_client import get_redis
 from app.models.ocr.ocr_document import OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
-from app.services.ocr.s3_service import S3Service
+from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class OcrDocumentService:
             user_id=user_id,
             original_filename=filename,
             s3_key=s3_key,
-            s3_bucket=config.AWS_S3_BUCKET_NAME,
+            s3_bucket=config.AWS_S3_BUCKET_NAME or LOCAL_BUCKET,
             file_hash=file_hash,
             file_size=len(content),
             mime_type=mime_type,
