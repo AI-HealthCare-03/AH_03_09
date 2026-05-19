@@ -43,7 +43,17 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
             "UPDATE ocr_documents SET ocr_status = 'DONE', updated_at = NOW() WHERE job_id = $1",
             payload.job_id,
         )
-        logger.info("OCR task done: job_id=%s", payload.job_id)
+
+        # REQ-OCR-024 비고: 비동기 처리 Latency 수치 측정 필수 → ai_performance_metrics 기록
+        await conn.execute(
+            """
+            INSERT INTO ai_performance_metrics (document_id, metric_type, metric_value, measured_at)
+            VALUES ($1, 'LATENCY', $2, NOW())
+            """,
+            payload.record_id,
+            float(elapsed_ms),
+        )
+        logger.info("OCR task done: job_id=%s elapsed_ms=%d", payload.job_id, elapsed_ms)
 
     except Exception as exc:
         logger.error("OCR task failed: job_id=%s error=%s", payload.job_id, exc)
