@@ -49,6 +49,16 @@ class Config(BaseSettings):
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # Clova OCR
+    CLOVA_OCR_API_URL: str = ""
+    CLOVA_OCR_SECRET_KEY: str = ""
+
+    # AWS S3
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "ap-northeast-2"
+    AWS_S3_BUCKET_NAME: str = ""
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def DATABASE_URL(self) -> str:  # noqa: N802 — 환경변수 명명 규칙(대문자) 따름

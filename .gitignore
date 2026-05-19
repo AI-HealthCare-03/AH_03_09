@@ -17,3 +17,8 @@ wheels/
 .DS_Store
 참고 문서/
 *.csv
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+기획문서/

@@ -46,9 +46,6 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile
-      platforms:
-        - linux/amd64
-        - linux/arm64
     image: ${DOCKER_USER}/${DOCKER_REPOSITORY}:app-${APP_VERSION}
     env_file: .env
     command: |
