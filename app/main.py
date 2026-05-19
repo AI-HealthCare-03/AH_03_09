@@ -3,16 +3,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
+from tortoise import Tortoise
 
 from app.apis.v1 import v1_routers
 from app.core import config
-from app.core.db.postgres_client import init_db
+from app.core.db.databases import TORTOISE_ORM
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    await Tortoise.init(config=TORTOISE_ORM)
+    await Tortoise.generate_schemas(safe=True)
     yield
+    await Tortoise.close_connections()
 
 
 app = FastAPI(
