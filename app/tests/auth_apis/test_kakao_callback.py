@@ -10,8 +10,11 @@ class TestKakaoCallback:
         assert "auth_url" in data
         assert "kauth.kakao.com/oauth/authorize" in data["auth_url"]
 
-    def test_kakao_callback_success(self, client, mock_db, sample_user):
-        """카카오 콜백 성공 — JWT 발급 테스트"""
+    def test_kakao_callback_success(self, client):
+        """카카오 콜백 성공 — JWT 발급 테스트.
+
+        UserRepository.upsert_kakao_user를 직접 mock 해서 DB 없이도 통과하게 한다.
+        """
         mock_token_resp = MagicMock()
         mock_token_resp.status_code = 200
         mock_token_resp.json.return_value = {"access_token": "kakao_token_abc"}
@@ -22,18 +25,23 @@ class TestKakaoCallback:
             "id": 123456789,
             "kakao_account": {
                 "email": "test@kakao.com",
-                "profile": {
-                    "nickname": "테스트유저",
-                    "profile_image_url": None,
-                },
+                "name": "테스트유저",
             },
         }
 
-        mock_db.execute.return_value.fetchone.return_value = sample_user
+        fake_user = MagicMock()
+        fake_user.id = 1
 
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_token_resp):
-            with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_user_resp):
-                response = client.post("/api/v1/auth/kakao/callback", params={"code": "test_code"})
+        with (
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_token_resp),
+            patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_user_resp),
+            patch(
+                "app.repositories.user_repository.UserRepository.upsert_kakao_user",
+                new_callable=AsyncMock,
+                return_value=fake_user,
+            ),
+        ):
+            response = client.post("/api/v1/auth/kakao/callback", params={"code": "test_code"})
 
         assert response.status_code == 200
         assert "access_token" in response.json()
