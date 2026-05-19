@@ -43,6 +43,8 @@ async def list_messages(
     current_user: Annotated[User, Depends(get_request_user)],
 ) -> ChatMessageListResponse:
     messages = await ChatService().get_session_messages(session_id=session_id, user_id=current_user.id)
+    if messages is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
     return ChatMessageListResponse(messages=[ChatMessageResponse.model_validate(m) for m in messages])
 
 

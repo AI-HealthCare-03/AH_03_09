@@ -21,10 +21,10 @@ class ChatService:
     async def get_user_sessions(self, user_id: int) -> list[ChatSession]:
         return await self.repo.get_sessions(user_id)
 
-    async def get_session_messages(self, session_id: UUID | str, user_id: int) -> list:
+    async def get_session_messages(self, session_id: UUID | str, user_id: int) -> list | None:
         session = await self.repo.get_session(session_id, user_id)
         if not session:
-            return []
+            return None
         return await self.repo.get_messages(session_id)
 
     async def send_message_sync(
