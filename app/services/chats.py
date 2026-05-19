@@ -16,6 +16,7 @@ from app.dtos.chats import (
 from app.models.chats import MessageRole
 from app.models.users import User
 from app.repositories.chat_repository import ChatMessageRepository, ChatSessionRepository
+from app.repositories.health_profile_repository import HealthProfileRepository
 
 AI_TASK_QUEUE = "ai:chat:queue"
 AI_RESULT_PREFIX = "ai:chat:result:"
@@ -27,6 +28,7 @@ class ChatService:
     def __init__(self):
         self.session_repo = ChatSessionRepository()
         self.message_repo = ChatMessageRepository()
+        self.health_profile_repo = HealthProfileRepository()
 
     async def create_session(self, user: User, data: ChatSessionCreateRequest) -> ChatSessionResponse:
         session = await self.session_repo.create(user_id=user.id, title=data.title)
@@ -51,11 +53,13 @@ class ChatService:
         session = await self._get_owned_session(user, session_id)
 
         history = await self.message_repo.get_messages_by_session(session_id=session.id)
+        health_profile = await self.health_profile_repo.get_by_user_id(user.id)
 
         ai_response_text = await self._request_ai_response(
             session_id=session.id,
             user_message=data.content,
             history=history,
+            health_profile=health_profile,
         )
 
         async with in_transaction():
@@ -82,13 +86,21 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="채팅 세션을 찾을 수 없습니다.")
         return session
 
-    async def _request_ai_response(self, session_id: int, user_message: str, history: list) -> str:
+    async def _request_ai_response(self, session_id: int, user_message: str, history: list, health_profile=None) -> str:
         task_id = uuid.uuid4().hex
         payload = json.dumps({
             "task_id": task_id,
             "session_id": session_id,
             "user_message": user_message,
             "history": [{"role": m.role, "content": m.content} for m in history],
+            "health_profile": {
+                "primary_conditions": health_profile.primary_conditions,
+                "allergies": health_profile.allergies,
+                "current_medications": health_profile.current_medications,
+                "lifestyle_exercise": health_profile.lifestyle_exercise,
+                "lifestyle_smoking": health_profile.lifestyle_smoking,
+                "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+            } if health_profile else None,
         })
 
         redis = await get_redis()

@@ -3,7 +3,7 @@ from openai import AsyncOpenAI
 from ai_worker.core.config import settings
 from ai_worker.schemas.chats import ChatTaskPayload, ChatTaskResult
 
-SYSTEM_PROMPT = """당신은 AI 헬스케어 어시스턴트입니다.
+BASE_SYSTEM_PROMPT = """당신은 AI 헬스케어 어시스턴트입니다.
 사용자의 건강 관련 질문에 친절하고 정확하게 답변하세요.
 
 다음 원칙을 반드시 지키세요:
@@ -22,8 +22,29 @@ def get_client() -> AsyncOpenAI:
     return _client
 
 
+def _build_system_prompt(payload: ChatTaskPayload) -> str:
+    if payload.health_profile is None:
+        return BASE_SYSTEM_PROMPT
+
+    hp = payload.health_profile
+    smoking_text = "흡연" if hp.lifestyle_smoking else ("비흡연" if hp.lifestyle_smoking is False else "정보 없음")
+
+    profile_lines = [
+        "\n\n[사용자 건강 프로필]",
+        f"- 진단명: {', '.join(hp.primary_conditions) if hp.primary_conditions else '없음'}",
+        f"- 알레르기: {', '.join(hp.allergies) if hp.allergies else '없음'}",
+        f"- 복용 중인 약물: {', '.join(hp.current_medications) if hp.current_medications else '없음'}",
+        f"- 운동 습관: {hp.lifestyle_exercise or '정보 없음'}",
+        f"- 흡연: {smoking_text}",
+        f"- 음주: {hp.lifestyle_alcohol or '정보 없음'}",
+        "\n위 정보를 바탕으로 사용자에게 맞춤형 건강 안내를 제공하세요.",
+    ]
+    return BASE_SYSTEM_PROMPT + "\n".join(profile_lines)
+
+
 async def generate_chat_response(payload: ChatTaskPayload) -> ChatTaskResult:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    system_prompt = _build_system_prompt(payload)
+    messages = [{"role": "system", "content": system_prompt}]
 
     for item in payload.history[-20:]:
         role = "user" if item.role.upper() == "USER" else "assistant"
