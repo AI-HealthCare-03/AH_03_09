@@ -11,6 +11,8 @@ class Config(BaseSettings):
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     OPENAI_API_KEY: str = ""
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     @property
     def REDIS_URL(self) -> str:

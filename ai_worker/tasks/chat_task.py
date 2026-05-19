@@ -32,7 +32,7 @@ async def generate_chat_response(payload: ChatTaskPayload) -> ChatTaskResult:
     messages.append({"role": "user", "content": payload.user_message})
 
     response = await get_client().chat.completions.create(
-        model="gpt-4o-mini",
+        model=settings.OPENAI_CHAT_MODEL,
         messages=messages,
         max_tokens=1024,
         temperature=0.7,
