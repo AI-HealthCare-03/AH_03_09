@@ -1,7 +1,12 @@
+import json
+
 from openai import AsyncOpenAI
 
 from ai_worker.core.config import settings
 from ai_worker.schemas.chats import ChatTaskPayload, ChatTaskResult
+
+AI_STREAM_PREFIX = "ai:chat:stream:"
+AI_STREAM_TTL = 300
 
 BASE_SYSTEM_PROMPT = """당신은 AI 헬스케어 어시스턴트입니다.
 사용자의 건강 관련 질문에 친절하고 정확하게 답변하세요.
@@ -78,3 +83,40 @@ async def generate_chat_response(payload: ChatTaskPayload) -> ChatTaskResult:
     answer = response.choices[0].message.content or "응답을 생성할 수 없습니다."
     title = await _generate_title(payload.user_message) if not payload.history else None
     return ChatTaskResult(task_id=payload.task_id, answer=answer, title=title)
+
+
+async def generate_chat_response_stream(payload: ChatTaskPayload, redis) -> None:
+    stream_key = f"{AI_STREAM_PREFIX}{payload.task_id}"
+    title = await _generate_title(payload.user_message) if not payload.history else None
+
+    system_prompt = _build_system_prompt(payload)
+    messages = [{"role": "system", "content": system_prompt}]
+    for item in payload.history[-20:]:
+        role = "user" if item.role.upper() == "USER" else "assistant"
+        messages.append({"role": role, "content": item.content})
+    messages.append({"role": "user", "content": payload.user_message})
+
+    full_chunks: list[str] = []
+    try:
+        stream = await get_client().chat.completions.create(
+            model=settings.OPENAI_CHAT_MODEL,
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.7,
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                full_chunks.append(delta)
+                await redis.rpush(stream_key, json.dumps({"chunk": delta, "done": False}))
+    except Exception as e:
+        await redis.rpush(stream_key, json.dumps({"chunk": "", "done": True, "error": str(e)}))
+        await redis.expire(stream_key, AI_STREAM_TTL)
+        return
+
+    await redis.rpush(
+        stream_key,
+        json.dumps({"chunk": "", "done": True, "title": title, "full_text": "".join(full_chunks)}),
+    )
+    await redis.expire(stream_key, AI_STREAM_TTL)

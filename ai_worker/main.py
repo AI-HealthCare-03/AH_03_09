@@ -6,7 +6,7 @@ import redis.asyncio as aioredis
 from ai_worker.core.config import settings
 from ai_worker.core.logger import logger
 from ai_worker.schemas.chats import ChatTaskPayload
-from ai_worker.tasks.chat_task import generate_chat_response
+from ai_worker.tasks.chat_task import generate_chat_response, generate_chat_response_stream
 
 AI_TASK_QUEUE = "ai:chat:queue"
 AI_RESULT_PREFIX = "ai:chat:result:"
@@ -25,13 +25,15 @@ async def run_worker(redis: aioredis.Redis) -> None:
             payload = ChatTaskPayload.model_validate_json(payload_json)
             logger.info(f"Task received: {payload.task_id}")
 
-            result = await generate_chat_response(payload)
-
-            result_key = f"{AI_RESULT_PREFIX}{result.task_id}"
-            await redis.lpush(result_key, result.model_dump_json())
-            await redis.expire(result_key, AI_RESULT_TTL)
-
-            logger.info(f"Task completed: {result.task_id}")
+            if payload.stream:
+                await generate_chat_response_stream(payload, redis)
+                logger.info(f"Stream task completed: {payload.task_id}")
+            else:
+                result = await generate_chat_response(payload)
+                result_key = f"{AI_RESULT_PREFIX}{result.task_id}"
+                await redis.lpush(result_key, result.model_dump_json())
+                await redis.expire(result_key, AI_RESULT_TTL)
+                logger.info(f"Task completed: {result.task_id}")
 
         except Exception as e:
             logger.error(f"Worker error: {e}")

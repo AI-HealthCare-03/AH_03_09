@@ -21,6 +21,7 @@ class ChatTaskPayload(BaseModel):
     user_message: str
     history: list[HistoryItem] = []
     health_profile: HealthProfilePayload | None = None
+    stream: bool = False
 
 
 class ChatTaskResult(BaseModel):
