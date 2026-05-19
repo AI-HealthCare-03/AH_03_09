@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import ORJSONResponse as Response
+from fastapi.responses import ORJSONResponse as Response, StreamingResponse
 
 from app.dependencies.security import get_request_user
 from app.dtos.chats import (
@@ -59,6 +59,20 @@ async def send_message(
 ) -> Response:
     result = await chat_service.send_message(user=user, session_id=session_id, data=body)
     return Response(result.model_dump(), status_code=status.HTTP_200_OK)
+
+
+@chat_router.post("/sessions/{session_id}/messages/stream", status_code=status.HTTP_200_OK)
+async def stream_message(
+    session_id: int,
+    body: ChatMessageSendRequest,
+    user: Annotated[User, Depends(get_request_user)],
+    chat_service: Annotated[ChatService, Depends(ChatService)],
+) -> StreamingResponse:
+    return StreamingResponse(
+        chat_service.stream_message(user=user, session_id=session_id, data=body),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @chat_router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
