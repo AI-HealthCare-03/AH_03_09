@@ -42,6 +42,7 @@ class MedicationMatchStatus(StrEnum):
 class GenerateGuideRequest(BaseModel):
     patient_id: str
     guide_types: list[GuideType]
+    medication_names: list[str] = Field(default_factory=list)
 
 
 class FeedbackRequest(BaseModel):

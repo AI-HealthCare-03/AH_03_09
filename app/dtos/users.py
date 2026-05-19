@@ -16,3 +16,7 @@ class UserInfoResponse(BaseModel):
     birthyear: str | None = None
     phone_number: str | None = None
     created_at: datetime | None = None
+
+
+class WithdrawRequest(BaseModel):
+    confirmation_text: str
