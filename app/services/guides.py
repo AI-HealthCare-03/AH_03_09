@@ -1,7 +1,9 @@
 import asyncio
+import pathlib
 import uuid
 from datetime import UTC, datetime
 
+import pandas as pd
 from fastapi import HTTPException, status
 
 from app.dtos.guides import (
@@ -23,7 +25,6 @@ from app.dtos.guides import (
     MedicationGuide,
     MedicationItem,
     MedicationMatchStatus,
-    ScheduleEntry,
     UpdateFeedbackStatusRequest,
 )
 
@@ -32,49 +33,85 @@ _jobs: dict[str, dict] = {}
 _guides: dict[str, dict] = {}
 _feedbacks: dict[str, dict] = {}
 
+# ── 식약처 CSV 싱글턴 ─────────────────────────────────────────────────────────
+_CSV_PATH = pathlib.Path(__file__).parent.parent / "data" / "식약처_의약품개요정보_전체누적본.csv"
+_drug_df: pd.DataFrame | None = None
 
-# ── Mock 데이터 생성 헬퍼 ─────────────────────────────────────────────────────
+
+def _get_drug_df() -> pd.DataFrame:
+    global _drug_df
+    if _drug_df is None:
+        _drug_df = pd.read_csv(_CSV_PATH, encoding="utf-8-sig")
+    return _drug_df
 
 
-def _make_medication_guide() -> MedicationGuide:
-    return MedicationGuide(
-        medications=[
-            MedicationItem(
-                name="아목시실린 500mg",
-                dosage="1정",
-                timing="아침·점심·저녁 1일 3회",
-                before_after_meal="식후 30분",
-                side_effects=["구역질", "설사", "피부 발진"],
-                cautions=["페니실린 알레르기 환자 복용 금지", "음주 자제"],
-                missed_dose="생각난 즉시 복용, 다음 복용 시간이 가까우면 건너뜀",
-                storage="직사광선 피해 실온 보관",
-                match_status=MedicationMatchStatus.EXACT_DB_MATCH,
-                source_name="식약처 의약품개요정보",
-                disclaimer=None,
-            ),
-            MedicationItem(
-                name="이부프로펜 200mg",
-                dosage="1정",
-                timing="아침·저녁 1일 2회",
-                before_after_meal="식후",
-                side_effects=["위장 장애", "두통", "어지러움"],
-                cautions=["공복 복용 금지", "신장 질환자 주의"],
-                missed_dose="생각난 즉시 복용, 2회분 동시 복용 금지",
-                storage="습기 피해 서늘한 곳 보관",
-                match_status=MedicationMatchStatus.WEB_REFERENCE,
-                source_name="약학정보원",
-                disclaimer="웹 참조 정보로 정확도가 낮을 수 있습니다. 복약 전 전문가와 상담하세요.",
-            ),
+# ── CSV 매핑 헬퍼 ─────────────────────────────────────────────────────────────
+
+
+def _safe_str(val: object) -> str:
+    s = str(val).strip()
+    return s if s and s.lower() != "nan" else ""
+
+
+def _row_to_medication_item(row: pd.Series) -> MedicationItem:
+    cautions = [
+        c
+        for c in [
+            _safe_str(row.get("atpnWarnQesitm")),
+            _safe_str(row.get("atpnQesitm")),
+            _safe_str(row.get("intrcQesitm")),
         ]
+        if c
+    ]
+    side_effects_str = _safe_str(row.get("seQesitm"))
+    return MedicationItem(
+        name=_safe_str(row.get("itemName")),
+        dosage=_safe_str(row.get("useMethodQesitm")),
+        timing="",
+        before_after_meal="",
+        side_effects=[side_effects_str] if side_effects_str else [],
+        cautions=cautions,
+        missed_dose="",
+        storage=_safe_str(row.get("depositMethodQesitm")),
+        match_status=MedicationMatchStatus.EXACT_DB_MATCH,
+        source_name="식약처 의약품개요정보",
+        disclaimer=None,
     )
 
 
-def _make_schedule_table() -> list[ScheduleEntry]:
-    return [
-        ScheduleEntry(time="08:00 (아침 식후)", medications=["아목시실린 500mg 1정", "이부프로펜 200mg 1정"]),
-        ScheduleEntry(time="13:00 (점심 식후)", medications=["아목시실린 500mg 1정"]),
-        ScheduleEntry(time="19:00 (저녁 식후)", medications=["아목시실린 500mg 1정", "이부프로펜 200mg 1정"]),
-    ]
+def _search_medication(name: str) -> MedicationItem:
+    df = _get_drug_df()
+    normalized = name.strip().lower().replace(" ", "")
+    mask = (
+        df["itemName"]
+        .astype(str)
+        .str.lower()
+        .str.replace(" ", "", regex=False)
+        .str.contains(normalized, na=False, regex=False)
+    )
+    matches = df[mask]
+    if matches.empty:
+        return MedicationItem(
+            name=name,
+            dosage="",
+            timing="",
+            before_after_meal="",
+            side_effects=[],
+            cautions=[],
+            missed_dose="",
+            storage="",
+            match_status=MedicationMatchStatus.NOT_FOUND,
+            disclaimer="해당 의약품 정보를 데이터베이스에서 찾을 수 없습니다.",
+            source_name=None,
+        )
+    return _row_to_medication_item(matches.iloc[0])
+
+
+def _make_medication_guide_from_csv(medication_names: list[str]) -> MedicationGuide:
+    return MedicationGuide(medications=[_search_medication(n) for n in medication_names])
+
+
+# ── Mock 데이터 생성 헬퍼 (LIFESTYLE / DIET / EXERCISE) ──────────────────────
 
 
 def _make_lifestyle_guide() -> LifestyleGuide:
@@ -109,7 +146,9 @@ def _make_exercise_guide() -> ExerciseGuide:
     )
 
 
-async def _run_mock_worker(job_id: str, guide_id: str, guide_types: list[GuideType]) -> None:
+async def _run_mock_worker(
+    job_id: str, guide_id: str, guide_types: list[GuideType], medication_names: list[str]
+) -> None:
     await asyncio.sleep(1)
     _jobs[job_id]["status"] = JobStatus.PROCESSING
 
@@ -123,9 +162,10 @@ async def _run_mock_worker(job_id: str, guide_id: str, guide_types: list[GuideTy
         guide_id=guide_id,
         guide_types=guide_types,
         created_at=now,
-        medication_guide=_make_medication_guide() if GuideType.MEDICATION in guide_types else None,
-        # schedule_table은 MEDICATION 가이드 요청 시 함께 제공
-        schedule_table=_make_schedule_table() if GuideType.MEDICATION in guide_types else None,
+        medication_guide=(
+            _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
+        ),
+        schedule_table=[],
         lifestyle_guide=_make_lifestyle_guide() if GuideType.LIFESTYLE in guide_types else None,
         diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
@@ -145,7 +185,7 @@ class GuideService:
         job_id = str(uuid.uuid4())
         guide_id = str(uuid.uuid4())
         _jobs[job_id] = {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id}
-        asyncio.create_task(_run_mock_worker(job_id, guide_id, req.guide_types))
+        asyncio.create_task(_run_mock_worker(job_id, guide_id, req.guide_types, req.medication_names))
         return GenerateGuideResponse(job_id=job_id)
 
     async def get_job_status(self, job_id: str) -> GuideStatusResponse:
