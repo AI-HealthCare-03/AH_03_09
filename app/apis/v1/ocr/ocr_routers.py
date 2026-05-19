@@ -43,7 +43,31 @@ async def health_check() -> dict[str, str]:
 # ── Upload & Preview ──────────────────────────────────────────────────────────
 
 
-@ocr_router.post("/upload", response_model=OcrUploadResponse, status_code=status.HTTP_202_ACCEPTED)
+@ocr_router.post(
+    "/upload",
+    response_model=OcrUploadResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["files"],
+                        "properties": {
+                            "files": {
+                                "type": "array",
+                                "items": {"type": "string", "format": "binary"},
+                                "description": "처방전·약봉투 파일 (최대 5개, JPEG·PNG·PDF)",
+                            }
+                        },
+                    }
+                }
+            },
+            "required": True,
+        }
+    },
+)
 async def upload_documents(
     current_user: _AUTH,
     session: _SESSION,
