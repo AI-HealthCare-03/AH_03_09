@@ -50,7 +50,7 @@ class Config(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     # Clova OCR
-    CLOVA_OCR_API_URL: str = ""
+    CLOVA_OCR_INVOKE_URL: str = ""
     CLOVA_OCR_SECRET_KEY: str = ""
 
     # AWS S3

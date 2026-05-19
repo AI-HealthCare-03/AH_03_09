@@ -8,6 +8,6 @@ class OcrTaskPayload(BaseModel):
     record_id: int
     s3_key: str
     s3_bucket: str
-    user_id: uuid.UUID
+    user_id: int
     mime_type: str
     original_filename: str

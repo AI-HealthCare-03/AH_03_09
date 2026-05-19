@@ -19,6 +19,9 @@ class Config(BaseSettings):
     DB_PASSWORD: str = "ai_health_pw"
     DB_NAME: str = "ai_health_db"
 
+    CLOVA_OCR_INVOKE_URL: str = ""
+    CLOVA_OCR_SECRET_KEY: str = ""
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def DATABASE_URL(self) -> str:  # noqa: N802
