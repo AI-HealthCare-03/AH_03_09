@@ -8,3 +8,6 @@ class UserManageService:
 
     def get_user(self, user_id: str) -> User | None:
         return self.repo.get_user(user_id)
+
+    async def withdraw(self, user_id: int) -> None:
+        await self.repo.soft_delete(user_id)
