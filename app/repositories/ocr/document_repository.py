@@ -17,7 +17,7 @@ class OcrDocumentRepository:
         await self.session.refresh(document)
         return document
 
-    async def get_by_record_id(self, record_id: int, user_id: uuid.UUID) -> OcrDocument | None:
+    async def get_by_record_id(self, record_id: int, user_id: int) -> OcrDocument | None:
         result = await self.session.execute(
             select(OcrDocument)
             .options(
@@ -33,7 +33,7 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_job_id(self, job_id: uuid.UUID, user_id: uuid.UUID) -> OcrDocument | None:
+    async def get_by_job_id(self, job_id: uuid.UUID, user_id: int) -> OcrDocument | None:
         result = await self.session.execute(
             select(OcrDocument)
             .options(selectinload(OcrDocument.result))
@@ -44,7 +44,7 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_file_hash(self, user_id: uuid.UUID, file_hash: str) -> OcrDocument | None:
+    async def get_by_file_hash(self, user_id: int, file_hash: str) -> OcrDocument | None:
         result = await self.session.execute(
             select(OcrDocument).where(
                 OcrDocument.user_id == user_id,
@@ -54,7 +54,7 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_by_user(self, user_id: uuid.UUID) -> list[OcrDocument]:
+    async def list_by_user(self, user_id: int) -> list[OcrDocument]:
         result = await self.session.execute(
             select(OcrDocument)
             .where(OcrDocument.user_id == user_id, OcrDocument.is_active.is_(True))

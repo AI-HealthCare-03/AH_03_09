@@ -18,7 +18,7 @@ def _make_doc(record_id: int = 1) -> MagicMock:
     doc = MagicMock()
     doc.record_id = record_id
     doc.job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
-    doc.user_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
+    doc.user_id = 1
     doc.ocr_status = "PENDING"
     doc.original_filename = "test.jpg"
     doc.s3_key = "ocr/user/test.jpg"
@@ -54,7 +54,7 @@ class TestUploadDocumentPublishesRedis:
             with patch("app.services.ocr.document_service.S3Service.compute_hash", return_value="abc123"):
                 svc = OcrDocumentService(session, redis=mock_redis)
                 await svc.upload_document(
-                    user_id=uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+                    user_id=1,
                     filename="test.jpg",
                     mime_type="image/jpeg",
                     content=b"fake-content",
@@ -93,7 +93,7 @@ class TestUploadDocumentPublishesRedis:
             with patch("app.services.ocr.document_service.S3Service.compute_hash", return_value="abc123"):
                 svc = OcrDocumentService(session, redis=mock_redis)
                 result = await svc.upload_document(
-                    user_id=uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+                    user_id=1,
                     filename="test.jpg",
                     mime_type="image/jpeg",
                     content=b"fake-content",
@@ -117,7 +117,7 @@ class TestUploadDocumentPublishesRedis:
                 svc = OcrDocumentService(session)
                 with pytest.raises(HTTPException) as exc_info:
                     await svc.upload_document(
-                        user_id=uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+                        user_id=1,
                         filename="dup.jpg",
                         mime_type="image/jpeg",
                         content=b"dup-content",

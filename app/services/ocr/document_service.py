@@ -21,16 +21,16 @@ class OcrDocumentService:
         self.repo = OcrDocumentRepository(session)
         self._redis = redis
 
-    async def list_documents(self, user_id: uuid.UUID) -> list[OcrDocument]:
+    async def list_documents(self, user_id: int) -> list[OcrDocument]:
         return await self.repo.list_by_user(user_id)
 
-    async def get_document(self, record_id: int, user_id: uuid.UUID) -> OcrDocument:
+    async def get_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.repo.get_by_record_id(record_id, user_id)
         if doc is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
         return doc
 
-    async def get_job_status(self, job_id: uuid.UUID, user_id: uuid.UUID) -> OcrDocument:
+    async def get_job_status(self, job_id: uuid.UUID, user_id: int) -> OcrDocument:
         doc = await self.repo.get_by_job_id(job_id, user_id)
         if doc is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="작업을 찾을 수 없습니다.")
@@ -38,7 +38,7 @@ class OcrDocumentService:
 
     async def upload_document(
         self,
-        user_id: uuid.UUID,
+        user_id: int,
         filename: str,
         mime_type: str,
         content: bytes,
@@ -88,7 +88,7 @@ class OcrDocumentService:
             "record_id": doc.record_id,
             "s3_key": doc.s3_key,
             "s3_bucket": doc.s3_bucket,
-            "user_id": str(doc.user_id),
+            "user_id": doc.user_id,
             "mime_type": doc.mime_type,
             "original_filename": doc.original_filename,
         }
