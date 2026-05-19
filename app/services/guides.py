@@ -13,6 +13,8 @@ from app.dtos.guides import (
     GenerateGuideRequest,
     GenerateGuideResponse,
     GuideContextResponse,
+    GuideGenerationResult,
+    GuideGenerationStatus,
     GuideResponse,
     GuideStatusResponse,
     GuideType,
@@ -20,6 +22,7 @@ from app.dtos.guides import (
     LifestyleGuide,
     MedicationGuide,
     MedicationItem,
+    MedicationMatchStatus,
     ScheduleEntry,
     UpdateFeedbackStatusRequest,
 )
@@ -45,6 +48,9 @@ def _make_medication_guide() -> MedicationGuide:
                 cautions=["페니실린 알레르기 환자 복용 금지", "음주 자제"],
                 missed_dose="생각난 즉시 복용, 다음 복용 시간이 가까우면 건너뜀",
                 storage="직사광선 피해 실온 보관",
+                match_status=MedicationMatchStatus.EXACT_DB_MATCH,
+                source_name="식약처 의약품개요정보",
+                disclaimer=None,
             ),
             MedicationItem(
                 name="이부프로펜 200mg",
@@ -55,6 +61,9 @@ def _make_medication_guide() -> MedicationGuide:
                 cautions=["공복 복용 금지", "신장 질환자 주의"],
                 missed_dose="생각난 즉시 복용, 2회분 동시 복용 금지",
                 storage="습기 피해 서늘한 곳 보관",
+                match_status=MedicationMatchStatus.WEB_REFERENCE,
+                source_name="약학정보원",
+                disclaimer="웹 참조 정보로 정확도가 낮을 수 있습니다. 복약 전 전문가와 상담하세요.",
             ),
         ]
     )
@@ -108,6 +117,8 @@ async def _run_mock_worker(job_id: str, guide_id: str, guide_types: list[GuideTy
 
     now = datetime.now(UTC).isoformat()
 
+    generation_results = [GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types]
+
     guide = GuideResponse(
         guide_id=guide_id,
         guide_types=guide_types,
@@ -118,6 +129,7 @@ async def _run_mock_worker(job_id: str, guide_id: str, guide_types: list[GuideTy
         lifestyle_guide=_make_lifestyle_guide() if GuideType.LIFESTYLE in guide_types else None,
         diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
+        generation_results=generation_results,
     )
 
     _guides[guide_id] = guide.model_dump()
