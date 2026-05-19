@@ -5,7 +5,6 @@ from dataclasses import field
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +40,12 @@ class Config(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 14 * 24 * 60
     JWT_LEEWAY: int = 5
 
+    # Database (PostgreSQL)
+    DATABASE_URL: str = "postgresql://medifind:medifind_password@localhost:5432/medifind"
+
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+
     # Kakao OAuth
     KAKAO_CLIENT_ID: str = ""
     KAKAO_CLIENT_SECRET: str = ""
@@ -48,8 +53,3 @@ class Config(BaseSettings):
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def DATABASE_URL(self) -> str:  # noqa: N802 — 환경변수 명명 규칙(대문자) 따름
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

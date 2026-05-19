@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.dtos.base import BaseSerializerModel
 
@@ -26,15 +26,6 @@ class ChatMessageResponse(BaseSerializerModel):
 
 class ChatMessageListResponse(BaseModel):
     messages: list[ChatMessageResponse]
-
-
-class ChatMessageSendRequest(BaseModel):
-    content: str = Field(..., min_length=1, description="유저가 보낼 메시지")
-
-
-class ChatSendMessageResponse(BaseModel):
-    user_message: ChatMessageResponse
-    assistant_message: ChatMessageResponse
 
 
 class WebSocketOutMessage(BaseModel):

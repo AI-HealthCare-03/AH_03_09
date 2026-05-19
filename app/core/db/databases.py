@@ -1,6 +1,11 @@
+from fastapi import FastAPI
+from tortoise import Tortoise
+from tortoise.contrib.fastapi import register_tortoise
+
 from app.core import config
 
 TORTOISE_APP_MODELS = [
+    "aerich.models",
     "app.models.users",
     "app.models.chat",
 ]
@@ -23,8 +28,12 @@ TORTOISE_ORM = {
     "apps": {
         "models": {
             "models": TORTOISE_APP_MODELS,
-            "default_connection": "default",
         },
     },
     "timezone": "Asia/Seoul",
 }
+
+
+def initialize_tortoise(app: FastAPI) -> None:
+    Tortoise.init_models(TORTOISE_APP_MODELS, "models")
+    register_tortoise(app, config=TORTOISE_ORM)

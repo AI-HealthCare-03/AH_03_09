@@ -1,18 +1,12 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 class UserInfoResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
+    id: str
     kakao_id: str
     email: str | None = None
-    name: str | None = None
-    gender: str | None = None
-    age_range: str | None = None
-    birthday: str | None = None
-    birthyear: str | None = None
-    phone_number: str | None = None
+    nickname: str
+    profile_image: str | None = None
     created_at: datetime | None = None

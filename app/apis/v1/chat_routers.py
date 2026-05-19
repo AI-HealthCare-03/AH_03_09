@@ -4,14 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
 
 from app.dependencies.security import get_request_user
-from app.dtos.chat import (
-    ChatMessageListResponse,
-    ChatMessageResponse,
-    ChatMessageSendRequest,
-    ChatSendMessageResponse,
-    ChatSessionCreateRequest,
-    ChatSessionResponse,
-)
+from app.dtos.chat import ChatMessageListResponse, ChatMessageResponse, ChatSessionCreateRequest, ChatSessionResponse
 from app.models.users import User
 from app.repositories.chat_repository import ChatRepository
 from app.services.chat import ChatService
@@ -44,28 +37,6 @@ async def list_messages(
 ) -> ChatMessageListResponse:
     messages = await ChatService().get_session_messages(session_id=session_id, user_id=current_user.id)
     return ChatMessageListResponse(messages=[ChatMessageResponse.model_validate(m) for m in messages])
-
-
-@chat_router.post(
-    "/sessions/{session_id}/messages",
-    response_model=ChatSendMessageResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="메시지 전송 (Swagger 테스트용 동기 REST)",
-    description="WebSocket과 동일한 흐름이지만 모든 스트림 응답을 모아 한 번에 반환합니다. "
-    "실시간 스트리밍이 필요하면 WebSocket(/chat/ws/{session_id})을 사용하세요.",
-)
-async def send_message(
-    session_id: UUID,
-    body: ChatMessageSendRequest,
-    current_user: Annotated[User, Depends(get_request_user)],
-) -> ChatSendMessageResponse:
-    user_msg, assistant_msg = await ChatService().send_message_sync(
-        session_id=session_id, user_id=current_user.id, content=body.content
-    )
-    return ChatSendMessageResponse(
-        user_message=ChatMessageResponse.model_validate(user_msg),
-        assistant_message=ChatMessageResponse.model_validate(assistant_msg),
-    )
 
 
 @chat_router.websocket("/ws/{session_id}")

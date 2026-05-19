@@ -57,15 +57,15 @@ class AuthService:
 
         kakao_id = str(kakao_info["id"])
         kakao_account = kakao_info.get("kakao_account", {})
+        profile = kakao_account.get("profile", {})
+        nickname = profile.get("nickname", "사용자")
+        email = kakao_account.get("email")
+        profile_image = profile.get("profile_image_url")
 
-        user = await self.user_repo.upsert_kakao_user(
+        user = self.user_repo.upsert_kakao_user(
             kakao_id=kakao_id,
-            email=kakao_account.get("email"),
-            name=kakao_account.get("name"),
-            gender=kakao_account.get("gender"),
-            age_range=kakao_account.get("age_range"),
-            birthday=kakao_account.get("birthday"),
-            birthyear=kakao_account.get("birthyear"),
-            phone_number=kakao_account.get("phone_number"),
+            nickname=nickname,
+            email=email,
+            profile_image=profile_image,
         )
         return self.jwt_service.issue_jwt_pair(user)

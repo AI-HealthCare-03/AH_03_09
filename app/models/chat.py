@@ -11,7 +11,7 @@ class MessageRole(StrEnum):
 
 class ChatSession(models.Model):
     id = fields.UUIDField(primary_key=True, default=uuid.uuid4)
-    user = fields.ForeignKeyField("models.User", related_name="chat_sessions", on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField("models.User", related_name="chat_sessions")
     title = fields.CharField(max_length=200, default="새 대화")
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
@@ -22,7 +22,7 @@ class ChatSession(models.Model):
 
 class ChatMessage(models.Model):
     id = fields.BigIntField(primary_key=True)
-    session = fields.ForeignKeyField("models.ChatSession", related_name="messages", on_delete=fields.CASCADE)
+    session = fields.ForeignKeyField("models.ChatSession", related_name="messages")
     role = fields.CharEnumField(enum_type=MessageRole, max_length=10)
     content = fields.TextField()
     created_at = fields.DatetimeField(auto_now_add=True)
