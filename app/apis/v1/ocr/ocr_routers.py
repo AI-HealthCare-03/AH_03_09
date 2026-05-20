@@ -51,7 +51,7 @@ async def upload_document(
     content = await validate_upload(file)
     svc = OcrDocumentService(session)
     doc = await svc.upload_document(
-        user_id=uuid.UUID(str(current_user.id)),
+        user_id=current_user.id,
         filename=file.filename or "upload",
         mime_type=file.content_type,  # type: ignore[arg-type]
         content=content,
@@ -67,7 +67,7 @@ async def get_job_status(
 ) -> OcrJobStatusResponse:
     """비동기 OCR 처리 상태를 조회합니다. (REQ-OCR-004)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_job_status(job_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_job_status(job_id, current_user.id)
     return OcrJobStatusResponse(
         job_id=doc.job_id,
         record_id=doc.record_id,
@@ -87,7 +87,7 @@ async def list_records(
 ) -> OcrDocumentListResponse:
     """사용자의 OCR 처리 결과 목록을 조회합니다. (REQ-OCR-007)"""
     svc = OcrDocumentService(session)
-    docs = await svc.list_documents(uuid.UUID(str(current_user.id)))
+    docs = await svc.list_documents(current_user.id)
     return OcrDocumentListResponse(
         documents=[OcrDocumentResponse.model_validate(d) for d in docs],
         total=len(docs),
@@ -102,7 +102,7 @@ async def get_record(
 ) -> OcrDocumentDetailResponse:
     """특정 OCR 처리 결과의 상세 정보를 조회합니다. (REQ-OCR-008)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     return OcrDocumentDetailResponse.model_validate(doc)
 
 
@@ -138,7 +138,7 @@ async def list_medications(
 ) -> list[MedicationResponse]:
     """처방전의 약물 목록을 조회합니다. (REQ-OCR-010)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     return [MedicationResponse.model_validate(m) for m in doc.medications if m.is_active]
 
 
@@ -175,7 +175,7 @@ async def list_disease_codes(
 ) -> list[DiseaseCodeResponse]:
     """처방전의 질병 분류기호 목록을 조회합니다. (REQ-OCR-011)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     return [DiseaseCodeResponse.model_validate(c) for c in doc.disease_codes if c.is_active]
 
 
@@ -212,7 +212,7 @@ async def get_ocr_result(
 ) -> OcrResultResponse:
     """OCR 원본 처리 결과를 조회합니다. (REQ-OCR-012)"""
     svc = OcrDocumentService(session)
-    doc = await svc.get_document(record_id, uuid.UUID(str(current_user.id)))
+    doc = await svc.get_document(record_id, current_user.id)
     if doc.result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OCR 결과가 아직 없습니다.")
     return OcrResultResponse.model_validate(doc.result)

@@ -2,7 +2,9 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.sqlalchemy_client import get_async_session
 from app.dependencies.security import get_request_user
 from app.dtos.chat import (
     ChatMessageListResponse,
@@ -24,16 +26,18 @@ chat_router = APIRouter(prefix="/chat", tags=["chat"])
 async def create_session(
     body: ChatSessionCreateRequest,
     current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
 ) -> ChatSessionResponse:
-    session = await ChatService().create_session(user_id=current_user.id, title=body.title)
+    session = await chat_svc.create_session(user_id=current_user.id, title=body.title)
     return ChatSessionResponse.model_validate(session)
 
 
 @chat_router.get("/sessions", response_model=list[ChatSessionResponse])
 async def list_sessions(
     current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
 ) -> list[ChatSessionResponse]:
-    sessions = await ChatService().get_user_sessions(user_id=current_user.id)
+    sessions = await chat_svc.get_user_sessions(user_id=current_user.id)
     return [ChatSessionResponse.model_validate(s) for s in sessions]
 
 
@@ -41,8 +45,9 @@ async def list_sessions(
 async def list_messages(
     session_id: UUID,
     current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
 ) -> ChatMessageListResponse:
-    messages = await ChatService().get_session_messages(session_id=session_id, user_id=current_user.id)
+    messages = await chat_svc.get_session_messages(session_id=session_id, user_id=current_user.id)
     if messages is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
     return ChatMessageListResponse(messages=[ChatMessageResponse.model_validate(m) for m in messages])
@@ -60,8 +65,9 @@ async def send_message(
     session_id: UUID,
     body: ChatMessageSendRequest,
     current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
 ) -> ChatSendMessageResponse:
-    user_msg, assistant_msg = await ChatService().send_message_sync(
+    user_msg, assistant_msg = await chat_svc.send_message_sync(
         session_id=session_id, user_id=current_user.id, content=body.content
     )
     return ChatSendMessageResponse(
@@ -75,6 +81,7 @@ async def websocket_chat(
     websocket: WebSocket,
     session_id: str,
     token: str,
+    db_session: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> None:
     # JWT 검증 (WebSocket은 헤더 인증 대신 query param 사용)
     try:
@@ -85,9 +92,9 @@ async def websocket_chat(
         return
 
     # 세션 소유권 확인
-    session = await ChatRepository().get_session(session_id, user_id)
+    session = await ChatRepository(db_session).get_session(session_id, user_id)
     if not session:
         await websocket.close(code=1008)
         return
 
-    await ChatService().handle_websocket(websocket, session_id, user_id)
+    await ChatService(db_session).handle_websocket(websocket, session_id, user_id)

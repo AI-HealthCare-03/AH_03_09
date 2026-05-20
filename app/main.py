@@ -2,25 +2,24 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
-from tortoise import Tortoise
 
 from app.apis.v1 import v1_routers
 from app.core import config
-from app.core.db.databases import TORTOISE_ORM
+from app.core.db.sqlalchemy_client import close_db
+from app.core.redis_client import close_redis
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await Tortoise.init(config=TORTOISE_ORM)
-    await Tortoise.generate_schemas(safe=True)
-    yield
-    await Tortoise.close_connections()
+    try:
+        yield
+    finally:
+        await close_redis()
+        await close_db()
 
 
 app = FastAPI(
     lifespan=lifespan,
-    default_response_class=ORJSONResponse,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",

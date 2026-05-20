@@ -33,7 +33,7 @@ class S3Service:
     async def upload(
         self,
         content: bytes,
-        user_id: uuid.UUID,
+        user_id: int,
         mime_type: str,
         original_filename: str,
     ) -> tuple[str, str]:

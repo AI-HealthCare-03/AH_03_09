@@ -1,9 +1,12 @@
 import asyncio
 import json
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.sqlalchemy_client import get_async_session
 from app.core.redis_client import get_redis
 from app.models.chat import ChatMessage, ChatSession, MessageRole
 from app.repositories.chat_repository import ChatRepository
@@ -12,8 +15,8 @@ RESPONSE_TIMEOUT_SECONDS = 60
 
 
 class ChatService:
-    def __init__(self) -> None:
-        self.repo = ChatRepository()
+    def __init__(self, session: Annotated[AsyncSession, Depends(get_async_session)]) -> None:
+        self.repo = ChatRepository(session)
 
     async def create_session(self, user_id: int, title: str = "새 대화") -> ChatSession:
         return await self.repo.create_session(user_id, title)

@@ -36,8 +36,8 @@ class OcrDocument(Base):
 
     record_id: Mapped[int] = mapped_column(BIGINT, primary_key=True, autoincrement=True)
     job_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, unique=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    user_id: Mapped[int] = mapped_column(
+        BIGINT, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     s3_key: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -143,7 +143,7 @@ class OcrCorrection(Base):
     entity_id: Mapped[int | None] = mapped_column(BIGINT, nullable=True)
     original_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     corrected_value: Mapped[str | None] = mapped_column(Text, nullable=True)
-    corrected_by: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    corrected_by: Mapped[int] = mapped_column(BIGINT, ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     document: Mapped["OcrDocument"] = relationship("OcrDocument", back_populates="corrections")
