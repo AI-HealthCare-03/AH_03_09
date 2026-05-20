@@ -1,8 +1,12 @@
+from typing import Annotated
+
 import httpx
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core import config
+from app.core.db.sqlalchemy_client import get_async_session
 from app.core.jwt.tokens import AccessToken, RefreshToken
 from app.repositories.user_repository import UserRepository
 from app.services.jwt import JwtService
@@ -12,8 +16,8 @@ KAKAO_USER_URL = "https://kapi.kakao.com/v2/user/me"
 
 
 class AuthService:
-    def __init__(self) -> None:
-        self.user_repo = UserRepository()
+    def __init__(self, session: Annotated[AsyncSession, Depends(get_async_session)]) -> None:
+        self.user_repo = UserRepository(session)
         self.jwt_service = JwtService()
 
     def get_kakao_auth_url(self) -> str:

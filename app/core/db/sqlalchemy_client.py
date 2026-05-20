@@ -17,3 +17,7 @@ _AsyncSessionFactory = async_sessionmaker(_engine, class_=AsyncSession, expire_o
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     async with _AsyncSessionFactory() as session:
         yield session
+
+
+async def close_db() -> None:
+    await _engine.dispose()

@@ -1,25 +1,26 @@
-import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from testcontainers.postgres import PostgresContainer
 
 from app.main import app
+from app.models.base import Base
 
 
 @pytest.fixture(scope="session")
 def client():
-    """TestClient를 `with` 없이 반환해 lifespan(Tortoise.init/DB 연결)을 건너뛴다.
-    DB 호출이 필요한 테스트는 Repository를 직접 mock 한다."""
+    """TestClient를 `with` 없이 반환해 lifespan(DB 연결)을 건너뛴다.
+    DB 호출이 필요한 라우터 단위 테스트는 Repository를 직접 mock 한다."""
     return TestClient(app)
 
 
 @pytest.fixture
 def mock_db():
-    """UserRepository.get_user를 mock해서 DB 없이 JWT 인증을 통과시킨다.
-    OCR 라우터가 uuid.UUID(str(current_user.id))를 호출하므로 id는 UUID 타입으로 설정."""
+    """UserRepository.get_user를 mock해서 DB 없이 JWT 인증을 통과시킨다."""
     fake_user = MagicMock()
-    fake_user.id = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
+    fake_user.id = 1
 
     with patch(
         "app.repositories.user_repository.UserRepository.get_user",
@@ -54,3 +55,27 @@ def auth_headers(sample_user_payload):
     user.id = sample_user_payload["id"]
     tokens = JwtService().issue_jwt_pair(user)
     return {"Authorization": f"Bearer {str(tokens['access_token'])}"}
+
+
+# ── Integration test fixtures (real Postgres via testcontainers) ─────────────
+
+
+@pytest.fixture(scope="session")
+def postgres_url():
+    """세션당 1회만 Postgres 컨테이너를 띄우고 asyncpg URL을 yield."""
+    with PostgresContainer("postgres:16-alpine", driver="asyncpg") as pg:
+        yield pg.get_connection_url()
+
+
+@pytest.fixture
+async def db_session(postgres_url):
+    """테스트마다 모든 SQLAlchemy 테이블을 생성/삭제해 격리."""
+    engine = create_async_engine(postgres_url)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as s:
+        yield s
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
