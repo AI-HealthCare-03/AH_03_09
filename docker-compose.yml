@@ -98,6 +98,19 @@ services:
     depends_on:
       - fastapi
 
+  # 6. Frontend (Vite build served via nginx)
+  frontend:
+    container_name: frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    networks:
+      - ws
+    depends_on:
+      - fastapi
+
 volumes:
   postgres_data:
   static_volume:
