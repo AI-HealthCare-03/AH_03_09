@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm config set registry https://registry.npmmirror.com \
     && npm config set strict-ssl false \
-    && npm install
+    && NODE_TLS_REJECT_UNAUTHORIZED=0 npm install
 COPY . .
 RUN npm run build
 
