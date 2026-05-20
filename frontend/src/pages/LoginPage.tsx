@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { login } from "../api/auth";
 
 export default function LoginPage() {
@@ -54,6 +54,10 @@ export default function LoginPage() {
             {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
+        <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#888" }}>
+          계정이 없으신가요?{" "}
+          <Link to="/register" style={{ color: "#667eea", fontWeight: 600 }}>회원가입</Link>
+        </p>
       </div>
     </div>
   );

@@ -327,3 +327,122 @@ body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; backgrou
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
+
+/* ===== Chat Header Actions ===== */
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-profile {
+  display: inline-block;
+  background: transparent;
+  border: 1.5px solid #667eea;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.btn-profile:hover { background: #667eea; color: white; }
+
+/* ===== Health Profile Page ===== */
+.profile-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+}
+.profile-card {
+  background: white;
+  border-radius: 16px;
+  padding: 36px 40px;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+.profile-header {
+  margin-bottom: 28px;
+}
+.profile-header h1 { font-size: 24px; color: #1a1a2e; margin-bottom: 4px; }
+.btn-back {
+  background: transparent;
+  border: none;
+  color: #667eea;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  display: inline-block;
+  text-decoration: none;
+}
+.btn-back:hover { text-decoration: underline; }
+.profile-section {
+  margin-bottom: 24px;
+}
+.profile-section h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #444;
+  margin-bottom: 10px;
+}
+.profile-lifestyle { display: flex; flex-direction: column; gap: 12px; }
+.form-row { display: flex; gap: 12px; }
+.form-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  background: white;
+  transition: border-color 0.2s;
+  cursor: pointer;
+}
+.form-select:focus { border-color: #667eea; }
+.toggle-group { display: flex; gap: 8px; margin-top: 2px; }
+.toggle-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.toggle-btn.active {
+  border-color: #667eea;
+  background: #667eea;
+  color: white;
+}
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f0f0ff;
+  color: #667eea;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.tag button {
+  background: transparent;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+}
+.tag button:hover { color: #e74c3c; }
+.tag-input-row { display: flex; gap: 8px; }
