@@ -1,8 +1,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY .npmrc* ./
 COPY package*.json ./
-RUN npm install
+RUN npm config set registry https://registry.npmmirror.com \
+    && npm config set strict-ssl false \
+    && NODE_TLS_REJECT_UNAUTHORIZED=0 npm install
 COPY . .
 RUN npm run build
 
