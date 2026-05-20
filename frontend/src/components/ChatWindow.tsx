@@ -4,9 +4,10 @@ import type { ChatMessage } from "../types";
 interface Props {
   messages: ChatMessage[];
   streamingContent: string;
+  onFeedback?: (messageId: number, feedback: "good" | "bad") => void;
 }
 
-export default function ChatWindow({ messages, streamingContent }: Props) {
+export default function ChatWindow({ messages, streamingContent, onFeedback }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,19 +21,45 @@ export default function ChatWindow({ messages, streamingContent }: Props) {
           <p>건강에 대해 무엇이든 물어보세요.</p>
         </div>
       )}
+
       {messages.map((msg) => (
         <div key={msg.id} className={`message ${msg.role}`}>
           <div className="message-bubble">{msg.content}</div>
+
+          {/* AI 응답에만 워터마크 + 피드백 버튼 */}
+          {msg.role === "assistant" && (
+            <>
+              <div className="message-disclaimer">
+                ⚕️ 본 답변은 참고용이며, 정확한 진단은 전문가와 상담하세요.
+              </div>
+              {onFeedback && (
+                <div className="message-feedback">
+                  <button onClick={() => onFeedback(msg.id, "good")}>
+                    👍 도움됐어요
+                  </button>
+                  <button onClick={() => onFeedback(msg.id, "bad")}>
+                    👎 도움 안됐어요
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       ))}
+
+      {/* 스트리밍 중 */}
       {streamingContent && (
         <div className="message assistant">
           <div className="message-bubble streaming">
             {streamingContent}
             <span className="cursor" />
           </div>
+          <div className="message-disclaimer">
+            ⚕️ 본 답변은 참고용이며, 정확한 진단은 전문가와 상담하세요.
+          </div>
         </div>
       )}
+
       <div ref={bottomRef} />
     </div>
   );
