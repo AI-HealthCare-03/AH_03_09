@@ -22,3 +22,5 @@ wheels/
 .mypy_cache/
 htmlcov/
 기획문서/
+node_modules/
+frontend/dist/
