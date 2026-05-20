@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import os
 import uuid
 
 import boto3
@@ -7,6 +8,9 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException, status
 
 from app.core import config
+
+_LOCAL_UPLOAD_DIR = "/tmp/ocr_uploads"
+LOCAL_BUCKET = "__local__"
 
 
 def _ext_from_mime(mime_type: str) -> str:
@@ -37,12 +41,16 @@ class S3Service:
         mime_type: str,
         original_filename: str,
     ) -> tuple[str, str]:
-        """S3에 파일을 업로드합니다.
+        """S3 또는 로컬 스토리지에 파일을 업로드합니다.
 
         Returns:
-            (s3_key, file_hash)
+            (s3_key, file_hash) — AWS_S3_BUCKET_NAME 미설정 시 로컬 경로 반환
         """
         file_hash = self.compute_hash(content)
+
+        if not self._bucket:
+            return await self._upload_local(content, mime_type), file_hash
+
         s3_key = f"ocr/{user_id}/{uuid.uuid4().hex}.{_ext_from_mime(mime_type)}"
 
         def _do_upload() -> None:
@@ -65,7 +73,24 @@ class S3Service:
         return s3_key, file_hash
 
     async def delete(self, s3_key: str) -> None:
+        if not self._bucket:
+            await asyncio.to_thread(os.remove, s3_key)
+            return
+
         def _do_delete() -> None:
             self._client().delete_object(Bucket=self._bucket, Key=s3_key)
 
         await asyncio.to_thread(_do_delete)
+
+    @staticmethod
+    async def _upload_local(content: bytes, mime_type: str) -> str:
+        os.makedirs(_LOCAL_UPLOAD_DIR, exist_ok=True)
+        filename = f"{uuid.uuid4().hex}.{_ext_from_mime(mime_type)}"
+        local_path = os.path.join(_LOCAL_UPLOAD_DIR, filename)
+
+        def _write() -> None:
+            with open(local_path, "wb") as f:
+                f.write(content)
+
+        await asyncio.to_thread(_write)
+        return local_path

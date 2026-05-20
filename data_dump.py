@@ -15,12 +15,11 @@ import pandas as pd
 import requests
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
-BASE_URL = "https://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList"
-SERVICE_KEY = "3db866931415054937b68c5c741d08f464f14f87adf86404274623c3a96a39a2"
+BASE_URL = ""
+SERVICE_KEY = ""
 PAGE_SIZE = 100
 OUTPUT_FILE = "식약처_의약품개요정보_전체누적본.csv"
-REQUEST_DELAY = 0.3  # API 부하 방지 (초)
-# ─────────────────────────────────────────────────────────────────────────────
+REQUEST_DELAY = 0.3
 
 
 def fetch_page(page_no: int) -> tuple[list[dict], int]:

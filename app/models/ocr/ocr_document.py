@@ -15,7 +15,7 @@ from app.models.ocr.base import Base
 class OcrStatus(StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
+    DONE = "DONE"
     FAILED = "FAILED"
 
 
@@ -36,9 +36,7 @@ class OcrDocument(Base):
 
     record_id: Mapped[int] = mapped_column(BIGINT, primary_key=True, autoincrement=True)
     job_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, unique=True, default=uuid.uuid4)
-    user_id: Mapped[int] = mapped_column(
-        BIGINT, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[int] = mapped_column(BIGINT, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     s3_key: Mapped[str] = mapped_column(String(500), nullable=False)
     s3_bucket: Mapped[str] = mapped_column(String(100), nullable=False)
