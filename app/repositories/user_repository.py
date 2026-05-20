@@ -62,10 +62,6 @@ class UserRepository:
         return user
 
     async def soft_delete(self, user_id: int) -> None:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(is_active=False, deleted_at=datetime.now(UTC))
-        )
+        stmt = update(User).where(User.id == user_id).values(is_active=False, deleted_at=datetime.now(UTC))
         await self.session.execute(stmt)
         await self.session.commit()

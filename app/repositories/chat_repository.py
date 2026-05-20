@@ -19,24 +19,16 @@ class ChatRepository:
         return chat
 
     async def get_sessions(self, user_id: int) -> list[ChatSession]:
-        stmt = (
-            select(ChatSession)
-            .where(ChatSession.user_id == user_id)
-            .order_by(ChatSession.updated_at.desc())
-        )
+        stmt = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.updated_at.desc())
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_session(self, session_id: UUID | str, user_id: int) -> ChatSession | None:
-        stmt = select(ChatSession).where(
-            ChatSession.id == session_id, ChatSession.user_id == user_id
-        )
+        stmt = select(ChatSession).where(ChatSession.id == session_id, ChatSession.user_id == user_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_message(
-        self, session_id: UUID | str, role: MessageRole, content: str
-    ) -> ChatMessage:
+    async def create_message(self, session_id: UUID | str, role: MessageRole, content: str) -> ChatMessage:
         msg = ChatMessage(session_id=session_id, role=role.value, content=content)
         self.session.add(msg)
         await self.session.commit()
@@ -54,10 +46,6 @@ class ChatRepository:
         return list(result.scalars().all())
 
     async def touch_session(self, session_id: UUID | str) -> None:
-        stmt = (
-            update(ChatSession)
-            .where(ChatSession.id == session_id)
-            .values(updated_at=datetime.now(UTC))
-        )
+        stmt = update(ChatSession).where(ChatSession.id == session_id).values(updated_at=datetime.now(UTC))
         await self.session.execute(stmt)
         await self.session.commit()
