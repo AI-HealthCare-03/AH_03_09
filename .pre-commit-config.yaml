@@ -20,12 +20,6 @@ repos:
         args: [--fix]
       - id: ruff-format                # 코드 포매팅
 
-  # pytest: 테스트 (push 시에만 실행)
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: uv run --group app pytest app/tests/ -x -q
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
+  # pytest: Docker 환경(MySQL)이 필요하므로 로컬 pre-push에서는 실행하지 않음
+  # CI(GitHub Actions)에서 docker compose up 후 실행할 것
+  # 로컬 수동 실행: docker compose up -d && uv run --group app pytest app/tests/ -v
