@@ -21,8 +21,8 @@ class OcrStatus(StrEnum):
 
 class DocType(StrEnum):
     PRESCRIPTION = "PRESCRIPTION"
-    MEDICATION_BAG = "MEDICATION_BAG"
-    UNKNOWN = "UNKNOWN"
+    DRUG_BAG = "DRUG_BAG"
+    OTHER = "OTHER"
 
 
 class MetricType(StrEnum):
@@ -96,6 +96,7 @@ class Medication(Base):
     dosage: Mapped[str | None] = mapped_column(String(100), nullable=True)
     frequency: Mapped[str | None] = mapped_column(String(100), nullable=True)
     timing: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    usage_time: Mapped[str | None] = mapped_column(String(200), nullable=True)
     duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     time_of_day: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -157,6 +158,7 @@ class AiPerformanceMetric(Base):
     metric_type: Mapped[str] = mapped_column(String(50), nullable=False)
     metric_value: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
     baseline_value: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    preprocessing_applied: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     measured_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     additional_info: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
