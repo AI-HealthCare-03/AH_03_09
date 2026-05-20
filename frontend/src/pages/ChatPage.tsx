@@ -7,29 +7,41 @@ import { getSessionDetail, streamMessage } from "../api/chat";
 import { logout } from "../api/auth";
 import type { ChatSession, ChatMessage } from "../types";
 
+const EMERGENCY_KEYWORDS = ["응급", "119", "심정지", "의식 없", "숨 못 쉬"];
+
 export default function ChatPage() {
   const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState("");
   const [sending, setSending] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [hasEmergency, setHasEmergency] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
 
   const loadSession = useCallback(async (session: ChatSession) => {
     setSelectedSession(session);
     setStreamingContent("");
+    setError(null);
     const res = await getSessionDetail(session.id);
     setMessages(res.data.messages);
   }, []);
 
   useEffect(() => {
     if (selectedSession) loadSession(selectedSession);
-  }, [selectedSession?.id]);
+  }, [selectedSession?.id, loadSession]); // loadSession 추가
 
   const handleSend = async (content: string) => {
     if (!selectedSession || sending) return;
+
+    // 응급 키워드 감지
+    const isEmergency = EMERGENCY_KEYWORDS.some(kw => content.includes(kw));
+    setHasEmergency(isEmergency);
+
     setSending(true);
     setStreamingContent("");
+    setError(null);
 
     const userMsg: ChatMessage = {
       id: Date.now(),
@@ -43,14 +55,8 @@ export default function ChatPage() {
       selectedSession.id,
       content,
       (chunk) => setStreamingContent((prev) => prev + chunk),
-      (messageId, title) => {
-        const aiMsg: ChatMessage = {
-          id: messageId,
-          role: "assistant",
-          content: streamingContent,
-          created_at: new Date().toISOString(),
-        };
-        // re-load to get the full accurate content
+      (_messageId, title) => {
+        // aiMsg, streamingContent 클로저 문제 → DB에서 정확한 값 로드
         getSessionDetail(selectedSession.id).then((res) => {
           setMessages(res.data.messages);
           if (title) {
@@ -62,15 +68,20 @@ export default function ChatPage() {
         });
         setStreamingContent("");
         setSending(false);
-        void messageId;
-        void aiMsg;
       },
       (detail) => {
-        alert(`오류: ${detail}`);
+        // alert 대신 error state
+        setError(detail);
         setStreamingContent("");
         setSending(false);
       }
     );
+  };
+
+  const handleFeedback = (messageId: number, feedback: "good" | "bad") => {
+    if (feedbackGiven.has(messageId)) return;
+    setFeedbackGiven((prev) => new Set(prev).add(messageId));
+    console.log(`[feedback] messageId=${messageId} feedback=${feedback}`);
   };
 
   const handleLogout = async () => {
@@ -80,15 +91,25 @@ export default function ChatPage() {
 
   return (
     <div className="chat-layout">
+      {/* 응급 배너 */}
+      {hasEmergency && (
+        <div className="emergency-banner">
+          🚨 응급 상황이라면 즉시 119에 신고하세요.
+          <button onClick={() => setHasEmergency(false)}>닫기</button>
+        </div>
+      )}
+
       <ChatSidebar
         selectedId={selectedSession?.id ?? null}
         onSelect={loadSession}
         onNewSession={(s) => {
           setSelectedSession(s);
           setMessages([]);
+          setError(null);
         }}
         refreshKey={sidebarRefresh}
       />
+
       <main className="chat-main">
         <header className="chat-header">
           <h2>{selectedSession?.title ?? "AI 헬스케어 챗봇"}</h2>
@@ -96,9 +117,27 @@ export default function ChatPage() {
             로그아웃
           </button>
         </header>
+
+        {/* 오류 배너 */}
+        {error && (
+          <div className="error-banner">
+            ⚠️ {error}
+            <button onClick={() => {
+              setError(null);
+              setSending(false);
+            }}>
+              재시도
+            </button>
+          </div>
+        )}
+
         {selectedSession ? (
           <>
-            <ChatWindow messages={messages} streamingContent={streamingContent} />
+            <ChatWindow
+              messages={messages}
+              streamingContent={streamingContent}
+              onFeedback={handleFeedback}
+            />
             <ChatInput onSend={handleSend} disabled={sending} />
           </>
         ) : (
