@@ -49,14 +49,14 @@ def _rule_classify(text: str) -> str | None:
     if p_score > m_score and p_score >= _MIN_SCORE:
         return "PRESCRIPTION"
     if m_score > p_score and m_score >= _MIN_SCORE:
-        return "MEDICATION_BAG"
+        return "DRUG_BAG"
     return None
 
 
 async def _ai_classify(text: str) -> str:
-    """GPT를 이용한 문서 분류 (규칙 기반이 UNKNOWN일 때만 호출)."""
+    """GPT를 이용한 문서 분류 (규칙 기반이 OTHER일 때만 호출)."""
     if not config.OPENAI_API_KEY:
-        return "UNKNOWN"
+        return "OTHER"
 
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
@@ -67,8 +67,8 @@ async def _ai_classify(text: str) -> str:
                     "role": "system",
                     "content": (
                         "아래 텍스트가 한국 의료 문서 중 어느 종류인지 판별하세요.\n"
-                        "처방전이면 PRESCRIPTION, 약봉투이면 MEDICATION_BAG, "
-                        "판단 불가이면 UNKNOWN 중 하나만 대문자로 답하세요."
+                        "처방전이면 PRESCRIPTION, 약봉투이면 DRUG_BAG, "
+                        "판단 불가이면 OTHER 중 하나만 대문자로 답하세요."
                     ),
                 },
                 {"role": "user", "content": text[:600]},
@@ -79,22 +79,22 @@ async def _ai_classify(text: str) -> str:
         result = resp.choices[0].message.content.strip().upper()
         if "PRESCRIPTION" in result:
             return "PRESCRIPTION"
-        if "MEDICATION_BAG" in result or "MEDICATION" in result:
-            return "MEDICATION_BAG"
+        if "DRUG_BAG" in result or "DRUG" in result:
+            return "DRUG_BAG"
     except Exception as exc:
-        logger.warning("AI 문서 분류 실패, UNKNOWN 처리: %s", exc)
+        logger.warning("AI 문서 분류 실패, OTHER 처리: %s", exc)
 
-    return "UNKNOWN"
+    return "OTHER"
 
 
 async def classify_document(raw_text: str) -> str:
-    """규칙 기반 1차 → UNKNOWN일 때 GPT 2차 분류.
+    """규칙 기반 1차 → OTHER일 때 GPT 2차 분류.
 
     Returns:
-        "PRESCRIPTION" | "MEDICATION_BAG" | "UNKNOWN"
+        "PRESCRIPTION" | "DRUG_BAG" | "OTHER"
     """
     if len(raw_text.strip()) < 30:
-        return "UNKNOWN"
+        return "OTHER"
 
     result = _rule_classify(raw_text)
     if result is not None:
