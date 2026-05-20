@@ -33,7 +33,28 @@
 
 ---
 
-## 2. Chat Flow (Non-Streaming)
+## 2. 채팅 비동기 처리 설계 결정
+
+### 설계 후보 비교
+
+| 항목 | Polling | **SSE Streaming (채택)** |
+|------|---------|--------------------------|
+| 흐름 | POST → `job_id` → GET /status 반복 | POST /stream → 청크 실시간 수신 |
+| 서버 부하 | 폴링 요청 N회 발생 | 단일 연결 유지 |
+| UX | 완료 후 전체 텍스트 한 번에 | 글자 단위 실시간 표시 |
+| 구현 복잡도 | status 엔드포인트 별도 필요 | StreamingResponse 단일 처리 |
+| 적합 상황 | 수 분 이상 소요되는 배치 작업 | 텍스트 생성 (수 초 이내) |
+
+### 채택 이유
+
+다이어그램의 "비동기 처리 → AI 워커 → 응답 조합" 흐름은 SSE로 완전히 구현됩니다.
+- **Redis Queue**: FastAPI가 `lpush`로 즉시 반환 → AI Worker가 `blpop`으로 비동기 처리 ✓
+- **실시간 응답**: 폴링 대신 SSE 청크 스트림으로 Polling보다 나은 UX ✓
+- **DB 저장**: 스트림 완료(`DONE` sentinel) 시점에 전체 메시지 저장 ✓
+
+---
+
+## 4. Chat Flow (Non-Streaming)
 
 ```
 User                  FastAPI              Redis             AI Worker           OpenAI
@@ -51,7 +72,7 @@ User                  FastAPI              Redis             AI Worker          
 
 ---
 
-## 3. Chat Flow (SSE Streaming)
+## 5. Chat Flow (SSE Streaming)
 
 ```
 User                  FastAPI              Redis             AI Worker           OpenAI
@@ -73,7 +94,7 @@ User                  FastAPI              Redis             AI Worker          
 
 ---
 
-## 4. Health Profile → Chat Context Injection
+## 6. Health Profile → Chat Context Injection
 
 ```
 send_message()
@@ -103,7 +124,7 @@ send_message()
 
 ---
 
-## 5. Medical Document Upload Flow (Planned)
+## 7. Medical Document Upload Flow (Planned)
 
 ```
 User
@@ -127,7 +148,7 @@ FastAPI
 
 ---
 
-## 6. Auto Session Title Generation
+## 8. Auto Session Title Generation
 
 ```
 send_message() called
@@ -147,7 +168,7 @@ FastAPI on result:
 
 ---
 
-## 7. Data Model Relationships
+## 9. Data Model Relationships
 
 ```
 User (1)
@@ -167,7 +188,7 @@ User (1)
 
 ---
 
-## 8. API Endpoint Map
+## 10. API Endpoint Map
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -190,7 +211,7 @@ User (1)
 
 ---
 
-## 9. Technology Stack
+## 11. Technology Stack
 
 | Layer | Technology | Reason |
 |-------|-----------|--------|
@@ -207,7 +228,7 @@ User (1)
 
 ---
 
-## 10. Environment Configuration
+## 12. Environment Configuration
 
 | Variable | Dev | Prod |
 |----------|-----|------|
