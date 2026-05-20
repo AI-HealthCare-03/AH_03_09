@@ -55,6 +55,20 @@ class UserRepository:
     async def update_last_login(self, user_id: int) -> None:
         await self._model.filter(id=user_id).update(last_login=datetime.now(config.TIMEZONE))
 
+    async def get_by_kakao_id(self, kakao_id: str) -> User | None:
+        return await self._model.get_or_none(kakao_id=kakao_id)
+
+    async def create_kakao_user(self, kakao_id: str, email: str, name: str) -> User:
+        return await self._model.create(
+            kakao_id=kakao_id,
+            email=email,
+            name=name,
+        )
+
+    async def update_kakao_id(self, user: User, kakao_id: str) -> None:
+        user.kakao_id = kakao_id
+        await user.save(update_fields=["kakao_id", "updated_at"])
+
     async def update_instance(self, user: User, data: dict[str, Any]) -> None:
         update_fields = []
         for key, value in data.items():
