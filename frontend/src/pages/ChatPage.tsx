@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import ChatSidebar from "../components/ChatSidebar";
 import ChatWindow from "../components/ChatWindow";
 import ChatInput from "../components/ChatInput";
@@ -113,9 +113,10 @@ export default function ChatPage() {
       <main className="chat-main">
         <header className="chat-header">
           <h2>{selectedSession?.title ?? "AI 헬스케어 챗봇"}</h2>
-          <button className="btn-logout" onClick={handleLogout}>
-            로그아웃
-          </button>
+          <div className="chat-header-actions">
+            <Link to="/health-profile" className="btn-profile">건강 프로필</Link>
+            <button className="btn-logout" onClick={handleLogout}>로그아웃</button>
+          </div>
         </header>
 
         {/* 오류 배너 */}

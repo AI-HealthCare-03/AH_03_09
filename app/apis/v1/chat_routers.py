@@ -1,7 +1,8 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import ORJSONResponse as Response, StreamingResponse
+from fastapi.responses import ORJSONResponse as Response
+from fastapi.responses import StreamingResponse
 
 from app.dependencies.security import get_request_user
 from app.dtos.chats import (
@@ -36,9 +37,7 @@ async def get_sessions(
     return Response([r.model_dump() for r in result], status_code=status.HTTP_200_OK)
 
 
-@chat_router.get(
-    "/sessions/{session_id}", response_model=ChatSessionDetailResponse, status_code=status.HTTP_200_OK
-)
+@chat_router.get("/sessions/{session_id}", response_model=ChatSessionDetailResponse, status_code=status.HTTP_200_OK)
 async def get_session_detail(
     session_id: int,
     user: Annotated[User, Depends(get_request_user)],
@@ -48,9 +47,7 @@ async def get_session_detail(
     return Response(result.model_dump(), status_code=status.HTTP_200_OK)
 
 
-@chat_router.post(
-    "/sessions/{session_id}/messages", response_model=ChatMessageResponse, status_code=status.HTTP_200_OK
-)
+@chat_router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse, status_code=status.HTTP_200_OK)
 async def send_message(
     session_id: int,
     body: ChatMessageSendRequest,

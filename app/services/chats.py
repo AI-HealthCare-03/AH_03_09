@@ -91,21 +91,25 @@ class ChatService:
         health_profile = await self.health_profile_repo.get_by_user_id(user.id)
 
         task_id = uuid.uuid4().hex
-        payload = json.dumps({
-            "task_id": task_id,
-            "session_id": session.id,
-            "user_message": data.content,
-            "stream": True,
-            "history": [{"role": m.role, "content": m.content} for m in history],
-            "health_profile": {
-                "primary_conditions": health_profile.primary_conditions,
-                "allergies": health_profile.allergies,
-                "current_medications": health_profile.current_medications,
-                "lifestyle_exercise": health_profile.lifestyle_exercise,
-                "lifestyle_smoking": health_profile.lifestyle_smoking,
-                "lifestyle_alcohol": health_profile.lifestyle_alcohol,
-            } if health_profile else None,
-        })
+        payload = json.dumps(
+            {
+                "task_id": task_id,
+                "session_id": session.id,
+                "user_message": data.content,
+                "stream": True,
+                "history": [{"role": m.role, "content": m.content} for m in history],
+                "health_profile": {
+                    "primary_conditions": health_profile.primary_conditions,
+                    "allergies": health_profile.allergies,
+                    "current_medications": health_profile.current_medications,
+                    "lifestyle_exercise": health_profile.lifestyle_exercise,
+                    "lifestyle_smoking": health_profile.lifestyle_smoking,
+                    "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+                }
+                if health_profile
+                else None,
+            }
+        )
 
         redis = await get_redis()
         await redis.lpush(AI_TASK_QUEUE, payload)
@@ -153,22 +157,28 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="채팅 세션을 찾을 수 없습니다.")
         return session
 
-    async def _request_ai_response(self, session_id: int, user_message: str, history: list, health_profile=None) -> dict:
+    async def _request_ai_response(
+        self, session_id: int, user_message: str, history: list, health_profile=None
+    ) -> dict:
         task_id = uuid.uuid4().hex
-        payload = json.dumps({
-            "task_id": task_id,
-            "session_id": session_id,
-            "user_message": user_message,
-            "history": [{"role": m.role, "content": m.content} for m in history],
-            "health_profile": {
-                "primary_conditions": health_profile.primary_conditions,
-                "allergies": health_profile.allergies,
-                "current_medications": health_profile.current_medications,
-                "lifestyle_exercise": health_profile.lifestyle_exercise,
-                "lifestyle_smoking": health_profile.lifestyle_smoking,
-                "lifestyle_alcohol": health_profile.lifestyle_alcohol,
-            } if health_profile else None,
-        })
+        payload = json.dumps(
+            {
+                "task_id": task_id,
+                "session_id": session_id,
+                "user_message": user_message,
+                "history": [{"role": m.role, "content": m.content} for m in history],
+                "health_profile": {
+                    "primary_conditions": health_profile.primary_conditions,
+                    "allergies": health_profile.allergies,
+                    "current_medications": health_profile.current_medications,
+                    "lifestyle_exercise": health_profile.lifestyle_exercise,
+                    "lifestyle_smoking": health_profile.lifestyle_smoking,
+                    "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+                }
+                if health_profile
+                else None,
+            }
+        )
 
         redis = await get_redis()
         await redis.lpush(AI_TASK_QUEUE, payload)

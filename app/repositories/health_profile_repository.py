@@ -30,6 +30,4 @@ class HealthProfileRepository:
         )
 
     async def get_history(self, health_profile_id: int) -> list[HealthProfileHistory]:
-        return await self._history_model.filter(
-            health_profile_id=health_profile_id
-        ).order_by("-created_at")
+        return await self._history_model.filter(health_profile_id=health_profile_id).order_by("-created_at")
