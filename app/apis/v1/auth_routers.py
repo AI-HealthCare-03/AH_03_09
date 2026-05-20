@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, status
 from fastapi.responses import JSONResponse as Response
+from fastapi.responses import RedirectResponse
 
 from app.core import config
 from app.core.config import Env
@@ -31,6 +32,36 @@ async def login(
     resp = Response(
         content=LoginResponse(access_token=str(tokens["access_token"])).model_dump(), status_code=status.HTTP_200_OK
     )
+    resp.set_cookie(
+        key="refresh_token",
+        value=str(tokens["refresh_token"]),
+        httponly=True,
+        secure=True if config.ENV == Env.PROD else False,
+        domain=config.COOKIE_DOMAIN or None,
+        expires=tokens["access_token"].payload["exp"],
+    )
+    return resp
+
+
+@auth_router.get("/kakao/login")
+async def kakao_login() -> RedirectResponse:
+    kakao_auth_url = (
+        "https://kauth.kakao.com/oauth/authorize"
+        f"?client_id={config.KAKAO_REST_API_KEY}"
+        f"&redirect_uri={config.KAKAO_REDIRECT_URI}"
+        "&response_type=code"
+    )
+    return RedirectResponse(url=kakao_auth_url)
+
+
+@auth_router.get("/kakao/callback")
+async def kakao_callback(
+    code: str,
+    auth_service: Annotated[AuthService, Depends(AuthService)],
+) -> RedirectResponse:
+    tokens = await auth_service.kakao_callback(code)
+    access_token = str(tokens["access_token"])
+    resp = RedirectResponse(url=f"/?access_token={access_token}")
     resp.set_cookie(
         key="refresh_token",
         value=str(tokens["refresh_token"]),

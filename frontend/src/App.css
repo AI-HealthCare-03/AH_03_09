@@ -47,6 +47,43 @@ body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; backgrou
 }
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
+/* 구분선 */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0 16px;
+  color: #ccc;
+  font-size: 12px;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #e8e8e8;
+}
+.divider span { padding: 0 12px; }
+
+/* 카카오 로그인 버튼 */
+.btn-kakao {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: #FEE500;
+  color: #191919;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.btn-kakao:hover { opacity: 0.85; }
+
 /* ===== Chat Layout ===== */
 .chat-layout {
   display: flex;
