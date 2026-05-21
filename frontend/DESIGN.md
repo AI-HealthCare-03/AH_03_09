@@ -150,7 +150,7 @@ Both pass through nginx in prod; the env vars resolve to the public origin.
 | Action | Method | Path | Body | Returns |
 |---|---|---|---|---|
 | Start login | GET | `/auth/kakao/login` | — | `{ auth_url: string }` |
-| Exchange code | POST | `/auth/kakao/callback` | `{ code: string }` | `{ access_token: string }` + sets HttpOnly `refresh_token` cookie |
+| Exchange code | POST | `/auth/kakao/callback?code=<code>` | — (code is a query param, not a JSON body) | `{ access_token: string }` + sets HttpOnly `refresh_token` cookie |
 | Refresh | GET | `/auth/token/refresh` | — (cookie auto-sent) | `{ access_token: string }` |
 
 Header on protected endpoints: `Authorization: Bearer <access_token>`.
@@ -472,7 +472,7 @@ Component visual specs (sizes, exact spacing) are deferred to the post-MVP UI do
 # frontend/.env.example
 VITE_API_BASE_URL=http://localhost:8000
 VITE_WS_URL=ws://localhost:8000
-VITE_KAKAO_REDIRECT_URI=http://localhost:5173/auth/kakao/callback
+VITE_KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback
 ```
 
 In prod, all three resolve to the same origin via nginx (`https://medi-mate.example.com` / `wss://...`). No `VITE_KAKAO_CLIENT_ID` on the frontend — the backend assembles the OAuth URL and returns it via `/auth/kakao/login`.
@@ -500,10 +500,10 @@ Fail-fast on missing config beats silent `undefined` in fetch URLs.
 ```bash
 cd frontend
 pnpm install
-pnpm dev          # vite dev server on :5173
+pnpm dev          # vite dev server on :3000 (matches backend KAKAO_REDIRECT_URI)
 ```
 
-Backend must be running separately (`docker compose up fastapi ai-worker redis postgres`). `FRONTEND_URL=http://localhost:5173` in backend env so CORS matches.
+Backend must be running separately (`docker compose up fastapi ai-worker redis postgres`). `FRONTEND_URL=http://localhost:3000` in backend env so CORS matches.
 
 ### 11.2 Production build
 
