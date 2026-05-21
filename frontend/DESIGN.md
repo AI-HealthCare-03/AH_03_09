@@ -124,8 +124,9 @@ frontend/
     │
     ├── features/             # Domain-scoped components (siblings; do not cross-import)
     │   ├── auth/             # KakaoLoginButton, useKakaoLogin (shared by Landing + Login)
-    │   └── landing/          # HeroSection
-    │   # Week 3 adds: onboarding/, document-upload/, my-documents/, profile/
+    │   ├── landing/          # HeroSection
+    │   └── onboarding/       # TermsForm, MedicalProfileForm, medicalProfileSchema (zod), terms (content)
+    │   # Week 3 adds: document-upload/, my-documents/, profile/
     │
     ├── components/
     │   ├── chat/
@@ -259,6 +260,8 @@ Lifecycle: open → send user message as plain text → receive 0..N `stream` fr
 `/ocr/upload`, `/ocr/jobs/{job_id}/status`, `/ocr/records/{id}`, `/ocr/records/{id}/result`, `/ocr/records/{id}/medications`, `/ocr/records/{id}/disease-codes`, `/ocr/records` — all called from the Week 3 document upload flow. `PATCH`/`DELETE` on records return 501 on the backend and are not called from the frontend.
 
 `/guides/*` remains deferred until the health-guide feature lands.
+
+**Terms agreement & onboarding profile have no backend endpoints yet.** `feature/fe-onboarding-bhw` ships a complete UI (5-item terms checklist with content `Dialog`s + medical profile form with `react-hook-form` + Zod validation) that persists exclusively to `localStorage` via `authStore` (`termsAcceptedAt`, `onboardingCompletedAt`, `medicalProfile`). **TODO(BE)**: when `POST /api/v1/users/onboarding` (or equivalent) lands, swap the `setTermsAccepted` / `setOnboardingCompleted` stub-writes for an API call and migrate any localStorage-only users on first authenticated boot.
 
 ---
 
