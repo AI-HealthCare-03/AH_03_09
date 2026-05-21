@@ -1,4 +1,5 @@
 import {
+  BookOpenIcon,
   FileTextIcon,
   HeartPulseIcon,
   HomeIcon,
@@ -26,6 +27,7 @@ const mainNav = [
   { to: "/home", label: "홈", icon: HomeIcon },
   { to: "/upload", label: "업로드", icon: ScanSearchIcon },
   { to: "/documents", label: "내 문서", icon: FileTextIcon },
+  { to: "/health-guide", label: "건강 가이드", icon: BookOpenIcon },
   { to: "/health-profile", label: "내 건강정보", icon: HeartPulseIcon },
   { to: "/chat", label: "챗봇", icon: MessageCircleIcon },
   { to: "/settings", label: "설정", icon: SettingsIcon },

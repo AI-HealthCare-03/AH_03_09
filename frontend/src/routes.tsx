@@ -3,6 +3,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import ChatLayout from "@/components/layout/ChatLayout";
 import Chat from "@/pages/Chat";
+import HealthGuide from "@/pages/HealthGuide";
 import HealthProfile from "@/pages/HealthProfile";
 import Home from "@/pages/Home";
 import KakaoCallback from "@/pages/KakaoCallback";
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
           { path: "/upload/review/:jobId", element: <UploadReview /> },
           { path: "/upload/result/:recordId", element: <UploadResult /> },
           { path: "/documents", element: <MyDocuments /> },
+          { path: "/health-guide", element: <HealthGuide /> },
           { path: "/health-profile", element: <HealthProfile /> },
           { path: "/profile", element: <Profile /> },
           { path: "/settings", element: <Settings /> },
