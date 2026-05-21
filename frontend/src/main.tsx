@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
+import { Toaster } from "@/components/ui/sonner";
 import App from "./App.tsx";
 import "./styles/globals.css";
 
@@ -19,6 +20,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <App />
+        <Toaster />
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>,

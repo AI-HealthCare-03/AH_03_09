@@ -21,7 +21,7 @@ export default function KakaoCallback() {
       .then(({ access_token }) => {
         if (cancelled) return;
         setToken(access_token);
-        navigate("/chat", { replace: true });
+        navigate("/home", { replace: true });
       })
       .catch((err: unknown) => {
         if (cancelled) return;

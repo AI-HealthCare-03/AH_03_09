@@ -41,7 +41,13 @@
 | Routing | **React Router v7** (declarative SPA mode, **not** framework mode) | Familiar; no SSR coupling |
 | HTTP | **fetch + thin wrapper** (`frontend/src/lib/api.ts`) | One file; no axios dependency for what amounts to an interceptor |
 | Markdown | **react-markdown + remark-gfm + rehype-sanitize** | Render assistant output safely |
-| Forms / validation | **react-hook-form + zod** (only if a form needs it) | Login is one button — likely no form library at all in week 2 |
+| Forms / validation | **react-hook-form + zod** | Terms agreement + onboarding profile (Week 3) and any future form |
+| File upload | **react-dropzone** | Drag-and-drop + manual picker for OCR upload (Week 3) |
+| Data tables | **@tanstack/react-table v8** | Headless table primitives for `/documents` list (Week 3) |
+| Date formatting | **date-fns** | Upload timestamps, onboarding birthdate parsing |
+| Icons | **lucide-react** | shadcn-default icon set |
+| Toast | **sonner** | Mounted globally in `main.tsx` |
+| Utility | **clsx + tailwind-merge + cva** | Provided by shadcn `cn()` helper in `@/lib/utils` |
 | Tests | **Vitest 2 + @testing-library/react** | Vite-native; same config as build |
 | Lint / format | **Biome 2** (single binary, replaces ESLint + Prettier) | Faster CI; if team prefers ESLint v9 + Prettier, that's also fine — pick one |
 | Package manager | **pnpm** | Matches backend tooling preference (uv for python, pnpm for JS) |
@@ -78,8 +84,11 @@ frontend/
     │
     ├── lib/                   # Cross-cutting infra (NOT React components)
     │   ├── env.ts             # Typed import.meta.env shim
-    │   ├── api.ts             # fetch wrapper with auth header + 401 refresh
-    │   ├── ws.ts              # WebSocket envelope types + connect helper
+    │   ├── withAuthRetry.ts   # Shared 401-refresh wrapper (single dedupe point)
+    │   ├── api.ts             # JSON request helper built on withAuthRetry
+    │   ├── apiMultipart.ts    # FormData POST helper built on withAuthRetry (OCR upload)
+    │   ├── utils.ts           # `cn()` (shadcn helper: clsx + tailwind-merge)
+    │   ├── ws.ts              # WebSocket envelope types + connect helper (Week 2)
     │   ├── constants.ts       # DISCLAIMER text, emergency phone numbers
     │   └── markdown.ts        # Pre-configured react-markdown pipeline
     │
@@ -89,7 +98,8 @@ frontend/
     │   └── user.ts            # GET /users/me, DELETE /users/me
     │
     ├── store/                 # Zustand stores (client-only state)
-    │   ├── authStore.ts       # access_token, user, hasSeenDisclaimer
+    │   ├── authStore.ts       # access_token, user, hasSeenDisclaimer, termsAcceptedAt, onboardingCompletedAt, medicalProfile
+    │   ├── uiStore.ts         # sidebarCollapsed (persisted)
     │   └── chatStore.ts       # current sessionId, in-flight stream buffer, emergency state
     │
     ├── hooks/                 # React hooks that bind store + side effects
@@ -97,9 +107,20 @@ frontend/
     │   └── useChatSocket.ts   # WS connect/reconnect, envelope dispatch
     │
     ├── pages/                 # One file per route
-    │   ├── Login.tsx
-    │   ├── KakaoCallback.tsx
-    │   └── Chat.tsx
+    │   ├── Landing.tsx        # /
+    │   ├── Login.tsx          # /login
+    │   ├── KakaoCallback.tsx  # /auth/kakao/callback
+    │   ├── Terms.tsx          # /terms (gate-protected)
+    │   ├── Onboarding.tsx     # /onboarding (gate-protected)
+    │   ├── Home.tsx           # /home — document upload main
+    │   ├── UploadProcessing.tsx # /upload/processing/:jobId
+    │   ├── UploadReview.tsx     # /upload/review/:jobId
+    │   ├── UploadResult.tsx     # /upload/result/:recordId
+    │   ├── MyDocuments.tsx    # /documents
+    │   ├── HealthGuide.tsx    # /health-guide
+    │   ├── Settings.tsx       # /settings
+    │   ├── Chat.tsx           # /chat, /chat/:sessionId (uses ChatLayout)
+    │   └── NotFound.tsx
     │
     ├── components/
     │   ├── chat/
@@ -111,9 +132,16 @@ frontend/
     │   │   └── DisclaimerFooter.tsx
     │   ├── common/
     │   │   ├── ProtectedRoute.tsx
+    │   │   ├── OnboardingGate.tsx    # Forces terms → onboarding before app
+    │   │   ├── ProfileModal.tsx       # shadcn Dialog
     │   │   ├── FirstUseModal.tsx
     │   │   └── ErrorBoundary.tsx
-    │   └── ui/                # shadcn-generated primitives (button, dialog, scroll-area, ...)
+    │   ├── layout/                    # Route-level shells
+    │   │   ├── AppLayout.tsx          # Sidebar + Header + Outlet
+    │   │   ├── AppSidebar.tsx         # shadcn sidebar (icon-collapsible)
+    │   │   ├── AppHeader.tsx          # Sidebar trigger + profile button
+    │   │   └── ChatLayout.tsx         # Full-screen, no AppSidebar
+    │   └── ui/                # shadcn-generated primitives (button, card, dialog, select, table, sidebar, …)
     │
     ├── styles/
     │   └── globals.css        # Tailwind v4 entrypoint: @import "tailwindcss"; @theme { ... }
@@ -221,9 +249,11 @@ Lifecycle: open → send user message as plain text → receive 0..N `stream` fr
 
 `GET /users/me` → `UserInfoResponse` (id, email, name, ...). Used by `ProfileModal` (sidebar → "내 정보" 버튼). `DELETE /users/me` requires body `{ confirmation_text: "회원탈퇴합니다" }`. Exposed in Week 2 via `ProfileModal`; success → `authStore.clear()` + redirect to `/login`.
 
-### 3.6 What we do NOT call in Week 2
+### 3.6 OCR endpoints (Week 3)
 
-`/guides/*`, `/ocr/*`. Endpoints exist; week 2 doesn't expose them. Don't write callers for them — adds dead code.
+`/ocr/upload`, `/ocr/jobs/{job_id}/status`, `/ocr/records/{id}`, `/ocr/records/{id}/result`, `/ocr/records/{id}/medications`, `/ocr/records/{id}/disease-codes`, `/ocr/records` — all called from the Week 3 document upload flow. `PATCH`/`DELETE` on records return 501 on the backend and are not called from the frontend.
+
+`/guides/*` remains deferred until the health-guide feature lands.
 
 ---
 
@@ -256,10 +286,24 @@ interface AuthState {
   accessToken: string | null;
   user: UserInfo | null;
   hasSeenDisclaimer: boolean;
+  termsAcceptedAt: string | null;        // ISO; read by OnboardingGate
+  onboardingCompletedAt: string | null;  // ISO; read by OnboardingGate
+  medicalProfile: MedicalProfile | null; // Week 3 onboarding form output
   setToken: (t: string) => void;
-  clear: () => void;
+  setTermsAccepted: () => void;
+  setOnboardingCompleted: (profile: MedicalProfile) => void;
+  clear: () => void;                     // Resets ALL auth fields incl. flags above
+}
+
+// store/uiStore.ts
+interface UiState {
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (v: boolean) => void;
+  toggleSidebar: () => void;
 }
 ```
+
+**TODO(BE)**: `termsAcceptedAt` / `onboardingCompletedAt` / `medicalProfile` currently persist to `localStorage` only. Migrate to a `POST /api/v1/users/onboarding` round-trip when the backend endpoint exists.
 
 ```ts
 // store/chatStore.ts
@@ -273,7 +317,7 @@ interface ChatState {
 }
 ```
 
-**Persistence**: `authStore` persists `accessToken` and `hasSeenDisclaimer` to `localStorage` via `zustand/middleware/persist`. `chatStore` is in-memory only — reloading wipes the live stream buffer (the user can refetch history from REST).
+**Persistence**: `authStore` persists `accessToken`, `hasSeenDisclaimer`, `termsAcceptedAt`, `onboardingCompletedAt`, and `medicalProfile` to `localStorage` via `zustand/middleware/persist`. `uiStore` persists `sidebarCollapsed`. `chatStore` is in-memory only — reloading wipes the live stream buffer (the user can refetch history from REST).
 
 **Security note**: storing the access token in `localStorage` accepts XSS risk in exchange for surviving page reload. The refresh token stays HttpOnly. This is the minimum acceptable for an MVP demo; a hardened build would move to in-memory + silent refresh on every page load. Document the tradeoff; do not silently change it.
 
@@ -394,23 +438,51 @@ The user message is **not** echoed by the backend. The frontend renders it optim
 ## 7. Routing
 
 ```ts
-// routes.tsx
-export const routes = createBrowserRouter([
-  { path: "/login", element: <Login /> },
+// routes.tsx (Week 3)
+createBrowserRouter([
+  { path: "/", element: <Landing /> },                  // public; redirects to /home if authed
+  { path: "/login", element: <Login /> },               // public (deep-link fallback)
   { path: "/auth/kakao/callback", element: <KakaoCallback /> },
   {
-    element: <ProtectedRoute />,           // checks authStore.accessToken
-    children: [
-      { path: "/", element: <Navigate to="/chat" replace /> },
-      { path: "/chat", element: <Chat /> },
-      { path: "/chat/:sessionId", element: <Chat /> },
-    ],
+    element: <ProtectedRoute />,                        // accessToken check → /login
+    children: [{
+      element: <OnboardingGate />,                      // termsAcceptedAt + onboardingCompletedAt
+      children: [
+        { path: "/terms", element: <Terms /> },         // gate redirects to here if needed
+        { path: "/onboarding", element: <Onboarding /> },
+        {
+          element: <AppLayout />,                       // sidebar + header
+          children: [
+            { path: "/home", element: <Home /> },
+            { path: "/upload/processing/:jobId", element: <UploadProcessing /> },
+            { path: "/upload/review/:jobId", element: <UploadReview /> },
+            { path: "/upload/result/:recordId", element: <UploadResult /> },
+            { path: "/documents", element: <MyDocuments /> },
+            { path: "/health-guide", element: <HealthGuide /> },
+            { path: "/settings", element: <Settings /> },
+          ],
+        },
+        {
+          element: <ChatLayout />,                      // full-screen sibling of AppLayout
+          children: [
+            { path: "/chat", element: <Chat /> },
+            { path: "/chat/:sessionId", element: <Chat /> },
+          ],
+        },
+      ],
+    }],
   },
   { path: "*", element: <NotFound /> },
 ]);
 ```
 
-`ProtectedRoute` renders `<Outlet />` if authed, otherwise `<Navigate to="/login" replace />`. The first-use disclaimer modal is rendered *inside* `Chat`, not as a route — closing it sets `authStore.hasSeenDisclaimer = true`.
+**Three layered guards**, top-down:
+
+1. `ProtectedRoute` — `accessToken` present? else `/login`.
+2. `OnboardingGate` — `termsAcceptedAt` set? else `/terms`. Then `onboardingCompletedAt`? else `/onboarding`. Once both set, `/terms` and `/onboarding` redirect to `/home`.
+3. Route-group layouts — `AppLayout` (sidebar+header) vs `ChatLayout` (full-screen, no sidebar; the chat page owns its own session list and sticky composer).
+
+The first-use chat disclaimer modal is still rendered *inside* `Chat`, not as a route — closing it sets `authStore.hasSeenDisclaimer = true`. This is a separate concept from the gate's `termsAcceptedAt` (signup-time terms agreement).
 
 ---
 
@@ -433,27 +505,32 @@ Three layers, in order:
 Full design system is out of scope (PLAN §1 picked "architecture-focused" DESIGN.md). What's mandatory:
 
 ```css
-/* src/styles/globals.css */
+/* src/styles/globals.css — see file for full theme block */
 @import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
 
-@theme {
-  /* Brand */
-  --color-primary: oklch(0.55 0.18 250);    /* trust-blue, medical neutral */
-  --color-danger:  oklch(0.55 0.22 25);     /* emergency banner */
-  --color-warning: oklch(0.75 0.18 75);
-  --color-success: oklch(0.65 0.15 145);
+:root {
+  /* Brand (DESIGN §9 OKLCH) layered on shadcn neutral base */
+  --primary: oklch(0.55 0.18 250);         /* trust-blue, medical neutral */
+  --destructive: oklch(0.55 0.22 25);      /* emergency / danger */
+  --success: oklch(0.65 0.15 145);
+  --warning: oklch(0.75 0.18 75);
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.20 0 0);
+  /* …card, popover, secondary, muted, accent, border, input, ring, sidebar-* */
+  --radius: 0.5rem;
+}
 
-  /* Surfaces */
-  --color-bg: oklch(0.99 0 0);
-  --color-fg: oklch(0.20 0 0);
-  --color-muted: oklch(0.60 0 0);
-
-  /* Type */
-  --font-sans: "Pretendard Variable", system-ui, sans-serif;
-
-  /* Radii / spacing follow Tailwind defaults */
+@theme inline {
+  --color-background: var(--background);
+  --color-primary: var(--primary);
+  --color-destructive: var(--destructive);
+  /* …expose every CSS var as `bg-<name>`, `text-<name>` utility */
+  --font-sans: "Pretendard Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 ```
+
+shadcn's `@/components/ui/*` components reference these tokens (`bg-primary`, `text-destructive`, `bg-sidebar-accent`, etc), so the brand colors propagate to every primitive automatically.
 
 **Mandatory constraints** (PLAN §4.6):
 - Touch targets ≥ 44×44px.
