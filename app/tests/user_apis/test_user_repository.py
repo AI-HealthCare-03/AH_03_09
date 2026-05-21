@@ -149,11 +149,11 @@ class TestUserRepository:
 
         await repo.hard_delete(user.id)
 
-        assert (await db_session.execute(text("SELECT COUNT(*) FROM users WHERE id = :i"), {"i": user.id})).scalar() == 0
         assert (
-            await db_session.execute(
-                text("SELECT COUNT(*) FROM chat_sessions WHERE user_id = :i"), {"i": user.id}
-            )
+            await db_session.execute(text("SELECT COUNT(*) FROM users WHERE id = :i"), {"i": user.id})
+        ).scalar() == 0
+        assert (
+            await db_session.execute(text("SELECT COUNT(*) FROM chat_sessions WHERE user_id = :i"), {"i": user.id})
         ).scalar() == 0
         assert (
             await db_session.execute(
