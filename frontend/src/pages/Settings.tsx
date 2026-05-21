@@ -1,9 +1,11 @@
-import { LogOutIcon } from "lucide-react";
+import { ChevronRightIcon, LogOutIcon, UserIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthStore } from "@/store/authStore";
 
 export default function Settings() {
+  const navigate = useNavigate();
   const clear = useAuthStore((s) => s.clear);
 
   const handleLogout = () => {
@@ -21,9 +23,21 @@ export default function Settings() {
       <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="text-base">계정</CardTitle>
-          <CardDescription>현재 기기에서 카카오 세션을 종료합니다.</CardDescription>
+          <CardDescription>내 정보를 확인하거나 카카오 세션을 종료합니다.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate("/profile")}
+            className="justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <UserIcon className="size-4" />
+              내 정보
+            </span>
+            <ChevronRightIcon className="size-4 text-muted-foreground" />
+          </Button>
           <Button type="button" variant="outline" onClick={handleLogout}>
             <LogOutIcon className="size-4" />
             로그아웃
