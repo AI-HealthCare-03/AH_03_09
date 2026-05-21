@@ -52,6 +52,7 @@ services:
       sh -c "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./app:/app/app
+      - ocr_uploads:/tmp/ocr_uploads
     restart: always
     ports:
       - "8000:8000"
@@ -76,6 +77,8 @@ services:
     env_file: .env
     restart: always
     mem_limit: 4G
+    volumes:
+      - ocr_uploads:/tmp/ocr_uploads
     networks:
       - ws
     depends_on:
@@ -114,6 +117,7 @@ services:
 volumes:
   postgres_data:
   static_volume:
+  ocr_uploads:
 
 networks:
   ws:

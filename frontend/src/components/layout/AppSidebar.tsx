@@ -3,6 +3,7 @@ import {
   FileTextIcon,
   HomeIcon,
   MessageCircleIcon,
+  ScanSearchIcon,
   SettingsIcon,
   ShieldCheckIcon,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import { useAuthStore } from "@/store/authStore";
 
 const mainNav = [
   { to: "/home", label: "홈", icon: HomeIcon },
+  { to: "/upload", label: "업로드", icon: ScanSearchIcon },
   { to: "/documents", label: "내 문서", icon: FileTextIcon },
   { to: "/health-guide", label: "건강 가이드", icon: BookOpenIcon },
   { to: "/chat", label: "챗봇", icon: MessageCircleIcon },

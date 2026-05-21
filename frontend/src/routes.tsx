@@ -14,6 +14,7 @@ import NotFound from "@/pages/NotFound";
 import Onboarding from "@/pages/Onboarding";
 import Settings from "@/pages/Settings";
 import Terms from "@/pages/Terms";
+import Upload from "@/pages/Upload";
 import UploadProcessing from "@/pages/UploadProcessing";
 import UploadResult from "@/pages/UploadResult";
 import UploadReview from "@/pages/UploadReview";
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
             element: <AppLayout />,
             children: [
               { path: "/home", element: <Home /> },
+              { path: "/upload", element: <Upload /> },
               { path: "/upload/processing/:jobId", element: <UploadProcessing /> },
               { path: "/upload/review/:jobId", element: <UploadReview /> },
               { path: "/upload/result/:recordId", element: <UploadResult /> },

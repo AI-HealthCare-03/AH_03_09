@@ -74,7 +74,7 @@ class OcrResult(Base):
     clova_request_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     processing_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    is_user_edited: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_user_edited: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
