@@ -162,7 +162,7 @@ Header on protected endpoints: `Authorization: Bearer <access_token>`.
 | POST | `/chat/sessions` | `ChatSessionResponse` |
 | GET | `/chat/sessions` | `ChatSessionResponse[]` |
 | GET | `/chat/sessions/{id}/messages` | `{ messages: ChatMessageResponse[] }` |
-| POST | `/chat/sessions/{id}/messages` | (REST fallback — frontend uses WS, ignore) |
+| POST | `/chat/sessions/{id}/messages` | `{ user_message, assistant_message }` — Week 2 uses this synchronous REST endpoint (server aggregates LLM stream and returns once). WebSocket streaming moves to Week 3. |
 
 ```ts
 // types/api.ts (mirror of backend DTOs)
@@ -219,7 +219,7 @@ Lifecycle: open → send user message as plain text → receive 0..N `stream` fr
 
 ### 3.5 Users
 
-`GET /users/me` → `UserInfoResponse` (id, email, name, ...). Used to populate sidebar avatar/name. `DELETE /users/me` requires body `{ confirmation_text: "회원탈퇴합니다" }` — **not exposed in Week 2 UI**.
+`GET /users/me` → `UserInfoResponse` (id, email, name, ...). Used by `ProfileModal` (sidebar → "내 정보" 버튼). `DELETE /users/me` requires body `{ confirmation_text: "회원탈퇴합니다" }`. Exposed in Week 2 via `ProfileModal`; success → `authStore.clear()` + redirect to `/login`.
 
 ### 3.6 What we do NOT call in Week 2
 
