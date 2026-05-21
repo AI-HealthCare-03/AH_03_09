@@ -6,7 +6,6 @@ export interface UserInfo {
   kakao_id: string;
   email: string | null;
   name: string | null;
-  role?: "user" | "admin";
 }
 
 export interface MedicalProfile {

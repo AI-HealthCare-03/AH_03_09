@@ -4,13 +4,11 @@ import {
   HomeIcon,
   MessageCircleIcon,
   SettingsIcon,
-  ShieldCheckIcon,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -19,7 +17,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useAuthStore } from "@/store/authStore";
 
 const mainNav = [
   { to: "/home", label: "홈", icon: HomeIcon },
@@ -29,11 +26,7 @@ const mainNav = [
   { to: "/settings", label: "설정", icon: SettingsIcon },
 ];
 
-const adminNav = [{ to: "/admin", label: "관리자", icon: ShieldCheckIcon }];
-
 export default function AppSidebar() {
-  const role = useAuthStore((s) => s.user?.role);
-
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -69,26 +62,6 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      {role === "admin" && (
-        <SidebarFooter>
-          <SidebarMenu>
-            {adminNav.map((item) => (
-              <SidebarMenuItem key={item.to}>
-                <NavLink to={item.to}>
-                  {({ isActive }) => (
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                      <span className="flex items-center gap-2">
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </span>
-                    </SidebarMenuButton>
-                  )}
-                </NavLink>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarFooter>
-      )}
     </Sidebar>
   );
 }
