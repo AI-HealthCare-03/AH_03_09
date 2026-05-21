@@ -11,12 +11,12 @@ import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import MyDocuments from "@/pages/MyDocuments";
 import NotFound from "@/pages/NotFound";
+import Upload from "@/pages/ocr/Upload";
+import UploadProcessing from "@/pages/ocr/UploadProcessing";
+import UploadResult from "@/pages/ocr/UploadResult";
+import UploadReview from "@/pages/ocr/UploadReview";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
-import Upload from "@/pages/Upload";
-import UploadProcessing from "@/pages/UploadProcessing";
-import UploadResult from "@/pages/UploadResult";
-import UploadReview from "@/pages/UploadReview";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Landing /> },
