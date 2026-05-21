@@ -268,9 +268,9 @@ function FeatureBento() {
 function BackgroundDecoration() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      <div className="absolute -top-40 -left-40 size-[32rem] rounded-full bg-primary/10 blur-3xl" />
-      <div className="absolute top-1/3 -right-32 size-[28rem] rounded-full bg-success/8 blur-3xl" />
-      <div className="absolute -bottom-32 left-1/3 size-[24rem] rounded-full bg-primary/5 blur-3xl" />
+      <div className="absolute -top-40 -left-40 size-128 rounded-full bg-primary/10 blur-3xl" />
+      <div className="absolute top-1/3 -right-32 size-112 rounded-full bg-success/8 blur-3xl" />
+      <div className="absolute -bottom-32 left-1/3 size-96 rounded-full bg-primary/5 blur-3xl" />
     </div>
   );
 }
