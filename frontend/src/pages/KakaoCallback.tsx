@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { exchangeKakaoCode } from "@/api/auth";
 import { useAuthStore } from "@/store/authStore";
@@ -8,6 +8,8 @@ export default function KakaoCallback() {
   const navigate = useNavigate();
   const setToken = useAuthStore((s) => s.setToken);
   const [error, setError] = useState<string | null>(null);
+  // Kakao OAuth code는 1회용 — StrictMode dev 더블 실행 시 두 번째 호출이 400으로 떨어지는 것을 막는다.
+  const exchangedCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
     const code = searchParams.get("code");
@@ -15,22 +17,17 @@ export default function KakaoCallback() {
       setError("인증 코드가 없습니다.");
       return;
     }
+    if (exchangedCodeRef.current === code) return;
+    exchangedCodeRef.current = code;
 
-    let cancelled = false;
     exchangeKakaoCode(code)
       .then(({ access_token }) => {
-        if (cancelled) return;
         setToken(access_token);
         navigate("/home", { replace: true });
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
         setError(err instanceof Error ? err.message : "로그인 처리에 실패했습니다.");
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [searchParams, navigate, setToken]);
 
   return (
