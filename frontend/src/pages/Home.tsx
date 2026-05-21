@@ -260,7 +260,7 @@ function MedicationCard() {
 
 function TipsCard() {
   return (
-    <Card className="rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+    <Card className="rounded-2xl bg-linear-to-br from-primary/10 via-primary/5 to-transparent">
       <CardContent className="space-y-3 p-6">
         <div className="flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">

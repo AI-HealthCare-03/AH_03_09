@@ -26,7 +26,7 @@ export function HeroSection() {
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.5rem]">
               복잡한 의료 문서,
               <br />
-              <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                 AI가 한 번에
               </span>{" "}
               정리합니다.
@@ -252,7 +252,7 @@ function FeatureBento() {
           className={`group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm transition hover:shadow-md ${span}`}
         >
           <div
-            className={`pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br ${accent} opacity-70`}
+            className={`pointer-events-none absolute inset-0 -z-10 bg-linear-to-br ${accent} opacity-70`}
           />
           <span className={`grid size-10 place-items-center rounded-xl ${iconBg}`}>
             <Icon className="size-5" />
