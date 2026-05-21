@@ -122,6 +122,11 @@ frontend/
     │   ├── Chat.tsx           # /chat, /chat/:sessionId (uses ChatLayout)
     │   └── NotFound.tsx
     │
+    ├── features/             # Domain-scoped components (siblings; do not cross-import)
+    │   ├── auth/             # KakaoLoginButton, useKakaoLogin (shared by Landing + Login)
+    │   └── landing/          # HeroSection
+    │   # Week 3 adds: onboarding/, document-upload/, my-documents/, profile/
+    │
     ├── components/
     │   ├── chat/
     │   │   ├── MessageBubble.tsx
@@ -440,8 +445,8 @@ The user message is **not** echoed by the backend. The frontend renders it optim
 ```ts
 // routes.tsx (Week 3)
 createBrowserRouter([
-  { path: "/", element: <Landing /> },                  // public; redirects to /home if authed
-  { path: "/login", element: <Login /> },               // public (deep-link fallback)
+  { path: "/", element: <Landing /> },                  // public; HeroSection + Kakao CTA. Redirects to /home if authed
+  { path: "/login", element: <Login /> },               // public (deep-link fallback). Shares KakaoLoginButton with Landing
   { path: "/auth/kakao/callback", element: <KakaoCallback /> },
   {
     element: <ProtectedRoute />,                        // accessToken check → /login
