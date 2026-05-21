@@ -7,7 +7,17 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["src/**", "*.ts", "*.tsx", "*.json", "*.html", "*.css"]
+    "includes": [
+      "src/**",
+      "*.ts",
+      "*.tsx",
+      "*.json",
+      "*.html",
+      "*.css",
+      "!src/components/ui",
+      "!src/hooks/use-mobile.ts",
+      "!src/styles/globals.css"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -26,6 +36,14 @@
       "quoteStyle": "double",
       "semicolons": "always",
       "trailingCommas": "all"
+    }
+  },
+  "css": {
+    "parser": {
+      "cssModules": false
+    },
+    "formatter": {
+      "enabled": true
     }
   }
 }
