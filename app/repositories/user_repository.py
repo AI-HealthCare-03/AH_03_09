@@ -1,6 +1,4 @@
-from datetime import UTC, datetime
-
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,12 +10,12 @@ class UserRepository:
         self.session = session
 
     async def get_user(self, user_id: int) -> User | None:
-        stmt = select(User).where(User.id == user_id, User.is_active.is_(True))
+        stmt = select(User).where(User.id == user_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_by_kakao_id(self, kakao_id: str) -> User | None:
-        stmt = select(User).where(User.kakao_id == kakao_id, User.is_active.is_(True))
+        stmt = select(User).where(User.kakao_id == kakao_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -41,8 +39,6 @@ class UserRepository:
             "birthday": birthday,
             "birthyear": birthyear,
             "phone_number": phone_number,
-            "is_active": True,
-            "deleted_at": None,
         }
 
         stmt = (
@@ -61,7 +57,12 @@ class UserRepository:
         await self.session.refresh(user)
         return user
 
-    async def soft_delete(self, user_id: int) -> None:
-        stmt = update(User).where(User.id == user_id).values(is_active=False, deleted_at=datetime.now(UTC))
-        await self.session.execute(stmt)
+    async def hard_delete(self, user_id: int) -> None:
+        # ocr_corrections.corrected_by 는 CASCADE 가 없으므로 먼저 비운다.
+        # chat_sessions / ocr_documents 와 그 하위 테이블은 FK CASCADE 로 함께 삭제됨.
+        await self.session.execute(
+            text("DELETE FROM ocr_corrections WHERE corrected_by = :uid"),
+            {"uid": user_id},
+        )
+        await self.session.execute(delete(User).where(User.id == user_id))
         await self.session.commit()

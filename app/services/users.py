@@ -16,4 +16,4 @@ class UserManageService:
         return await self.repo.get_user(user_id)
 
     async def withdraw(self, user_id: int) -> None:
-        await self.repo.soft_delete(user_id)
+        await self.repo.hard_delete(user_id)
