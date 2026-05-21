@@ -124,8 +124,8 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
         await conn.execute(
             """
             INSERT INTO ocr_results
-                (document_id, raw_text, processed_text, clova_request_id, confidence_score, processing_time_ms)
-            VALUES ($1, $2, $2, $3, $4, $5)
+                (document_id, raw_text, processed_text, clova_request_id, confidence_score, processing_time_ms, is_user_edited)
+            VALUES ($1, $2, $2, $3, $4, $5, FALSE)
             """,
             payload.record_id,
             ocr["raw_text"],

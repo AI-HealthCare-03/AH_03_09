@@ -193,7 +193,8 @@ async def update_record(
     session: _SESSION,
 ) -> OcrDocumentResponse:
     """OCR 문서 메타데이터를 수정합니다."""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    svc = OcrDocumentService(session)
+    return await svc.update_document(record_id, current_user.id, body)
 
 
 @ocr_router.delete("/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
