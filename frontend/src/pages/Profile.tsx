@@ -8,7 +8,6 @@ import {
   UserIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { fetchMe, WITHDRAW_CONFIRMATION_TEXT, withdrawMe } from "@/api/user";
 import {
   AlertDialog,
@@ -30,7 +29,6 @@ import type { UserInfoResponse } from "@/types/api";
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", { dateStyle: "long" });
 
 export default function Profile() {
-  const navigate = useNavigate();
   const clear = useAuthStore((s) => s.clear);
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -44,9 +42,10 @@ export default function Profile() {
   const withdrawMut = useMutation({
     mutationFn: withdrawMe,
     onSuccess: () => {
-      setWithdrawOpen(false);
       clear();
-      navigate("/", { replace: true });
+      // ProtectedRoute가 accessToken=null을 감지해 /login으로 튀는 레이스를 피하려고
+      // SPA 네비게이션 대신 풀 리로드로 랜딩(/)으로 이동.
+      window.location.assign("/");
     },
   });
 
@@ -74,8 +73,9 @@ export default function Profile() {
       <Card className="rounded-2xl border-destructive/30">
         <CardHeader>
           <CardTitle className="text-base text-destructive">회원 탈퇴</CardTitle>
-          <CardDescription>
-            탈퇴 시 업로드한 문서와 대화 기록이 모두 삭제되며, 복구할 수 없습니다.
+          <CardDescription className="text-destructive/90">
+            탈퇴 시 계정 정보, 업로드한 문서, 대화 기록 등 모든 데이터가 DB에서 영구 삭제되며 복구할
+            수 없습니다. 같은 카카오 계정으로 다시 로그인하면 새로 가입한 상태로 시작됩니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -98,7 +98,7 @@ export default function Profile() {
           <AlertDialogHeader>
             <AlertDialogTitle>정말 탈퇴하시겠어요?</AlertDialogTitle>
             <AlertDialogDescription>
-              계속하려면 아래에{" "}
+              탈퇴 시 모든 정보가 사라지며 복구할 수 없습니다. 계속하려면 아래에{" "}
               <strong className="text-foreground">{WITHDRAW_CONFIRMATION_TEXT}</strong>를 입력해
               주세요.
             </AlertDialogDescription>

@@ -1,6 +1,10 @@
+import uuid
+
 import pytest
+from sqlalchemy import text
 
 from app.models.base import Base
+from app.models.chat import ChatMessage, ChatSession
 from app.models.users import User
 from app.repositories.user_repository import UserRepository
 
@@ -25,8 +29,6 @@ class TestUserRepository:
         assert user.id is not None
         assert user.kakao_id == "kakao-1"
         assert user.email == "a@x.com"
-        assert user.is_active is True
-        assert user.deleted_at is None
 
     async def test_upsert_updates_existing_user_on_same_kakao_id(self, repo):
         first = await repo.upsert_kakao_user(
@@ -54,7 +56,7 @@ class TestUserRepository:
         assert second.name == "새이름"
         assert second.gender == "female"
 
-    async def test_upsert_reactivates_soft_deleted_user(self, repo):
+    async def test_relogin_after_hard_delete_creates_new_user(self, repo):
         user = await repo.upsert_kakao_user(
             kakao_id="kakao-3",
             email="a@x.com",
@@ -65,10 +67,10 @@ class TestUserRepository:
             birthyear=None,
             phone_number=None,
         )
-        await repo.soft_delete(user.id)
+        await repo.hard_delete(user.id)
         assert await repo.get_user(user.id) is None
 
-        revived = await repo.upsert_kakao_user(
+        rejoined = await repo.upsert_kakao_user(
             kakao_id="kakao-3",
             email="a@x.com",
             name=None,
@@ -78,11 +80,10 @@ class TestUserRepository:
             birthyear=None,
             phone_number=None,
         )
-        assert revived.id == user.id
-        assert revived.is_active is True
-        assert revived.deleted_at is None
+        assert rejoined.id != user.id
+        assert rejoined.kakao_id == "kakao-3"
 
-    async def test_get_user_returns_active_user(self, repo):
+    async def test_get_user_returns_user(self, repo):
         created = await repo.upsert_kakao_user(
             kakao_id="kakao-4",
             email=None,
@@ -97,7 +98,7 @@ class TestUserRepository:
         assert fetched is not None
         assert fetched.id == created.id
 
-    async def test_get_user_excludes_soft_deleted(self, repo):
+    async def test_get_user_returns_none_after_hard_delete(self, repo):
         user = await repo.upsert_kakao_user(
             kakao_id="kakao-5",
             email=None,
@@ -108,7 +109,7 @@ class TestUserRepository:
             birthyear=None,
             phone_number=None,
         )
-        await repo.soft_delete(user.id)
+        await repo.hard_delete(user.id)
         assert await repo.get_user(user.id) is None
 
     async def test_get_by_kakao_id(self, repo):
@@ -129,7 +130,7 @@ class TestUserRepository:
         missing = await repo.get_by_kakao_id("nonexistent")
         assert missing is None
 
-    async def test_soft_delete_sets_flags(self, repo, db_session):
+    async def test_hard_delete_cascades_chat_data(self, repo, db_session):
         user = await repo.upsert_kakao_user(
             kakao_id="kakao-7",
             email=None,
@@ -140,10 +141,25 @@ class TestUserRepository:
             birthyear=None,
             phone_number=None,
         )
-        await repo.soft_delete(user.id)
-        await db_session.refresh(user)
-        assert user.is_active is False
-        assert user.deleted_at is not None
+        session = ChatSession(id=uuid.uuid4(), user_id=user.id, title="t")
+        db_session.add(session)
+        await db_session.flush()
+        db_session.add(ChatMessage(session_id=session.id, role="user", content="hi"))
+        await db_session.commit()
+
+        await repo.hard_delete(user.id)
+
+        assert (await db_session.execute(text("SELECT COUNT(*) FROM users WHERE id = :i"), {"i": user.id})).scalar() == 0
+        assert (
+            await db_session.execute(
+                text("SELECT COUNT(*) FROM chat_sessions WHERE user_id = :i"), {"i": user.id}
+            )
+        ).scalar() == 0
+        assert (
+            await db_session.execute(
+                text("SELECT COUNT(*) FROM chat_messages WHERE session_id = :s"), {"s": session.id}
+            )
+        ).scalar() == 0
 
     async def test_model_class_is_sqlalchemy(self):
         """User가 SQLAlchemy 모델이어야 함 (Tortoise 잔재 검증)."""
