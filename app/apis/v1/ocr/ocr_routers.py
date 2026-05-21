@@ -152,7 +152,7 @@ async def get_job_status(
         progress_pct=progress_pct,
         message=message_map.get(ocr_status),
         result_url=None,
-        estimated_remaining_seconds=30 if ocr_status == "PENDING" else None,
+        estimated_remaining_seconds=None,
     )
 
 
