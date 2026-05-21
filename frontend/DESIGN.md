@@ -122,6 +122,12 @@ frontend/
     │   ├── Chat.tsx           # /chat, /chat/:sessionId (uses ChatLayout)
     │   └── NotFound.tsx
     │
+    ├── features/             # Domain-scoped components (siblings; do not cross-import)
+    │   ├── auth/             # KakaoLoginButton, useKakaoLogin (shared by Landing + Login)
+    │   ├── landing/          # HeroSection
+    │   └── onboarding/       # TermsForm, MedicalProfileForm, medicalProfileSchema (zod), terms (content)
+    │   # Week 3 adds: document-upload/, my-documents/, profile/
+    │
     ├── components/
     │   ├── chat/
     │   │   ├── MessageBubble.tsx
@@ -254,6 +260,8 @@ Lifecycle: open → send user message as plain text → receive 0..N `stream` fr
 `/ocr/upload`, `/ocr/jobs/{job_id}/status`, `/ocr/records/{id}`, `/ocr/records/{id}/result`, `/ocr/records/{id}/medications`, `/ocr/records/{id}/disease-codes`, `/ocr/records` — all called from the Week 3 document upload flow. `PATCH`/`DELETE` on records return 501 on the backend and are not called from the frontend.
 
 `/guides/*` remains deferred until the health-guide feature lands.
+
+**Terms agreement & onboarding profile have no backend endpoints yet.** `feature/fe-onboarding-bhw` ships a complete UI (5-item terms checklist with content `Dialog`s + medical profile form with `react-hook-form` + Zod validation) that persists exclusively to `localStorage` via `authStore` (`termsAcceptedAt`, `onboardingCompletedAt`, `medicalProfile`). **TODO(BE)**: when `POST /api/v1/users/onboarding` (or equivalent) lands, swap the `setTermsAccepted` / `setOnboardingCompleted` stub-writes for an API call and migrate any localStorage-only users on first authenticated boot.
 
 ---
 
@@ -440,8 +448,8 @@ The user message is **not** echoed by the backend. The frontend renders it optim
 ```ts
 // routes.tsx (Week 3)
 createBrowserRouter([
-  { path: "/", element: <Landing /> },                  // public; redirects to /home if authed
-  { path: "/login", element: <Login /> },               // public (deep-link fallback)
+  { path: "/", element: <Landing /> },                  // public; HeroSection + Kakao CTA. Redirects to /home if authed
+  { path: "/login", element: <Login /> },               // public (deep-link fallback). Shares KakaoLoginButton with Landing
   { path: "/auth/kakao/callback", element: <KakaoCallback /> },
   {
     element: <ProtectedRoute />,                        // accessToken check → /login
