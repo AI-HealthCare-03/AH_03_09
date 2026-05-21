@@ -26,7 +26,7 @@ export function HeroSection() {
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.5rem]">
               복잡한 의료 문서,
               <br />
-              <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                 AI가 한 번에
               </span>{" "}
               정리합니다.
@@ -252,7 +252,7 @@ function FeatureBento() {
           className={`group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm transition hover:shadow-md ${span}`}
         >
           <div
-            className={`pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br ${accent} opacity-70`}
+            className={`pointer-events-none absolute inset-0 -z-10 bg-linear-to-br ${accent} opacity-70`}
           />
           <span className={`grid size-10 place-items-center rounded-xl ${iconBg}`}>
             <Icon className="size-5" />
@@ -268,9 +268,9 @@ function FeatureBento() {
 function BackgroundDecoration() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      <div className="absolute -top-40 -left-40 size-[32rem] rounded-full bg-primary/10 blur-3xl" />
-      <div className="absolute top-1/3 -right-32 size-[28rem] rounded-full bg-success/8 blur-3xl" />
-      <div className="absolute -bottom-32 left-1/3 size-[24rem] rounded-full bg-primary/5 blur-3xl" />
+      <div className="absolute -top-40 -left-40 size-128 rounded-full bg-primary/10 blur-3xl" />
+      <div className="absolute top-1/3 -right-32 size-112 rounded-full bg-success/8 blur-3xl" />
+      <div className="absolute -bottom-32 left-1/3 size-96 rounded-full bg-primary/5 blur-3xl" />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import ChatLayout from "@/components/layout/ChatLayout";
 import Chat from "@/pages/Chat";
+import HealthGuide from "@/pages/HealthGuide";
 import HealthProfile from "@/pages/HealthProfile";
 import Home from "@/pages/Home";
 import KakaoCallback from "@/pages/KakaoCallback";
@@ -10,11 +11,12 @@ import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import MyDocuments from "@/pages/MyDocuments";
 import NotFound from "@/pages/NotFound";
+import Upload from "@/pages/ocr/Upload";
+import UploadProcessing from "@/pages/ocr/UploadProcessing";
+import UploadResult from "@/pages/ocr/UploadResult";
+import UploadReview from "@/pages/ocr/UploadReview";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
-import UploadProcessing from "@/pages/UploadProcessing";
-import UploadResult from "@/pages/UploadResult";
-import UploadReview from "@/pages/UploadReview";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Landing /> },
@@ -27,10 +29,12 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: "/home", element: <Home /> },
+          { path: "/upload", element: <Upload /> },
           { path: "/upload/processing/:jobId", element: <UploadProcessing /> },
           { path: "/upload/review/:jobId", element: <UploadReview /> },
           { path: "/upload/result/:recordId", element: <UploadResult /> },
           { path: "/documents", element: <MyDocuments /> },
+          { path: "/health-guide", element: <HealthGuide /> },
           { path: "/health-profile", element: <HealthProfile /> },
           { path: "/profile", element: <Profile /> },
           { path: "/settings", element: <Settings /> },
