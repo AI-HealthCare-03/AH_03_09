@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
 from app.core.redis_client import get_redis
+from app.dtos.ocr.document_dtos import OcrDocumentUpdateRequest
 from app.models.ocr.ocr_document import OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
@@ -80,6 +81,19 @@ class OcrDocumentService:
 
         await self._publish_ocr_job(doc)
 
+        return doc
+
+    async def update_document(self, record_id: int, user_id: int, body: OcrDocumentUpdateRequest) -> OcrDocument:
+        doc = await self.get_document(record_id, user_id)
+        if body.doc_type is not None:
+            doc.doc_type = body.doc_type
+        if body.issued_date is not None:
+            doc.issued_date = body.issued_date
+        if body.valid_until is not None:
+            doc.valid_until = body.valid_until
+        if body.hospital_name is not None:
+            doc.hospital_name = body.hospital_name
+        await self.session.flush()
         return doc
 
     async def _publish_ocr_job(self, doc: OcrDocument) -> None:
