@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { ArrowLeftIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import InputComposer from "@/components/chat/InputComposer";
 import MessageBubble from "@/components/chat/MessageBubble";
 import SessionSidebar from "@/components/chat/SessionSidebar";
-import ProfileModal from "@/components/common/ProfileModal";
+import { Button } from "@/components/ui/button";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
 import { useCreateSession } from "@/hooks/useSessions";
 import { useAuthStore } from "@/store/authStore";
@@ -15,7 +16,6 @@ export default function Chat() {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
 
-  const [profileOpen, setProfileOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
@@ -35,13 +35,7 @@ export default function Chat() {
 
   const handleLogout = () => {
     clear();
-    navigate("/login", { replace: true });
-  };
-
-  const handleWithdrawn = () => {
-    clear();
-    setProfileOpen(false);
-    navigate("/login", { replace: true });
+    navigate("/", { replace: true });
   };
 
   const handleSubmit = async (content: string) => {
@@ -58,9 +52,21 @@ export default function Chat() {
 
   return (
     <div className="flex h-dvh bg-slate-50 text-slate-900">
-      <SessionSidebar onProfileClick={() => setProfileOpen(true)} onLogout={handleLogout} />
+      <SessionSidebar onProfileClick={() => navigate("/profile")} onLogout={handleLogout} />
 
       <main className="flex flex-1 flex-col">
+        <header className="flex h-14 items-center gap-2 border-b border-slate-200 bg-white px-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/home")}
+            aria-label="홈으로"
+          >
+            <ArrowLeftIcon className="size-4" />
+            홈으로
+          </Button>
+        </header>
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
           {!currentSessionId ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">
@@ -84,12 +90,6 @@ export default function Chat() {
 
         <InputComposer onSubmit={handleSubmit} disabled={busy} />
       </main>
-
-      <ProfileModal
-        open={profileOpen}
-        onClose={() => setProfileOpen(false)}
-        onWithdrawn={handleWithdrawn}
-      />
     </div>
   );
 }

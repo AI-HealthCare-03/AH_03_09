@@ -9,9 +9,6 @@ export interface UserInfo {
 }
 
 export interface MedicalProfile {
-  nickname: string;
-  gender: "M" | "F";
-  birthdate: string; // ISO YYYY-MM-DD
   heightCm: number;
   weightKg: number;
   existingDiagnoses?: string;
@@ -22,14 +19,12 @@ interface AuthState {
   accessToken: string | null;
   user: UserInfo | null;
   hasSeenDisclaimer: boolean;
-  termsAcceptedAt: string | null;
-  onboardingCompletedAt: string | null;
   medicalProfile: MedicalProfile | null;
   setToken: (token: string) => void;
   setUser: (user: UserInfo | null) => void;
   setHasSeenDisclaimer: (v: boolean) => void;
-  setTermsAccepted: () => void;
-  setOnboardingCompleted: (profile: MedicalProfile) => void;
+  setMedicalProfile: (profile: MedicalProfile) => void;
+  clearMedicalProfile: () => void;
   clear: () => void;
 }
 
@@ -39,25 +34,17 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       user: null,
       hasSeenDisclaimer: false,
-      termsAcceptedAt: null,
-      onboardingCompletedAt: null,
       medicalProfile: null,
       setToken: (token) => set({ accessToken: token }),
       setUser: (user) => set({ user }),
       setHasSeenDisclaimer: (v) => set({ hasSeenDisclaimer: v }),
-      setTermsAccepted: () => set({ termsAcceptedAt: new Date().toISOString() }),
-      setOnboardingCompleted: (profile) =>
-        set({
-          medicalProfile: profile,
-          onboardingCompletedAt: new Date().toISOString(),
-        }),
+      setMedicalProfile: (profile) => set({ medicalProfile: profile }),
+      clearMedicalProfile: () => set({ medicalProfile: null }),
       clear: () =>
         set({
           accessToken: null,
           user: null,
           hasSeenDisclaimer: false,
-          termsAcceptedAt: null,
-          onboardingCompletedAt: null,
           medicalProfile: null,
         }),
     }),
@@ -66,8 +53,6 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         accessToken: state.accessToken,
         hasSeenDisclaimer: state.hasSeenDisclaimer,
-        termsAcceptedAt: state.termsAcceptedAt,
-        onboardingCompletedAt: state.onboardingCompletedAt,
         medicalProfile: state.medicalProfile,
       }),
     },
