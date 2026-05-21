@@ -46,7 +46,7 @@ export default function Profile() {
     onSuccess: () => {
       setWithdrawOpen(false);
       clear();
-      navigate("/login", { replace: true });
+      navigate("/", { replace: true });
     },
   });
 
