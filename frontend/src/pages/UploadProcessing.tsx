@@ -70,11 +70,6 @@ export default function UploadProcessing() {
       <CardContent className="space-y-4">
         <Progress value={pct} />
         <p className="text-sm text-muted-foreground text-center">{message}</p>
-        {data?.estimated_remaining_seconds && (
-          <p className="text-xs text-muted-foreground text-center">
-            예상 남은 시간: {data.estimated_remaining_seconds}초
-          </p>
-        )}
       </CardContent>
     </Card>
   );
