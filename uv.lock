@@ -31,6 +31,8 @@ dependencies = [
 
 [package.dev-dependencies]
 ai = [
+    { name = "asyncpg" },
+    { name = "httpx" },
     { name = "openai" },
     { name = "scikit-learn" },
     { name = "sentence-transformers" },
@@ -77,6 +79,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 ai = [
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai", specifier = ">=1.82.0" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "sentence-transformers", specifier = ">=5.2.0" },
