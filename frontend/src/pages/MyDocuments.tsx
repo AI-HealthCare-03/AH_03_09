@@ -218,10 +218,10 @@ export default function MyDocuments() {
                       {data.documents.map((doc) => (
                         <tr key={doc.record_id} className="transition-colors hover:bg-muted/30">
                           <td className="px-4 py-3">
-                            <p className="max-w-[200px] truncate font-medium">
+                            <p className="max-w-50 truncate font-medium">
                               {doc.original_filename}
                             </p>
-                            {doc.hospital_name && (
+                            {doc.hospital_name !== null && (
                               <p className="text-xs text-muted-foreground">{doc.hospital_name}</p>
                             )}
                           </td>
