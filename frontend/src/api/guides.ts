@@ -80,3 +80,14 @@ export function submitGuideFeedback(
     body: JSON.stringify(payload),
   });
 }
+
+export interface GuideContextResponse {
+  guide_id: string;
+  medications: string[];
+  disease_codes: string[];
+  key_instructions: string[];
+}
+
+export function getGuideContext(guideId: string) {
+  return request<GuideContextResponse>(`/guides/${guideId}/context`);
+}

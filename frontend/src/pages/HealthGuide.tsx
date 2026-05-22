@@ -3,8 +3,10 @@ import { useState } from "react";
 import {
   generateGuide,
   getGuide,
+  getGuideContext,
   getGuideStatus,
   submitGuideFeedback,
+  type GuideContextResponse,
   type GuideResponse,
 } from "@/api/guides";
 import { Button } from "@/components/ui/button";
@@ -12,11 +14,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function HealthGuide() {
   const [loading, setLoading] = useState(false);
+  const [contextLoading, setContextLoading] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
   const [status, setStatus] = useState("");
+  const [contextStatus, setContextStatus] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("");
+
   const [guide, setGuide] = useState<GuideResponse | null>(null);
+  const [guideContext, setGuideContext] =
+    useState<GuideContextResponse | null>(null);
   const [guideId, setGuideId] = useState("");
 
   const [ratingComprehension, setRatingComprehension] = useState(5);
@@ -28,9 +36,11 @@ export default function HealthGuide() {
     try {
       setLoading(true);
       setStatus("가이드 생성 요청 중...");
+      setContextStatus("");
       setFeedbackStatus("");
       setFeedbackSubmitted(false);
       setGuide(null);
+      setGuideContext(null);
       setGuideId("");
 
       const generateResult = await generateGuide({
@@ -67,6 +77,28 @@ export default function HealthGuide() {
       setStatus("에러 발생");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleLoadContext() {
+    if (!guideId) {
+      setContextStatus("가이드 생성 후 컨텍스트를 조회할 수 있습니다.");
+      return;
+    }
+
+    try {
+      setContextLoading(true);
+      setContextStatus("가이드 컨텍스트 조회 중...");
+
+      const contextResult = await getGuideContext(guideId);
+
+      setGuideContext(contextResult);
+      setContextStatus("가이드 컨텍스트 조회 완료");
+    } catch (error) {
+      console.error(error);
+      setContextStatus("가이드 컨텍스트 조회 중 에러가 발생했습니다.");
+    } finally {
+      setContextLoading(false);
     }
   }
 
@@ -148,6 +180,81 @@ export default function HealthGuide() {
                 </Card>
               ))}
             </div>
+          )}
+
+          {guideId && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">챗봇 연동용 가이드 컨텍스트</CardTitle>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleLoadContext}
+                  disabled={contextLoading}
+                >
+                  {contextLoading ? "조회 중..." : "컨텍스트 조회"}
+                </Button>
+
+                {contextStatus && (
+                  <p className="text-sm text-muted-foreground">{contextStatus}</p>
+                )}
+
+                {guideContext && (
+                  <div className="space-y-3 rounded-md border p-4 text-sm">
+                    <div>
+                      <p className="font-medium">Guide ID</p>
+                      <p className="text-muted-foreground">{guideContext.guide_id}</p>
+                    </div>
+
+                    <div>
+                      <p className="font-medium">약물</p>
+                      {guideContext.medications.length > 0 ? (
+                        <ul className="list-disc pl-5">
+                          {guideContext.medications.map((medication) => (
+                            <li key={medication}>{medication}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">약물 정보가 없습니다.</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="font-medium">질병 코드</p>
+                      {guideContext.disease_codes.length > 0 ? (
+                        <ul className="list-disc pl-5">
+                          {guideContext.disease_codes.map((code) => (
+                            <li key={code}>{code}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          질병 코드 정보가 없습니다.
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="font-medium">핵심 지침</p>
+                      {guideContext.key_instructions.length > 0 ? (
+                        <ul className="list-disc pl-5">
+                          {guideContext.key_instructions.map((instruction) => (
+                            <li key={instruction}>{instruction}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          핵심 지침 정보가 없습니다.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {guideId && (
