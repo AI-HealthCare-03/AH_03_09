@@ -228,8 +228,9 @@ async def delete_record(
     current_user: _AUTH,
     session: _SESSION,
 ) -> None:
-    """OCR 문서를 소프트 삭제합니다. (REQ-OCR-009)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    """OCR 문서를 소프트 삭제합니다. 30일 후 완전히 삭제됩니다. (REQ-OCR-009)"""
+    svc = OcrDocumentService(session)
+    await svc.delete_document(record_id, current_user.id)
 
 
 # ── Medications ───────────────────────────────────────────────────────────────

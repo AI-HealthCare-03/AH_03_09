@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import uuid
+from datetime import UTC, datetime
 
 import redis.asyncio as aioredis
 from fastapi import HTTPException, status
@@ -99,6 +100,14 @@ class OcrDocumentService:
         await self._publish_ocr_job(doc)
 
         return doc
+
+    async def delete_document(self, record_id: int, user_id: int) -> None:
+        doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status == "PROCESSING":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 삭제할 수 없습니다.")
+        doc.is_active = False
+        doc.deleted_at = datetime.now(UTC)
+        await self.session.commit()
 
     async def get_file_response(self, record_id: int, user_id: int) -> Response:
         doc = await self.get_document(record_id, user_id)

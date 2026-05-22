@@ -54,6 +54,20 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def soft_delete(self, record_id: int, user_id: int) -> OcrDocument | None:
+        result = await self.session.execute(
+            select(OcrDocument).where(
+                OcrDocument.record_id == record_id,
+                OcrDocument.user_id == user_id,
+                OcrDocument.is_active.is_(True),
+            )
+        )
+        doc = result.scalar_one_or_none()
+        if doc is not None:
+            doc.is_active = False
+            await self.session.flush()
+        return doc
+
     async def list_by_user(
         self,
         user_id: int,

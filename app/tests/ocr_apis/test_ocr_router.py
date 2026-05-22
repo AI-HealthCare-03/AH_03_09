@@ -276,6 +276,46 @@ class TestOcrRecordFile:
         assert response.status_code == 404
 
 
+class TestOcrDeleteRecord:
+    def test_delete_success(self, client, mock_db, auth_headers):
+        """문서 소프트 삭제 → 204"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.delete_document = AsyncMock(return_value=None)
+            response = client.delete("/api/v1/ocr/records/1", headers=auth_headers)
+
+        assert response.status_code == 204
+
+    def test_delete_not_found(self, client, mock_db, auth_headers):
+        """존재하지 않는 문서 삭제 → 404"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            from fastapi import HTTPException
+
+            mock_svc.return_value.delete_document = AsyncMock(
+                side_effect=HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+            )
+            response = client.delete("/api/v1/ocr/records/999", headers=auth_headers)
+
+        assert response.status_code == 404
+
+    def test_delete_processing(self, client, mock_db, auth_headers):
+        """OCR 처리 중인 문서 삭제 → 409"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            from fastapi import HTTPException
+
+            mock_svc.return_value.delete_document = AsyncMock(
+                side_effect=HTTPException(status_code=409, detail="처리 중인 문서는 삭제할 수 없습니다.")
+            )
+            response = client.delete("/api/v1/ocr/records/1", headers=auth_headers)
+
+        assert response.status_code == 409
+
+
 class TestOcrJobStatus:
     def test_get_job_status_success(self, client, mock_db, auth_headers):
         """인증된 유저가 본인 job 상태 조회 → 200 (REQ-OCR-004)"""
