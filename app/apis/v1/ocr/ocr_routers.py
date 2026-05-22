@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -22,6 +22,7 @@ from app.dtos.ocr.document_dtos import (
     OcrUploadResponse,
     UploadedFileItem,
 )
+from app.models.ocr.ocr_document import DocType, OcrStatus
 from app.models.users import User
 from app.services.ocr.document_service import OcrDocumentService
 from app.services.ocr.file_validator import validate_file_count, validate_upload
@@ -163,13 +164,25 @@ async def get_job_status(
 async def list_records(
     current_user: _AUTH,
     session: _SESSION,
+    doc_type: Annotated[DocType | None, Query()] = None,
+    ocr_status: Annotated[OcrStatus | None, Query()] = None,
+    sort: Annotated[str, Query()] = "created_at_desc",
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> OcrDocumentListResponse:
     """사용자의 OCR 처리 결과 목록을 조회합니다. (REQ-OCR-007)"""
     svc = OcrDocumentService(session)
-    docs = await svc.list_documents(current_user.id)
+    docs, total = await svc.list_documents(
+        current_user.id,
+        doc_type=doc_type,
+        ocr_status=ocr_status,
+        sort=sort,
+        page=page,
+        size=size,
+    )
     return OcrDocumentListResponse(
         documents=[OcrDocumentResponse.model_validate(d) for d in docs],
-        total=len(docs),
+        total=total,
     )
 
 

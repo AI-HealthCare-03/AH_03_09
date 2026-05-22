@@ -51,7 +51,7 @@ class TestOcrAuth:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
-            mock_svc.return_value.list_documents = AsyncMock(return_value=[])
+            mock_svc.return_value.list_documents = AsyncMock(return_value=([], 0))
             response = client.get("/api/v1/ocr/records", headers=auth_headers)
 
         assert response.status_code == 200

@@ -22,8 +22,23 @@ class OcrDocumentService:
         self.repo = OcrDocumentRepository(session)
         self._redis = redis
 
-    async def list_documents(self, user_id: int) -> list[OcrDocument]:
-        return await self.repo.list_by_user(user_id)
+    async def list_documents(
+        self,
+        user_id: int,
+        doc_type: str | None = None,
+        ocr_status: str | None = None,
+        sort: str = "created_at_desc",
+        page: int = 1,
+        size: int = 20,
+    ) -> tuple[list[OcrDocument], int]:
+        return await self.repo.list_by_user(
+            user_id,
+            doc_type=doc_type,
+            ocr_status=ocr_status,
+            sort=sort,
+            limit=size,
+            offset=(page - 1) * size,
+        )
 
     async def get_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.repo.get_by_record_id(record_id, user_id)
