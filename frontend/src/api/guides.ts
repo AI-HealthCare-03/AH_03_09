@@ -63,3 +63,20 @@ export function getGuideStatus(jobId: string) {
 export function getGuide(guideId: string) {
   return request<GuideResponse>(`/guides/${guideId}`);
 }
+
+export type GuideFeedbackRequest = {
+  rating_comprehension: number;
+  rating_usefulness: number;
+  rating_safety: number;
+  comment: string;
+};
+
+export function submitGuideFeedback(
+  guideId: string,
+  payload: GuideFeedbackRequest,
+) {
+  return request(`/guides/${guideId}/feedback`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
