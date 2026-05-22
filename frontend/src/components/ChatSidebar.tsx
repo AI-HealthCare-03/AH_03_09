@@ -1,30 +1,32 @@
 import { useEffect, useState } from "react";
-import { getSessions, createSession, deleteSession } from "../api/chat";
-import type { ChatSession } from "../types";
+import { fetchSessions, createSession, deleteSession } from "../api/chat";
+import type { ChatSessionResponse } from "@/types/api";
 
 interface Props {
-  selectedId: number | null;
-  onSelect: (session: ChatSession) => void;
-  onNewSession: (session: ChatSession) => void;
+  selectedId: string | null;
+  onSelect: (session: ChatSessionResponse) => void;
+  onNewSession: (session: ChatSessionResponse) => void;
   refreshKey: number;
 }
 
 export default function ChatSidebar({ selectedId, onSelect, onNewSession, refreshKey }: Props) {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessions, setSessions] = useState<ChatSessionResponse[]>([]);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    getSessions()
-      .then((res) => setSessions(res.data))
-      .catch(() => {});
+    setLoadError(false);
+    fetchSessions()
+      .then((data) => setSessions(data))
+      .catch(() => setLoadError(true));
   }, [refreshKey]);
 
   const handleNew = async () => {
-    const res = await createSession("새 채팅");
-    setSessions((prev) => [res.data, ...prev]);
-    onNewSession(res.data);
+    const session = await createSession("새 채팅");
+    setSessions((prev) => [session, ...prev]);
+    onNewSession(session);
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: number) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     await deleteSession(id);
     setSessions((prev) => prev.filter((s) => s.id !== id));
@@ -39,6 +41,9 @@ export default function ChatSidebar({ selectedId, onSelect, onNewSession, refres
         </button>
       </div>
       <ul className="session-list">
+        {loadError && (
+          <li className="session-error">목록을 불러오지 못했습니다.</li>
+        )}
         {sessions.map((s) => (
           <li
             key={s.id}
@@ -55,7 +60,7 @@ export default function ChatSidebar({ selectedId, onSelect, onNewSession, refres
             </button>
           </li>
         ))}
-        {sessions.length === 0 && (
+        {sessions.length === 0 && !loadError && (
           <li className="session-empty">채팅을 시작해보세요</li>
         )}
       </ul>

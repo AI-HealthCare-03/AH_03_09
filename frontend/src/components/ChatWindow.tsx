@@ -1,14 +1,21 @@
-import { useEffect, useRef } from "react";
-import type { ChatMessage } from "../types";
+import { useEffect, useRef, useState } from "react";
+import type { ChatMessageResponse } from "@/types/api";
 
 interface Props {
-  messages: ChatMessage[];
+  messages: ChatMessageResponse[];
   streamingContent: string;
   onFeedback?: (messageId: number, feedback: "good" | "bad") => void;
 }
 
 export default function ChatWindow({ messages, streamingContent, onFeedback }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
+
+  const handleFeedback = (messageId: number, feedback: "good" | "bad") => {
+    if (feedbackGiven.has(messageId)) return;
+    setFeedbackGiven((prev) => new Set(prev).add(messageId));
+    onFeedback?.(messageId, feedback);
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -34,10 +41,16 @@ export default function ChatWindow({ messages, streamingContent, onFeedback }: P
               </div>
               {onFeedback && (
                 <div className="message-feedback">
-                  <button onClick={() => onFeedback(msg.id, "good")}>
+                  <button
+                    onClick={() => handleFeedback(msg.id, "good")}
+                    disabled={feedbackGiven.has(msg.id)}
+                  >
                     👍 도움됐어요
                   </button>
-                  <button onClick={() => onFeedback(msg.id, "bad")}>
+                  <button
+                    onClick={() => handleFeedback(msg.id, "bad")}
+                    disabled={feedbackGiven.has(msg.id)}
+                  >
                     👎 도움 안됐어요
                   </button>
                 </div>

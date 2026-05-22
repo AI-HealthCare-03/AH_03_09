@@ -3,39 +3,37 @@ import { useNavigate, Link } from "react-router-dom";
 import ChatSidebar from "../components/ChatSidebar";
 import ChatWindow from "../components/ChatWindow";
 import ChatInput from "../components/ChatInput";
-import { getSessionDetail, streamMessage } from "../api/chat";
+import { fetchMessages, streamMessage } from "../api/chat";
 import { logout } from "../api/auth";
-import type { ChatSession, ChatMessage } from "../types";
+import type { ChatSessionResponse, ChatMessageResponse } from "@/types/api";
 
 const EMERGENCY_KEYWORDS = ["응급", "119", "심정지", "의식 없", "숨 못 쉬"];
 
 export default function ChatPage() {
-  const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [selectedSession, setSelectedSession] = useState<ChatSessionResponse | null>(null);
+  const [messages, setMessages] = useState<ChatMessageResponse[]>([]);
   const [streamingContent, setStreamingContent] = useState("");
   const [sending, setSending] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [hasEmergency, setHasEmergency] = useState(false);
-  const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
 
-  const loadSession = useCallback(async (session: ChatSession) => {
+  const loadSession = useCallback(async (session: ChatSessionResponse) => {
     setSelectedSession(session);
     setStreamingContent("");
     setError(null);
-    const res = await getSessionDetail(session.id);
-    setMessages(res.data.messages);
+    const res = await fetchMessages(session.id);
+    setMessages(res.messages);
   }, []);
 
   useEffect(() => {
     if (selectedSession) loadSession(selectedSession);
-  }, [selectedSession?.id, loadSession]); // loadSession 추가
+  }, [selectedSession?.id, loadSession]);
 
   const handleSend = async (content: string) => {
     if (!selectedSession || sending) return;
 
-    // 응급 키워드 감지
     const isEmergency = EMERGENCY_KEYWORDS.some(kw => content.includes(kw));
     setHasEmergency(isEmergency);
 
@@ -43,7 +41,7 @@ export default function ChatPage() {
     setStreamingContent("");
     setError(null);
 
-    const userMsg: ChatMessage = {
+    const userMsg: ChatMessageResponse = {
       id: Date.now(),
       role: "user",
       content,
@@ -56,13 +54,10 @@ export default function ChatPage() {
       content,
       (chunk) => setStreamingContent((prev) => prev + chunk),
       (_messageId, title) => {
-        // aiMsg, streamingContent 클로저 문제 → DB에서 정확한 값 로드
-        getSessionDetail(selectedSession.id).then((res) => {
-          setMessages(res.data.messages);
+        fetchMessages(selectedSession.id).then((res) => {
+          setMessages(res.messages);
           if (title) {
-            setSelectedSession((prev) =>
-              prev ? { ...prev, title } : prev
-            );
+            setSelectedSession((prev) => prev ? { ...prev, title } : prev);
             setSidebarRefresh((n) => n + 1);
           }
         });
@@ -70,7 +65,6 @@ export default function ChatPage() {
         setSending(false);
       },
       (detail) => {
-        // alert 대신 error state
         setError(detail);
         setStreamingContent("");
         setSending(false);
@@ -78,10 +72,8 @@ export default function ChatPage() {
     );
   };
 
-  const handleFeedback = (messageId: number, feedback: "good" | "bad") => {
-    if (feedbackGiven.has(messageId)) return;
-    setFeedbackGiven((prev) => new Set(prev).add(messageId));
-    console.log(`[feedback] messageId=${messageId} feedback=${feedback}`);
+  const handleFeedback = (messageId: number, _feedback: "good" | "bad") => {
+    void messageId;
   };
 
   const handleLogout = async () => {
@@ -91,7 +83,6 @@ export default function ChatPage() {
 
   return (
     <div className="chat-layout">
-      {/* 응급 배너 */}
       {hasEmergency && (
         <div className="emergency-banner">
           🚨 응급 상황이라면 즉시 119에 신고하세요.
@@ -119,14 +110,10 @@ export default function ChatPage() {
           </div>
         </header>
 
-        {/* 오류 배너 */}
         {error && (
           <div className="error-banner">
             ⚠️ {error}
-            <button onClick={() => {
-              setError(null);
-              setSending(false);
-            }}>
+            <button onClick={() => { setError(null); setSending(false); }}>
               재시도
             </button>
           </div>
