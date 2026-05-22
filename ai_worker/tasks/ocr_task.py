@@ -186,8 +186,9 @@ async def _insert_medications(conn: asyncpg.Connection, record_id: int, medicati
             """
             INSERT INTO medications
                 (document_id, medication_name, generic_name, dosage, frequency, timing,
-                 usage_time, duration_days, time_of_day, warnings, confidence_score)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                 usage_time, duration_days, time_of_day, warnings, confidence_score,
+                 is_confirmed, is_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE, TRUE)
             """,
             record_id,
             m.get("medication_name") or "",
@@ -207,8 +208,10 @@ async def _insert_disease_codes(conn: asyncpg.Connection, record_id: int, diseas
     for c in disease_codes:
         await conn.execute(
             """
-            INSERT INTO disease_codes (document_id, icd10_code, disease_name, is_primary, confidence_score)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO disease_codes
+                (document_id, icd10_code, disease_name, is_primary, confidence_score,
+                 is_confirmed, is_active)
+            VALUES ($1, $2, $3, $4, $5, FALSE, TRUE)
             """,
             record_id,
             c.get("icd10_code") or "",
