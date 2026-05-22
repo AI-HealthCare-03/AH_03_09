@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchDocument, fetchOcrResult } from "@/api/ocr";
+import { fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,22 @@ export default function UploadResult() {
   const { recordId: recordIdStr } = useParams<{ recordId: string }>();
   const recordId = Number(recordIdStr);
   const navigate = useNavigate();
+
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!recordId) return;
+    let url: string | null = null;
+    fetchDocumentFile(recordId)
+      .then((objectUrl) => {
+        url = objectUrl;
+        setFileUrl(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [recordId]);
 
   const { data: doc, isLoading: docLoading } = useQuery({
     queryKey: ["ocr-document", recordId],
@@ -71,6 +88,26 @@ export default function UploadResult() {
           </Button>
         </div>
       </div>
+
+      {/* File preview */}
+      {fileUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">원본 문서</CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            {doc.original_filename.toLowerCase().endsWith(".pdf") ? (
+              <embed src={fileUrl} type="application/pdf" className="h-96 w-full rounded" />
+            ) : (
+              <img
+                src={fileUrl}
+                alt={doc.original_filename}
+                className="max-h-96 rounded object-contain"
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Document info */}
       <Card>
