@@ -1,81 +1,68 @@
-from datetime import date, datetime
-from typing import Any
+from sqlalchemy import delete, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from pydantic import EmailStr
-
-from app.core import config
-from app.models.users import Gender, User
-
-ALLOWED_UPDATE_FIELDS = ["name", "phone_number", "gender", "birthday"]
-UPDATED_AT_FIELD = "updated_at"
+from app.models.users import User
 
 
 class UserRepository:
-    def __init__(self):
-        self._model = User
-
-    async def get_all(self):
-        return await self._model.all()
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
 
     async def get_user(self, user_id: int) -> User | None:
-        return await self._model.get_or_none(id=user_id)
-
-    async def create_user(
-        self,
-        email: str | EmailStr,
-        hashed_password: str,
-        name: str,
-        phone_number: str,
-        gender: Gender,
-        birthday: date,
-        *,
-        is_active: bool = True,
-        is_admin: bool = False,
-    ) -> User:
-        return await self._model.create(
-            email=email,
-            hashed_password=hashed_password,
-            name=name,
-            phone_number=phone_number,
-            gender=gender,
-            birthday=birthday,
-            is_active=is_active,
-            is_admin=is_admin,
-        )
-
-    async def get_user_by_email(self, email: str) -> User | None:
-        return await self._model.get_or_none(email=email)
-
-    async def exists_by_email(self, email: str) -> bool:
-        return await self._model.filter(email=email).exists()
-
-    async def exists_by_phone_number(self, phone_number: str) -> bool:
-        return await self._model.filter(phone_number=phone_number).exists()
-
-    async def update_last_login(self, user_id: int) -> None:
-        await self._model.filter(id=user_id).update(last_login=datetime.now(config.TIMEZONE))
+        stmt = select(User).where(User.id == user_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_by_kakao_id(self, kakao_id: str) -> User | None:
-        return await self._model.get_or_none(kakao_id=kakao_id)
+        stmt = select(User).where(User.kakao_id == kakao_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
-    async def create_kakao_user(self, kakao_id: str, email: str, name: str) -> User:
-        return await self._model.create(
-            kakao_id=kakao_id,
-            email=email,
-            name=name,
+    async def upsert_kakao_user(
+        self,
+        kakao_id: str,
+        email: str | None,
+        name: str | None,
+        gender: str | None,
+        age_range: str | None,
+        birthday: str | None,
+        birthyear: str | None,
+        phone_number: str | None,
+    ) -> User:
+        values = {
+            "kakao_id": kakao_id,
+            "email": email,
+            "name": name,
+            "gender": gender,
+            "age_range": age_range,
+            "birthday": birthday,
+            "birthyear": birthyear,
+            "phone_number": phone_number,
+        }
+
+        stmt = (
+            pg_insert(User)
+            .values(**values)
+            .on_conflict_do_update(
+                index_elements=[User.kakao_id],
+                set_={k: v for k, v in values.items() if k != "kakao_id"},
+            )
+            .returning(User)
         )
 
-    async def update_kakao_id(self, user: User, kakao_id: str) -> None:
-        user.kakao_id = kakao_id
-        await user.save(update_fields=["kakao_id", "updated_at"])
+        result = await self.session.execute(stmt)
+        await self.session.commit()
+        user = result.scalar_one()
+        await self.session.refresh(user)
+        return user
 
-    async def update_instance(self, user: User, data: dict[str, Any]) -> None:
-        update_fields = []
-        for key, value in data.items():
-            if value is not None:
-                setattr(user, key, value)
-                update_fields.append(key)
-        if update_fields:
-            user.updated_at = datetime.now(config.TIMEZONE)
-            update_fields.append(UPDATED_AT_FIELD)
-            await user.save(update_fields=update_fields)
+    async def hard_delete(self, user_id: int) -> None:
+        # ocr_corrections.corrected_by 는 CASCADE 가 없으므로 먼저 비운다.
+        # chat_sessions / ocr_documents 와 그 하위 테이블은 FK CASCADE 로 함께 삭제됨.
+        await self.session.execute(
+            text("DELETE FROM ocr_corrections WHERE corrected_by = :uid"),
+            {"uid": user_id},
+        )
+        await self.session.execute(delete(User).where(User.id == user_id))
+        await self.session.commit()

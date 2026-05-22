@@ -1,20 +1,19 @@
-from typing import Literal, overload
+from typing import Any, Literal, overload
 
 from fastapi import HTTPException
 
 from app.core.jwt.exceptions import ExpiredTokenError, TokenError
 from app.core.jwt.tokens import AccessToken, RefreshToken
-from app.models.users import User
 
 
 class JwtService:
     access_token_class = AccessToken
     refresh_token_class = RefreshToken
 
-    def create_access_token(self, user: User) -> AccessToken:
+    def create_access_token(self, user: Any) -> AccessToken:
         return self.access_token_class.for_user(user)
 
-    def create_refresh_token(self, user: User) -> RefreshToken:
+    def create_refresh_token(self, user: Any) -> RefreshToken:
         return self.refresh_token_class.for_user(user)
 
     @overload
@@ -50,7 +49,7 @@ class JwtService:
         verified_rt = self.verify_jwt(token=refresh_token, token_type="refresh")
         return verified_rt.access_token
 
-    def issue_jwt_pair(self, user: User) -> dict[str, AccessToken | RefreshToken]:
+    def issue_jwt_pair(self, user: Any) -> dict[str, AccessToken | RefreshToken]:
         rt = self.create_refresh_token(user)
         at = rt.access_token
         return {"access_token": at, "refresh_token": rt}

@@ -1,23 +1,42 @@
-import api from "./client";
-import type { ChatSession, ChatSessionDetail } from "../types";
+import { request } from "@/lib/api";
+import type {
+  ChatMessageListResponse,
+  ChatSessionResponse,
+  SendMessageResponse,
+} from "@/types/api";
 
-export const getSessions = () => api.get<ChatSession[]>("/chat/sessions");
+export function fetchSessions(): Promise<ChatSessionResponse[]> {
+  return request<ChatSessionResponse[]>("/chat/sessions");
+}
 
-export const createSession = (title: string) =>
-  api.post<ChatSession>("/chat/sessions", { title });
+export function createSession(title?: string): Promise<ChatSessionResponse> {
+  return request<ChatSessionResponse>("/chat/sessions", {
+    method: "POST",
+    body: JSON.stringify({ title: title ?? "새 대화" }),
+  });
+}
 
-export const getSessionDetail = (sessionId: number) =>
-  api.get<ChatSessionDetail>(`/chat/sessions/${sessionId}`);
+export function fetchMessages(sessionId: string): Promise<ChatMessageListResponse> {
+  return request<ChatMessageListResponse>(`/chat/sessions/${sessionId}/messages`);
+}
 
-export const deleteSession = (sessionId: number) =>
-  api.delete(`/chat/sessions/${sessionId}`);
+export function sendMessage(sessionId: string, content: string): Promise<SendMessageResponse> {
+  return request<SendMessageResponse>(`/chat/sessions/${sessionId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export function deleteSession(sessionId: string): Promise<void> {
+  return request<void>(`/chat/sessions/${sessionId}`, { method: "DELETE" });
+}
 
 export const streamMessage = async (
-  sessionId: number,
+  sessionId: string,
   content: string,
   onChunk: (chunk: string) => void,
   onDone: (messageId: number, title: string | null) => void,
-  onError: (detail: string) => void
+  onError: (detail: string) => void,
 ): Promise<void> => {
   const res = await fetch(`/api/v1/chat/sessions/${sessionId}/messages/stream`, {
     method: "POST",
@@ -35,6 +54,7 @@ export const streamMessage = async (
   const decoder = new TextDecoder();
   let buffer = "";
   let currentEvent = "";
+  let streamCompleted = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -42,7 +62,6 @@ export const streamMessage = async (
 
     buffer += decoder.decode(value, { stream: true });
 
-    // SSE messages are separated by \n\n
     const messages = buffer.split("\n\n");
     buffer = messages.pop() ?? "";
 
@@ -64,14 +83,19 @@ export const streamMessage = async (
           onError(parsed.detail ?? "알 수 없는 오류가 발생했습니다.");
           return;
         } else if (currentEvent === "done") {
+          streamCompleted = true;
           onDone(parsed.message_id, parsed.title ?? null);
           return;
         } else if (parsed.chunk !== undefined) {
           onChunk(parsed.chunk);
         }
       } catch {
-        // ignore malformed lines
+        // ignore malformed SSE lines
       }
     }
+  }
+
+  if (!streamCompleted) {
+    onError("연결이 끊어졌습니다. 다시 시도해주세요.");
   }
 };

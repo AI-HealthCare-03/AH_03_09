@@ -1,45 +1,81 @@
-import asyncio
-from collections.abc import Generator
-from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
-from _pytest.fixtures import FixtureRequest
-from tortoise import generate_config
-from tortoise.contrib.test import finalizer, initializer
+from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from testcontainers.postgres import PostgresContainer
 
-from app.core import config
-from app.core.db.databases import TORTOISE_APP_MODELS
-
-TEST_BASE_URL = "http://test"
-TEST_DB_LABEL = "models"
-TEST_DB_TZ = "Asia/Seoul"
+from app.main import app
+from app.models.base import Base
 
 
-def get_test_db_config() -> dict[str, Any]:
-    tortoise_config = generate_config(
-        db_url=f"mysql://{config.DB_USER}:{config.DB_PASSWORD}@{config.DB_HOST}:{config.DB_PORT}/test",
-        app_modules={TEST_DB_LABEL: TORTOISE_APP_MODELS},
-        connection_label=TEST_DB_LABEL,
-        testing=True,
-    )
-    tortoise_config["timezone"] = TEST_DB_TZ
-
-    return tortoise_config
+@pytest.fixture(scope="session")
+def client():
+    """TestClient를 `with` 없이 반환해 lifespan(DB 연결)을 건너뛴다.
+    DB 호출이 필요한 라우터 단위 테스트는 Repository를 직접 mock 한다."""
+    return TestClient(app)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def initialize(request: FixtureRequest) -> Generator[None]:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    with patch("tortoise.contrib.test.getDBConfig", Mock(return_value=get_test_db_config())):
-        initializer(modules=TORTOISE_APP_MODELS)
-    yield
-    finalizer()
-    loop.close()
+@pytest.fixture
+def mock_db():
+    """UserRepository.get_user를 mock해서 DB 없이 JWT 인증을 통과시킨다."""
+    fake_user = MagicMock()
+    fake_user.id = 1
+
+    with patch(
+        "app.repositories.user_repository.UserRepository.get_user",
+        new_callable=AsyncMock,
+        return_value=fake_user,
+    ):
+        yield MagicMock()
 
 
-@pytest_asyncio.fixture(autouse=True, scope="session")  # type: ignore[type-var]
-def event_loop() -> None:
-    pass
+@pytest.fixture
+def mock_openai():
+    with patch("app.services.chat._openai") as mock:
+        choice = MagicMock()
+        choice.message.content = (
+            "두통은 긴장성 두통일 수 있습니다. 충분한 휴식을 취하시고 증상이 지속되면 전문의 상담을 권고합니다."
+        )
+        mock.chat.completions.create.return_value = MagicMock(choices=[choice])
+        yield mock
+
+
+@pytest.fixture
+def sample_user_payload():
+    """JWT 발급용 user-like 객체 — Tortoise 인스턴스가 아닌 단순 dict."""
+    return {"id": 1, "kakao_id": "123456789", "email": "test@example.com"}
+
+
+@pytest.fixture
+def auth_headers(sample_user_payload):
+    from app.services.jwt import JwtService
+
+    user = MagicMock()
+    user.id = sample_user_payload["id"]
+    tokens = JwtService().issue_jwt_pair(user)
+    return {"Authorization": f"Bearer {str(tokens['access_token'])}"}
+
+
+# ── Integration test fixtures (real Postgres via testcontainers) ─────────────
+
+
+@pytest.fixture(scope="session")
+def postgres_url():
+    """세션당 1회만 Postgres 컨테이너를 띄우고 asyncpg URL을 yield."""
+    with PostgresContainer("postgres:16-alpine", driver="asyncpg") as pg:
+        yield pg.get_connection_url()
+
+
+@pytest.fixture
+async def db_session(postgres_url):
+    """테스트마다 모든 SQLAlchemy 테이블을 생성/삭제해 격리."""
+    engine = create_async_engine(postgres_url)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as s:
+        yield s
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()

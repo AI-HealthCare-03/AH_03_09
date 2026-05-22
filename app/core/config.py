@@ -5,6 +5,7 @@ from dataclasses import field
 from enum import StrEnum
 from pathlib import Path
 
+from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,27 +24,42 @@ class Config(BaseSettings):
     TEMPLATE_DIR: str = os.path.join(Path(__file__).resolve().parent.parent, "templates")
 
     DB_HOST: str = "localhost"
-    DB_PORT: int = 3306
-    DB_USER: str = "root"
-    DB_PASSWORD: str = "pw1234"
-    DB_NAME: str = "ai_health"
-    DB_CONNECT_TIMEOUT: int = 5
+    DB_PORT: int = 5432
+    DB_USER: str = "ai_health"
+    DB_PASSWORD: str = "ai_health_pw"
+    DB_NAME: str = "ai_health_db"
+    DB_CONNECTION_POOL_MINSIZE: int = 1
     DB_CONNECTION_POOL_MAXSIZE: int = 10
 
+    REDIS_URL: str = "redis://localhost:6379"
+    OPENAI_API_KEY: str = ""
+
     COOKIE_DOMAIN: str = "localhost"
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
-
-    REDIS_HOST: str = "redis"
-    REDIS_PORT: int = 6379
-
-    @property
-    def REDIS_URL(self) -> str:
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}"
 
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 14 * 24 * 60
     JWT_LEEWAY: int = 5
 
-    KAKAO_REST_API_KEY: str = ""
-    KAKAO_REDIRECT_URI: str = "http://localhost/api/v1/auth/kakao/callback"
+    # Kakao OAuth
+    KAKAO_CLIENT_ID: str = ""
+    KAKAO_CLIENT_SECRET: str = ""
+    KAKAO_REDIRECT_URI: str = "http://localhost:3000/auth/kakao/callback"
+
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # Clova OCR
+    CLOVA_OCR_INVOKE_URL: str = ""
+    CLOVA_OCR_SECRET_KEY: str = ""
+
+    # AWS S3
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "ap-northeast-2"
+    AWS_S3_BUCKET_NAME: str = ""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def DATABASE_URL(self) -> str:  # noqa: N802 — 환경변수 명명 규칙(대문자) 따름
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

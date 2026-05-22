@@ -1,3 +1,4 @@
+CLAUDE.md
 __pycache__/
 *.py[oc]
 build/
@@ -11,6 +12,16 @@ wheels/
 .vscode
 .coverage
 *.coverage
-.coverage.
-frontend/node_modules/
+.coverage.*
+.claude
+.agents
+.DS_Store
+참고 문서/
+*.csv
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+기획문서/
+node_modules/
 frontend/dist/

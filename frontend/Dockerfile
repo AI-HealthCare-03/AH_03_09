@@ -1,13 +1,19 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm config set registry https://registry.npmmirror.com \
-    && npm config set strict-ssl false \
-    && NODE_TLS_REJECT_UNAUTHORIZED=0 npm install
-COPY . .
-RUN npm run build
 
-FROM alpine:latest
-COPY --from=builder /app/dist /dist
-HEALTHCHECK --interval=2s --timeout=5s --retries=10 CMD test -f /vol/web/frontend/index.html || exit 1
-CMD ["sh", "-c", "cp -r /dist/. /vol/web/frontend/ && tail -f /dev/null"]
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm build
+
+
+FROM nginx:1.27-alpine AS runner
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
