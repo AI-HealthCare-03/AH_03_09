@@ -1,7 +1,11 @@
 import {
   ActivityIcon,
+  BeakerIcon,
+  CigaretteIcon,
+  GlassWaterIcon,
   HeartPulseIcon,
   PencilIcon,
+  PillIcon,
   RulerIcon,
   StethoscopeIcon,
   WeightIcon,
@@ -95,7 +99,7 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="space-y-1">
             <CardTitle className="text-base">건강 상태</CardTitle>
-            <CardDescription>기저질환과 평소 혈압을 확인해 보세요.</CardDescription>
+            <CardDescription>기저질환, 혈압, 알레르기, 복용 약물을 확인해 보세요.</CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             <PencilIcon className="size-4" />
@@ -127,6 +131,65 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
             ) : (
               <span className="text-muted-foreground/60">입력된 정보 없음</span>
             )}
+          </Row>
+          <Separator />
+          <Row icon={BeakerIcon} label="알레르기">
+            {profile.allergies && profile.allergies.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {profile.allergies.map((a) => (
+                  <Badge key={a} variant="secondary" className="rounded-full">
+                    {a}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground/60">입력된 정보 없음</span>
+            )}
+          </Row>
+          <Separator />
+          <Row icon={PillIcon} label="복용 중인 약물">
+            {profile.currentMedications && profile.currentMedications.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {profile.currentMedications.map((m) => (
+                  <Badge key={m} variant="outline" className="rounded-full">
+                    {m}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground/60">입력된 정보 없음</span>
+            )}
+          </Row>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">생활 습관</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <Row icon={ActivityIcon} label="운동 습관">
+            <span>
+              {profile.lifestyleExercise === "REGULAR"
+                ? "규칙적 (주 3회 이상)"
+                : profile.lifestyleExercise === "IRREGULAR"
+                  ? "비규칙적"
+                  : "운동 안 함"}
+            </span>
+          </Row>
+          <Separator />
+          <Row icon={CigaretteIcon} label="흡연 여부">
+            <span>{profile.lifestyleSmoking ? "흡연" : "비흡연"}</span>
+          </Row>
+          <Separator />
+          <Row icon={GlassWaterIcon} label="음주 습관">
+            <span>
+              {profile.lifestyleAlcohol === "MODERATE"
+                ? "가끔 (주 1~2회)"
+                : profile.lifestyleAlcohol === "HEAVY"
+                  ? "자주 (주 3회 이상)"
+                  : "음주 안 함"}
+            </span>
           </Row>
         </CardContent>
       </Card>

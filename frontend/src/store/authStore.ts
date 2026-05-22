@@ -13,6 +13,11 @@ export interface MedicalProfile {
   weightKg: number;
   existingDiagnoses?: string;
   bloodPressure?: { systolic: number; diastolic: number };
+  allergies?: string[];
+  currentMedications?: string[];
+  lifestyleExercise?: "REGULAR" | "IRREGULAR" | "NONE";
+  lifestyleSmoking?: boolean;
+  lifestyleAlcohol?: "NONE" | "MODERATE" | "HEAVY";
 }
 
 interface AuthState {

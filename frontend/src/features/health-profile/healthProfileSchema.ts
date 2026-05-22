@@ -27,6 +27,11 @@ export const healthProfileSchema = z
     existingDiagnoses: z.string().optional(),
     systolic: optionalNumeric("수축기 혈압", 70, 250),
     diastolic: optionalNumeric("이완기 혈압", 40, 150),
+    allergies: z.array(z.string()).default([]),
+    currentMedications: z.array(z.string()).default([]),
+    lifestyleExercise: z.enum(["REGULAR", "IRREGULAR", "NONE"]).default("NONE"),
+    lifestyleSmoking: z.boolean().default(false),
+    lifestyleAlcohol: z.enum(["NONE", "MODERATE", "HEAVY"]).default("NONE"),
   })
   .superRefine((data, ctx) => {
     const sFilled = !!data.systolic;
@@ -58,6 +63,11 @@ export function toMedicalProfile(values: HealthProfileFormValues): MedicalProfil
           },
         }
       : {}),
+    allergies: values.allergies,
+    currentMedications: values.currentMedications,
+    lifestyleExercise: values.lifestyleExercise,
+    lifestyleSmoking: values.lifestyleSmoking,
+    lifestyleAlcohol: values.lifestyleAlcohol,
   };
 }
 
@@ -68,5 +78,10 @@ export function fromMedicalProfile(profile: MedicalProfile | null): HealthProfil
     existingDiagnoses: profile?.existingDiagnoses ?? "",
     systolic: profile?.bloodPressure ? String(profile.bloodPressure.systolic) : "",
     diastolic: profile?.bloodPressure ? String(profile.bloodPressure.diastolic) : "",
+    allergies: profile?.allergies ?? [],
+    currentMedications: profile?.currentMedications ?? [],
+    lifestyleExercise: profile?.lifestyleExercise ?? "NONE",
+    lifestyleSmoking: profile?.lifestyleSmoking ?? false,
+    lifestyleAlcohol: profile?.lifestyleAlcohol ?? "NONE",
   };
 }
