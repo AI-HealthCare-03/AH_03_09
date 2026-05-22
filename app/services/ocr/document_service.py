@@ -1,9 +1,11 @@
 import json
 import logging
+import os
 import uuid
 
 import redis.asyncio as aioredis
 from fastapi import HTTPException, status
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
@@ -97,6 +99,15 @@ class OcrDocumentService:
         await self._publish_ocr_job(doc)
 
         return doc
+
+    async def get_file_response(self, record_id: int, user_id: int) -> Response:
+        doc = await self.get_document(record_id, user_id)
+        if doc.s3_bucket == LOCAL_BUCKET:
+            if not os.path.exists(doc.s3_key):
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파일을 찾을 수 없습니다.")
+            return FileResponse(doc.s3_key, media_type=doc.mime_type, filename=doc.original_filename)
+        url = S3Service().presigned_url(doc.s3_key)
+        return RedirectResponse(url)
 
     async def update_document(self, record_id: int, user_id: int, body: OcrDocumentUpdateRequest) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)

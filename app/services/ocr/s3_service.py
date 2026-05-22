@@ -72,6 +72,13 @@ class S3Service:
 
         return s3_key, file_hash
 
+    def presigned_url(self, s3_key: str, expires: int = 300) -> str:
+        return self._client().generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self._bucket, "Key": s3_key},
+            ExpiresIn=expires,
+        )
+
     async def delete(self, s3_key: str) -> None:
         if not self._bucket:
             await asyncio.to_thread(os.remove, s3_key)
