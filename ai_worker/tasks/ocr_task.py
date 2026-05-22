@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 import time
 import uuid as uuid_lib
@@ -10,6 +11,7 @@ import redis.asyncio as aioredis
 from ai_worker.core.config import config
 from ai_worker.schemas.ocr import OcrTaskPayload
 from ai_worker.tasks.doc_classifier import classify_document
+from ai_worker.tasks.ocr_parser import parse_medications_and_diseases
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +136,11 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
             elapsed_ms,
         )
 
+        parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
+        await _insert_medications(conn, payload.record_id, parsed["medications"])
+        if doc_type == "PRESCRIPTION":
+            await _insert_disease_codes(conn, payload.record_id, parsed["disease_codes"])
+
         await conn.execute(
             "UPDATE ocr_documents SET ocr_status = 'DONE', doc_type = $2, updated_at = NOW() WHERE job_id = $1",
             payload.job_id,
@@ -171,3 +178,41 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
     finally:
         if conn is not None:
             await conn.close()
+
+
+async def _insert_medications(conn: asyncpg.Connection, record_id: int, medications: list[dict]) -> None:
+    for m in medications:
+        await conn.execute(
+            """
+            INSERT INTO medications
+                (document_id, medication_name, generic_name, dosage, frequency, timing,
+                 usage_time, duration_days, time_of_day, warnings, confidence_score)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            """,
+            record_id,
+            m.get("medication_name") or "",
+            m.get("generic_name"),
+            m.get("dosage"),
+            m.get("frequency"),
+            m.get("timing"),
+            m.get("usage_time"),
+            m.get("duration_days"),
+            json.dumps(m["time_of_day"], ensure_ascii=False) if m.get("time_of_day") is not None else None,
+            json.dumps(m["warnings"], ensure_ascii=False) if m.get("warnings") is not None else None,
+            m.get("confidence_score"),
+        )
+
+
+async def _insert_disease_codes(conn: asyncpg.Connection, record_id: int, disease_codes: list[dict]) -> None:
+    for c in disease_codes:
+        await conn.execute(
+            """
+            INSERT INTO disease_codes (document_id, icd10_code, disease_name, is_primary, confidence_score)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            record_id,
+            c.get("icd10_code") or "",
+            c.get("disease_name"),
+            bool(c.get("is_primary", False)),
+            c.get("confidence_score"),
+        )
