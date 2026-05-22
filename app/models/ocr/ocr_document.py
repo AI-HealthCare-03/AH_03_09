@@ -99,7 +99,7 @@ class Medication(Base):
     timing: Mapped[str | None] = mapped_column(String(100), nullable=True)
     usage_time: Mapped[str | None] = mapped_column(String(200), nullable=True)
     duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    time_of_day: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    time_of_day: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     warnings: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)

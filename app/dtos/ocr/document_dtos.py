@@ -16,7 +16,7 @@ class MedicationResponse(BaseSerializerModel):
     frequency: str | None = None
     timing: str | None = None
     duration_days: int | None = None
-    time_of_day: dict | None = None
+    time_of_day: list | None = None
     instructions: str | None = None
     warnings: list | None = None
     confidence_score: float | None = None
@@ -119,7 +119,7 @@ class MedicationUpdateRequest(BaseModel):
     frequency: str | None = None
     timing: str | None = None
     duration_days: int | None = None
-    time_of_day: dict | None = None
+    time_of_day: list | None = None
     instructions: str | None = None
     warnings: list | None = None
 

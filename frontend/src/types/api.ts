@@ -69,7 +69,7 @@ export interface MedicationResponse {
   frequency: string | null;
   timing: string | null;
   duration_days: number | null;
-  time_of_day: Record<string, unknown> | null;
+  time_of_day: string[] | null;
   instructions: string | null;
   warnings: string[] | null;
   confidence_score: number | null;
