@@ -64,6 +64,7 @@ export interface OcrJobStatusResponse {
 export interface MedicationResponse {
   id: number;
   medication_name: string;
+  edi_code: string | null;
   generic_name: string | null;
   dosage: string | null;
   frequency: string | null;

@@ -15,6 +15,7 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
   "medications": [
     {
       "medication_name": "약물 전체명 (필수)",
+      "edi_code": "EDI 코드 9자리 (없으면 null)",
       "generic_name": "성분명 (없으면 null)",
       "dosage": "1회 용량 (예: '1정', '5mg', null)",
       "frequency": "복약 횟수 (예: '1일 3회', null)",
@@ -37,6 +38,7 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
 
 규칙:
 - medications: 약봉투, 처방전 모두 추출. 없으면 빈 배열.
+- edi_code: 처방전의 EDI 코드(9자리 숫자 문자열). 없으면 null.
 - disease_codes: 처방전에 있는 모든 상병코드를 추출. 여러 개면 모두 포함. 없거나 약봉투면 빈 배열.
 - duration_days: 정수만. "30일" → 30. 없으면 null.
 - time_of_day: 추론 가능한 경우만 배열 (예: ["아침", "저녁"]), 불명확하면 null.

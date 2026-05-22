@@ -11,6 +11,7 @@ from app.dtos.base import BaseSerializerModel
 class MedicationResponse(BaseSerializerModel):
     id: int
     medication_name: str
+    edi_code: str | None = None
     generic_name: str | None = None
     dosage: str | None = None
     frequency: str | None = None
@@ -113,6 +114,7 @@ class OcrDocumentUpdateRequest(BaseModel):
 
 class MedicationUpdateRequest(BaseModel):
     medication_name: str | None = None
+    edi_code: str | None = None
     generic_name: str | None = None
     dosage: str | None = None
     frequency: str | None = None

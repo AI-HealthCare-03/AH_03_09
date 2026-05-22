@@ -185,13 +185,14 @@ async def _insert_medications(conn: asyncpg.Connection, record_id: int, medicati
         await conn.execute(
             """
             INSERT INTO medications
-                (document_id, medication_name, generic_name, dosage, frequency, timing,
+                (document_id, medication_name, edi_code, generic_name, dosage, frequency, timing,
                  usage_time, duration_days, time_of_day, warnings, confidence_score,
                  is_confirmed, is_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE, TRUE)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, FALSE, TRUE)
             """,
             record_id,
             m.get("medication_name") or "",
+            m.get("edi_code"),
             m.get("generic_name"),
             m.get("dosage"),
             m.get("frequency"),

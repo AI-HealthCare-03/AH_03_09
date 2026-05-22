@@ -93,6 +93,7 @@ class Medication(Base):
         BIGINT, ForeignKey("ocr_documents.record_id", ondelete="CASCADE"), nullable=False
     )
     medication_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    edi_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     generic_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     dosage: Mapped[str | None] = mapped_column(String(100), nullable=True)
     frequency: Mapped[str | None] = mapped_column(String(100), nullable=True)

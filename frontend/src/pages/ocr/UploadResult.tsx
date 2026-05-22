@@ -189,6 +189,12 @@ export default function UploadResult() {
                       scope="col"
                       className="pb-2 text-left text-xs font-medium text-muted-foreground"
                     >
+                      EDI 코드
+                    </th>
+                    <th
+                      scope="col"
+                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
+                    >
                       성분명
                     </th>
                     <th
@@ -221,6 +227,7 @@ export default function UploadResult() {
                   {medications.map((m) => (
                     <tr key={m.id}>
                       <td className="py-2.5 font-medium">{m.medication_name}</td>
+                      <td className="py-2.5 font-mono text-muted-foreground">{m.edi_code ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
