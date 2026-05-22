@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CloudUploadIcon, FileTextIcon, Loader2Icon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { fetchDocuments, uploadDocuments } from "@/api/ocr";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +59,6 @@ export default function Upload() {
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [duplicateRecordId, setDuplicateRecordId] = useState<number | null>(null);
 
   const { data: recentDocs, isLoading: docsLoading } = useQuery({
     queryKey: ["ocr-documents", { size: 5 }],
@@ -70,7 +70,6 @@ export default function Upload() {
     const merged = [...files, ...Array.from(incoming)].slice(0, MAX_FILES);
     const err = validateFiles(merged);
     setError(err);
-    setDuplicateRecordId(null);
     if (!err) setFiles(merged);
   };
 
@@ -89,7 +88,6 @@ export default function Upload() {
     if (files.length === 0) return;
     setUploading(true);
     setError(null);
-    setDuplicateRecordId(null);
     try {
       const res = await uploadDocuments(files);
       const first = res.uploaded_files[0];
@@ -100,9 +98,15 @@ export default function Upload() {
       if (e instanceof ApiError && e.status === 409) {
         try {
           const parsed = JSON.parse(e.body) as { detail: { existing_record_id: number } };
-          setDuplicateRecordId(parsed.detail.existing_record_id);
+          toast.warning("이미 업로드된 파일입니다.", {
+            description: "동일한 파일이 이미 존재합니다.",
+            action: {
+              label: "기존 문서 보기",
+              onClick: () => navigate(`/upload/result/${parsed.detail.existing_record_id}`),
+            },
+          });
         } catch {
-          setError("이미 업로드된 파일입니다.");
+          toast.error("이미 업로드된 파일입니다.");
         }
       } else {
         setError(
@@ -188,22 +192,6 @@ export default function Upload() {
                 </div>
               )}
 
-              {duplicateRecordId !== null && (
-                <Alert>
-                  <AlertDescription className="flex items-center justify-between gap-3">
-                    <span>이미 업로드된 파일입니다.</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
-                      onClick={() => navigate(`/upload/result/${duplicateRecordId}`)}
-                    >
-                      기존 문서 보기
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              )}
-
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -213,7 +201,7 @@ export default function Upload() {
               <Button
                 className="w-full"
                 size="lg"
-                disabled={files.length === 0 || !!error || duplicateRecordId !== null || uploading}
+                disabled={files.length === 0 || !!error || uploading}
                 onClick={handleUpload}
               >
                 {uploading ? (
