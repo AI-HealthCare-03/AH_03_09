@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchDocuments } from "@/api/ocr";
+import { toast } from "sonner";
+import { deleteDocument, fetchDocuments } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +62,8 @@ export default function MyDocuments() {
   const [sort, setSort] = useState("created_at_desc");
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["ocr-documents", { docType, ocrStatus, sort, page }],
@@ -215,10 +218,10 @@ export default function MyDocuments() {
                       {data.documents.map((doc) => (
                         <tr key={doc.record_id} className="transition-colors hover:bg-muted/30">
                           <td className="px-4 py-3">
-                            <p className="max-w-[200px] truncate font-medium">
+                            <p className="max-w-50 truncate font-medium">
                               {doc.original_filename}
                             </p>
-                            {doc.hospital_name && (
+                            {doc.hospital_name !== null && (
                               <p className="text-xs text-muted-foreground">{doc.hospital_name}</p>
                             )}
                           </td>
@@ -323,15 +326,32 @@ export default function MyDocuments() {
               <span className="font-medium text-foreground">{deleteTarget?.name}</span> 문서를
               삭제하시겠습니까?
               <br />
-              삭제한 문서는 복구할 수 없습니다.
+              삭제 후 30일간 복구 가능하며, 이후 완전히 삭제됩니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
               취소
             </Button>
-            <Button variant="destructive" disabled>
-              삭제
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setDeleting(true);
+                try {
+                  await deleteDocument(deleteTarget.id);
+                  toast.success("문서가 삭제되었습니다.");
+                  setDeleteTarget(null);
+                  queryClient.invalidateQueries({ queryKey: ["ocr-documents"] });
+                } catch {
+                  toast.error("삭제에 실패했습니다. 다시 시도해주세요.");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "삭제 중..." : "삭제"}
             </Button>
           </DialogFooter>
         </DialogContent>

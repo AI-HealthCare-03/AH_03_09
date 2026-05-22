@@ -68,3 +68,7 @@ export function fetchMedications(recordId: number): Promise<MedicationResponse[]
 export function fetchDiseaseCodes(recordId: number): Promise<DiseaseCodeResponse[]> {
   return request<DiseaseCodeResponse[]>(`/ocr/records/${recordId}/disease-codes`);
 }
+
+export function deleteDocument(recordId: number): Promise<void> {
+  return request<void>(`/ocr/records/${recordId}`, { method: "DELETE" });
+}
