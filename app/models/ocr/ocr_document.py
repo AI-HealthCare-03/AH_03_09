@@ -122,7 +122,6 @@ class DiseaseCode(Base):
     )
     icd10_code: Mapped[str] = mapped_column(String(20), nullable=False)
     disease_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     confidence_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     is_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

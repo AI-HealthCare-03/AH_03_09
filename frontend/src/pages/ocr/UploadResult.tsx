@@ -274,12 +274,6 @@ export default function UploadResult() {
                       >
                         질병명
                       </th>
-                      <th
-                        scope="col"
-                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                      >
-                        구분
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -287,9 +281,6 @@ export default function UploadResult() {
                       <tr key={c.id}>
                         <td className="py-2.5 font-mono font-medium">{c.icd10_code}</td>
                         <td className="py-2.5 text-muted-foreground">{c.disease_name ?? "-"}</td>
-                        <td className="py-2.5">
-                          {c.is_primary && <Badge variant="outline">주상병</Badge>}
-                        </td>
                       </tr>
                     ))}
                   </tbody>

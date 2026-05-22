@@ -30,7 +30,6 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
     {
       "icd10_code": "J45.0",
       "disease_name": "기관지천식",
-      "is_primary": true,
       "confidence_score": 0.95
     }
   ]
@@ -38,7 +37,7 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
 
 규칙:
 - medications: 약봉투, 처방전 모두 추출. 없으면 빈 배열.
-- disease_codes: 처방전에만 해당. 없거나 약봉투면 빈 배열.
+- disease_codes: 처방전에 있는 모든 상병코드를 추출. 여러 개면 모두 포함. 없거나 약봉투면 빈 배열.
 - duration_days: 정수만. "30일" → 30. 없으면 null.
 - time_of_day: 추론 가능한 경우만 배열 (예: ["아침", "저녁"]), 불명확하면 null.
 - confidence_score: 0~1 실수. 텍스트에 명확히 있으면 높게 (예: 0.95), 불명확하면 낮게 (예: 0.60).

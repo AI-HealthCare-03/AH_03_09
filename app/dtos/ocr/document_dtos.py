@@ -28,7 +28,6 @@ class DiseaseCodeResponse(BaseSerializerModel):
     id: int
     icd10_code: str
     disease_name: str | None = None
-    is_primary: bool
     confidence_score: float | None = None
     is_confirmed: bool
     is_active: bool
@@ -127,7 +126,6 @@ class MedicationUpdateRequest(BaseModel):
 class DiseaseCodeUpdateRequest(BaseModel):
     icd10_code: str | None = None
     disease_name: str | None = None
-    is_primary: bool | None = None
 
 
 class OcrResultUpdateRequest(BaseModel):

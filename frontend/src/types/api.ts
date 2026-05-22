@@ -81,7 +81,6 @@ export interface DiseaseCodeResponse {
   id: number;
   icd10_code: string;
   disease_name: string | null;
-  is_primary: boolean;
   confidence_score: number | null;
   is_confirmed: boolean;
   is_active: boolean;

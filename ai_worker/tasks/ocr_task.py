@@ -209,13 +209,12 @@ async def _insert_disease_codes(conn: asyncpg.Connection, record_id: int, diseas
         await conn.execute(
             """
             INSERT INTO disease_codes
-                (document_id, icd10_code, disease_name, is_primary, confidence_score,
+                (document_id, icd10_code, disease_name, confidence_score,
                  is_confirmed, is_active)
-            VALUES ($1, $2, $3, $4, $5, FALSE, TRUE)
+            VALUES ($1, $2, $3, $4, FALSE, TRUE)
             """,
             record_id,
             c.get("icd10_code") or "",
             c.get("disease_name"),
-            bool(c.get("is_primary", False)),
             c.get("confidence_score"),
         )
