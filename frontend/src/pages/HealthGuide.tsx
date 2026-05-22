@@ -31,7 +31,7 @@ export default function HealthGuide() {
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
   const [ratingSafety, setRatingSafety] = useState(5);
   const [comment, setComment] = useState("");
-
+  console.log(guide)
   async function handleGenerate() {
     try {
       setLoading(true);
@@ -45,7 +45,7 @@ export default function HealthGuide() {
 
       const generateResult = await generateGuide({
         patient_id: "demo-patient-001",
-        guide_types: ["MEDICATION"],
+        guide_types: ["MEDICATION", "LIFESTYLE", "DIET", "EXERCISE"],
         medication_names: ["타이레놀", "아모잘탄"],
       });
 
@@ -181,7 +181,47 @@ export default function HealthGuide() {
               ))}
             </div>
           )}
+{guide?.schedule_table && guide.schedule_table.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg">복약 스케줄 요약</CardTitle>
+    </CardHeader>
 
+    <CardContent>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b">
+            <tr>
+              <th className="pb-2 text-left font-medium">복용 시간</th>
+              <th className="pb-2 text-left font-medium">복용 약물</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {guide.schedule_table.map((schedule) => (
+              <tr key={schedule.time} className="border-b last:border-0">
+                <td className="py-3 font-medium">{schedule.time}</td>
+                <td className="py-3">
+                  {schedule.medications.length > 0 ? (
+                    <ul className="list-disc pl-5">
+                      {schedule.medications.map((medication) => (
+                        <li key={medication}>{medication}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      해당 시간 복용 약물이 없습니다.
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </CardContent>
+  </Card>
+)}
           {guideId && (
             <Card>
               <CardHeader>
@@ -204,10 +244,7 @@ export default function HealthGuide() {
 
                 {guideContext && (
                   <div className="space-y-3 rounded-md border p-4 text-sm">
-                    <div>
-                      <p className="font-medium">Guide ID</p>
-                      <p className="text-muted-foreground">{guideContext.guide_id}</p>
-                    </div>
+                    
 
                     <div>
                       <p className="font-medium">약물</p>
@@ -256,6 +293,85 @@ export default function HealthGuide() {
               </CardContent>
             </Card>
           )}
+{(guide?.lifestyle_guide?.tips?.length ?? 0) > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg">
+        생활 관리 안내
+      </CardTitle>
+    </CardHeader>
+
+    <CardContent>
+      <ul className="list-disc space-y-2 pl-5 text-sm">
+        {guide?.lifestyle_guide?.tips?.map((tip: string) => (
+          <li key={tip}>{tip}</li>
+        ))}
+      </ul>
+      {guide?.diet_guide && (
+  <div className="mt-6">
+    <h3 className="mb-2 font-medium">식사 안내</h3>
+
+    <div className="space-y-2 text-sm">
+      <div>
+        <p className="font-medium">권장 음식</p>
+        <ul className="list-disc pl-5">
+          {guide.diet_guide.recommended.map((item: string) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <p className="font-medium">주의 음식</p>
+        <ul className="list-disc pl-5">
+          {guide.diet_guide.forbidden.map((item: string) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <p className="font-medium">수분 섭취</p>
+        <p>{guide.diet_guide.hydration}</p>
+      </div>
+    </div>
+  </div>
+)}
+
+{guide?.exercise_guide && (
+  <div className="mt-6">
+    <h3 className="mb-2 font-medium">운동 안내</h3>
+
+    <div className="space-y-2 text-sm">
+      <p>
+        <span className="font-medium">운동 강도:</span>{" "}
+        {guide.exercise_guide.intensity}
+      </p>
+
+      <p>
+        <span className="font-medium">운동 빈도:</span>{" "}
+        {guide.exercise_guide.frequency}
+      </p>
+
+      <p>
+        <span className="font-medium">운동 시간:</span>{" "}
+        {guide.exercise_guide.duration}
+      </p>
+
+      <div>
+        <p className="font-medium">주의사항</p>
+        <ul className="list-disc pl-5">
+          {guide.exercise_guide.cautions.map((item: string) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </div>
+)}
+    </CardContent>
+  </Card>
+)}
 
           {guideId && (
             <Card>

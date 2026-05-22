@@ -165,7 +165,16 @@ async def _run_mock_worker(
         medication_guide=(
             _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
         ),
-        schedule_table=[],
+        schedule_table=[
+    {
+        "time": "아침 식후",
+        "medications": ["아모잘탄"],
+    },
+    {
+        "time": "필요 시",
+        "medications": ["어린이타이레놀산160밀리그램(아세트아미노펜)"],
+    },
+],
         lifestyle_guide=_make_lifestyle_guide() if GuideType.LIFESTYLE in guide_types else None,
         diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,

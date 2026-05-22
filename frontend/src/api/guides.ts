@@ -34,19 +34,48 @@ export type MedicationItem = {
   source_name: string | null;
 };
 
+export type MedicationGuide = {
+  medications: MedicationItem[];
+};
+
+export type ScheduleEntry = {
+  time: string;
+  medications: string[];
+};
+
+export type LifestyleGuide = {
+  tips: string[];
+};
+
+export type DietGuide = {
+  forbidden: string[];
+  recommended: string[];
+  hydration: string;
+};
+
+export type ExerciseGuide = {
+  intensity: string;
+  frequency: string;
+  duration: string;
+  cautions: string[];
+};
+
+export type GenerationResult = {
+  guide_type: GuideType;
+  status: string;
+  skip_reason?: string | null;
+};
+
 export type GuideResponse = {
   guide_id: string;
   guide_types: GuideType[];
   created_at: string;
-  medication_guide: {
-    medications: MedicationItem[];
-  } | null;
-  schedule_table:
-    | {
-        time: string;
-        medications: string[];
-      }[]
-    | null;
+  medication_guide: MedicationGuide | null;
+  schedule_table: ScheduleEntry[] | null;
+  lifestyle_guide: LifestyleGuide | null;
+  diet_guide: DietGuide | null;
+  exercise_guide: ExerciseGuide | null;
+  generation_results?: GenerationResult[];
 };
 
 export function generateGuide(body: GenerateGuideRequest) {
@@ -81,12 +110,12 @@ export function submitGuideFeedback(
   });
 }
 
-export interface GuideContextResponse {
+export type GuideContextResponse = {
   guide_id: string;
   medications: string[];
   disease_codes: string[];
   key_instructions: string[];
-}
+};
 
 export function getGuideContext(guideId: string) {
   return request<GuideContextResponse>(`/guides/${guideId}/context`);
