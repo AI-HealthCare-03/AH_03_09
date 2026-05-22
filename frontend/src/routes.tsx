@@ -3,9 +3,11 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import ChatLayout from "@/components/layout/ChatLayout";
 import Chat from "@/pages/Chat";
+import GuideDemo from "@/pages/GuideDemo";
 import HealthGuide from "@/pages/HealthGuide";
 import HealthProfile from "@/pages/HealthProfile";
 import Home from "@/pages/Home";
+
 import KakaoCallback from "@/pages/KakaoCallback";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
@@ -22,6 +24,7 @@ export const router = createBrowserRouter([
   { path: "/", element: <Landing /> },
   { path: "/login", element: <Login /> },
   { path: "/auth/kakao/callback", element: <KakaoCallback /> },
+
   {
     element: <ProtectedRoute />,
     children: [
@@ -49,5 +52,8 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
+  { path: "/guide-demo", element: <GuideDemo /> },
+  
   { path: "*", element: <NotFound /> },
 ]);
