@@ -102,8 +102,11 @@ services:
       - fastapi
 
   # 6. Frontend (Vite build served via nginx)
+  # Excluded from default `docker compose up` so port 3000 stays free for `npm run dev` (HMR).
+  # Run with: `docker compose --profile full up -d` to start the prod-like build alongside the BE stack.
   frontend:
     container_name: frontend
+    profiles: ["full"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
