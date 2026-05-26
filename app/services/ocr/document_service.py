@@ -142,7 +142,9 @@ class OcrDocumentService:
     async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
         if doc.ocr_status == OcrStatus.DONE:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 처리 완료된 문서는 재추출할 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="이미 처리 완료된 문서는 재추출할 수 없습니다."
+            )
         if doc.ocr_status == OcrStatus.PROCESSING:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 재추출할 수 없습니다.")
         if doc.reanalyze_count >= 5:

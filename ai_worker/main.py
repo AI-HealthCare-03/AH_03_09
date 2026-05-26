@@ -29,15 +29,17 @@ async def _recover_pending_jobs(redis_client: aioredis.Redis) -> None:
         if not rows:
             return
         for row in rows:
-            payload = json.dumps({
-                "job_id": str(row["job_id"]),
-                "record_id": row["record_id"],
-                "s3_key": row["s3_key"],
-                "s3_bucket": row["s3_bucket"],
-                "user_id": row["user_id"],
-                "mime_type": row["mime_type"],
-                "original_filename": row["original_filename"],
-            })
+            payload = json.dumps(
+                {
+                    "job_id": str(row["job_id"]),
+                    "record_id": row["record_id"],
+                    "s3_key": row["s3_key"],
+                    "s3_bucket": row["s3_bucket"],
+                    "user_id": row["user_id"],
+                    "mime_type": row["mime_type"],
+                    "original_filename": row["original_filename"],
+                }
+            )
             await redis_client.publish(f"ocr:request:{row['job_id']}", payload)
             logger.info("Recovered pending job: job_id=%s record_id=%s", row["job_id"], row["record_id"])
         logger.info("Recovered %d pending job(s)", len(rows))

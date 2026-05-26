@@ -38,8 +38,6 @@ async def _read_file(s3_key: str, s3_bucket: str) -> bytes:
         obj = s3.get_object(Bucket=s3_bucket, Key=s3_key)
         return obj["Body"].read()
 
-    import asyncio
-
     return await asyncio.to_thread(_get)
 
 

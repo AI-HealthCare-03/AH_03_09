@@ -20,6 +20,7 @@ def _make_doc(record_id: int = 1) -> MagicMock:
     doc.job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
     doc.user_id = 1
     doc.ocr_status = "PENDING"
+    doc.reanalyze_count = 0
     doc.original_filename = "test.jpg"
     doc.s3_key = "ocr/user/test.jpg"
     doc.s3_bucket = "test-bucket"
