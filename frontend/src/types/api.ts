@@ -59,6 +59,7 @@ export interface OcrJobStatusResponse {
   message: string | null;
   result_url: string | null;
   estimated_remaining_seconds: number | null;
+  reanalyze_count: number;
 }
 
 export interface MedicationResponse {

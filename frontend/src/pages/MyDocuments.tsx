@@ -262,7 +262,7 @@ export default function MyDocuments() {
                               {doc.ocr_status === "DONE"
                                 ? "결과 보기"
                                 : doc.ocr_status === "FAILED"
-                                  ? "실패 내역"
+                                  ? "재시도"
                                   : "처리 현황"}
                             </Button>
                           </td>
