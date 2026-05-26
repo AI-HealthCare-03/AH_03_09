@@ -20,7 +20,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <App />
-        <Toaster />
+        <Toaster position="top-center" />
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>,

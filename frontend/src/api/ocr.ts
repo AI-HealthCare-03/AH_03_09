@@ -1,5 +1,6 @@
-import { request } from "@/lib/api";
+import { ApiError, request } from "@/lib/api";
 import { postMultipart } from "@/lib/apiMultipart";
+import { API_BASE, withAuthRetry } from "@/lib/withAuthRetry";
 import type {
   DiseaseCodeResponse,
   DocType,
@@ -67,4 +68,21 @@ export function fetchMedications(recordId: number): Promise<MedicationResponse[]
 
 export function fetchDiseaseCodes(recordId: number): Promise<DiseaseCodeResponse[]> {
   return request<DiseaseCodeResponse[]>(`/ocr/records/${recordId}/disease-codes`);
+}
+
+export function deleteDocument(recordId: number): Promise<void> {
+  return request<void>(`/ocr/records/${recordId}`, { method: "DELETE" });
+}
+
+export async function fetchDocumentFile(recordId: number): Promise<string> {
+  const path = `/ocr/records/${recordId}/file`;
+  const res = await withAuthRetry(path, (token) =>
+    fetch(`${API_BASE}${path}`, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
+  );
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }

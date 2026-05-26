@@ -1,9 +1,12 @@
 import json
 import logging
+import os
 import uuid
+from datetime import UTC, datetime
 
 import redis.asyncio as aioredis
 from fastapi import HTTPException, status
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
@@ -22,8 +25,23 @@ class OcrDocumentService:
         self.repo = OcrDocumentRepository(session)
         self._redis = redis
 
-    async def list_documents(self, user_id: int) -> list[OcrDocument]:
-        return await self.repo.list_by_user(user_id)
+    async def list_documents(
+        self,
+        user_id: int,
+        doc_type: str | None = None,
+        ocr_status: str | None = None,
+        sort: str = "created_at_desc",
+        page: int = 1,
+        size: int = 20,
+    ) -> tuple[list[OcrDocument], int]:
+        return await self.repo.list_by_user(
+            user_id,
+            doc_type=doc_type,
+            ocr_status=ocr_status,
+            sort=sort,
+            limit=size,
+            offset=(page - 1) * size,
+        )
 
     async def get_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.repo.get_by_record_id(record_id, user_id)
@@ -82,6 +100,23 @@ class OcrDocumentService:
         await self._publish_ocr_job(doc)
 
         return doc
+
+    async def delete_document(self, record_id: int, user_id: int) -> None:
+        doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status == "PROCESSING":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 삭제할 수 없습니다.")
+        doc.is_active = False
+        doc.deleted_at = datetime.now(UTC)
+        await self.session.commit()
+
+    async def get_file_response(self, record_id: int, user_id: int) -> Response:
+        doc = await self.get_document(record_id, user_id)
+        if doc.s3_bucket == LOCAL_BUCKET:
+            if not os.path.exists(doc.s3_key):
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파일을 찾을 수 없습니다.")
+            return FileResponse(doc.s3_key, media_type=doc.mime_type, filename=doc.original_filename)
+        url = S3Service().presigned_url(doc.s3_key)
+        return RedirectResponse(url)
 
     async def update_document(self, record_id: int, user_id: int, body: OcrDocumentUpdateRequest) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)

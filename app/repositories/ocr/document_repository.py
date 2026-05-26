@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -54,10 +54,41 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_by_user(self, user_id: int) -> list[OcrDocument]:
+    async def soft_delete(self, record_id: int, user_id: int) -> OcrDocument | None:
         result = await self.session.execute(
-            select(OcrDocument)
-            .where(OcrDocument.user_id == user_id, OcrDocument.is_active.is_(True))
-            .order_by(OcrDocument.created_at.desc())
+            select(OcrDocument).where(
+                OcrDocument.record_id == record_id,
+                OcrDocument.user_id == user_id,
+                OcrDocument.is_active.is_(True),
+            )
         )
-        return list(result.scalars().all())
+        doc = result.scalar_one_or_none()
+        if doc is not None:
+            doc.is_active = False
+            await self.session.flush()
+        return doc
+
+    async def list_by_user(
+        self,
+        user_id: int,
+        doc_type: str | None = None,
+        ocr_status: str | None = None,
+        sort: str = "created_at_desc",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[OcrDocument], int]:
+        conditions = [OcrDocument.user_id == user_id, OcrDocument.is_active.is_(True)]
+        if doc_type:
+            conditions.append(OcrDocument.doc_type == doc_type)
+        if ocr_status:
+            conditions.append(OcrDocument.ocr_status == ocr_status)
+
+        order = OcrDocument.created_at.asc() if sort == "created_at_asc" else OcrDocument.created_at.desc()
+
+        total_result = await self.session.execute(select(func.count()).select_from(OcrDocument).where(*conditions))
+        total = total_result.scalar_one()
+
+        result = await self.session.execute(
+            select(OcrDocument).where(*conditions).order_by(order).limit(limit).offset(offset)
+        )
+        return list(result.scalars().all()), total
