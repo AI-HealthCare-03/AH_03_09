@@ -233,6 +233,24 @@ async def delete_record(
     await svc.delete_document(record_id, current_user.id)
 
 
+@ocr_router.post("/records/{record_id}/reanalyze", response_model=OcrJobStatusResponse)
+async def reanalyze_record(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrJobStatusResponse:
+    """FAILED/DONE 문서를 재추출합니다. PROCESSING 중이면 409."""
+    svc = OcrDocumentService(session)
+    doc = await svc.reanalyze_document(record_id, current_user.id)
+    return OcrJobStatusResponse(
+        job_id=doc.job_id,
+        record_id=doc.record_id,
+        status=doc.ocr_status,
+        progress_pct=0,
+        message="재추출 요청이 접수되었습니다.",
+    )
+
+
 # ── Medications ───────────────────────────────────────────────────────────────
 
 

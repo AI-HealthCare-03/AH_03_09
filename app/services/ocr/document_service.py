@@ -131,6 +131,16 @@ class OcrDocumentService:
         await self.session.flush()
         return doc
 
+    async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
+        doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status == OcrStatus.PROCESSING:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 재추출할 수 없습니다.")
+        doc.ocr_status = OcrStatus.PENDING
+        await self.session.commit()
+        await self.session.refresh(doc)
+        await self._publish_ocr_job(doc)
+        return doc
+
     async def _publish_ocr_job(self, doc: OcrDocument) -> None:
         payload = {
             "job_id": str(doc.job_id),
