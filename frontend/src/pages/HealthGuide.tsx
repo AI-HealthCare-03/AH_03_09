@@ -3,8 +3,10 @@ import { useState } from "react";
 import {
   generateGuide,
   getGuide,
+  getGuideContext,
   getGuideStatus,
   submitGuideFeedback,
+  type GuideContextResponse,
   type GuideResponse,
 } from "@/api/guides";
 import { Button } from "@/components/ui/button";
@@ -12,30 +14,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function HealthGuide() {
   const [loading, setLoading] = useState(false);
+  const [contextLoading, setContextLoading] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
   const [status, setStatus] = useState("");
+  const [contextStatus, setContextStatus] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("");
+
   const [guide, setGuide] = useState<GuideResponse | null>(null);
+  const [guideContext, setGuideContext] =
+    useState<GuideContextResponse | null>(null);
   const [guideId, setGuideId] = useState("");
 
   const [ratingComprehension, setRatingComprehension] = useState(5);
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
   const [ratingSafety, setRatingSafety] = useState(5);
   const [comment, setComment] = useState("");
-
+  console.log(guide)
   async function handleGenerate() {
     try {
       setLoading(true);
       setStatus("가이드 생성 요청 중...");
+      setContextStatus("");
       setFeedbackStatus("");
       setFeedbackSubmitted(false);
       setGuide(null);
+      setGuideContext(null);
       setGuideId("");
 
       const generateResult = await generateGuide({
         patient_id: "demo-patient-001",
-        guide_types: ["MEDICATION"],
+        guide_types: ["MEDICATION", "LIFESTYLE", "DIET", "EXERCISE"],
         medication_names: ["타이레놀", "아모잘탄"],
       });
 
@@ -67,6 +77,28 @@ export default function HealthGuide() {
       setStatus("에러 발생");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleLoadContext() {
+    if (!guideId) {
+      setContextStatus("가이드 생성 후 컨텍스트를 조회할 수 있습니다.");
+      return;
+    }
+
+    try {
+      setContextLoading(true);
+      setContextStatus("가이드 컨텍스트 조회 중...");
+
+      const contextResult = await getGuideContext(guideId);
+
+      setGuideContext(contextResult);
+      setContextStatus("가이드 컨텍스트 조회 완료");
+    } catch (error) {
+      console.error(error);
+      setContextStatus("가이드 컨텍스트 조회 중 에러가 발생했습니다.");
+    } finally {
+      setContextLoading(false);
     }
   }
 
@@ -149,6 +181,197 @@ export default function HealthGuide() {
               ))}
             </div>
           )}
+{guide?.schedule_table && guide.schedule_table.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg">복약 스케줄 요약</CardTitle>
+    </CardHeader>
+
+    <CardContent>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b">
+            <tr>
+              <th className="pb-2 text-left font-medium">복용 시간</th>
+              <th className="pb-2 text-left font-medium">복용 약물</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {guide.schedule_table.map((schedule) => (
+              <tr key={schedule.time} className="border-b last:border-0">
+                <td className="py-3 font-medium">{schedule.time}</td>
+                <td className="py-3">
+                  {schedule.medications.length > 0 ? (
+                    <ul className="list-disc pl-5">
+                      {schedule.medications.map((medication) => (
+                        <li key={medication}>{medication}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      해당 시간 복용 약물이 없습니다.
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </CardContent>
+  </Card>
+)}
+          {guideId && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">챗봇 연동용 가이드 컨텍스트</CardTitle>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleLoadContext}
+                  disabled={contextLoading}
+                >
+                  {contextLoading ? "조회 중..." : "컨텍스트 조회"}
+                </Button>
+
+                {contextStatus && (
+                  <p className="text-sm text-muted-foreground">{contextStatus}</p>
+                )}
+
+                {guideContext && (
+                  <div className="space-y-3 rounded-md border p-4 text-sm">
+                    
+
+                    <div>
+                      <p className="font-medium">약물</p>
+                      {guideContext.medications.length > 0 ? (
+                        <ul className="list-disc pl-5">
+                          {guideContext.medications.map((medication) => (
+                            <li key={medication}>{medication}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">약물 정보가 없습니다.</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="font-medium">질병 코드</p>
+                      {guideContext.disease_codes.length > 0 ? (
+                        <ul className="list-disc pl-5">
+                          {guideContext.disease_codes.map((code) => (
+                            <li key={code}>{code}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          질병 코드 정보가 없습니다.
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="font-medium">핵심 지침</p>
+                      {guideContext.key_instructions.length > 0 ? (
+                        <ul className="list-disc pl-5">
+                          {guideContext.key_instructions.map((instruction) => (
+                            <li key={instruction}>{instruction}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          핵심 지침 정보가 없습니다.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+{(guide?.lifestyle_guide?.tips?.length ?? 0) > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg">
+        생활 관리 안내
+      </CardTitle>
+    </CardHeader>
+
+    <CardContent>
+      <ul className="list-disc space-y-2 pl-5 text-sm">
+        {guide?.lifestyle_guide?.tips?.map((tip: string) => (
+          <li key={tip}>{tip}</li>
+        ))}
+      </ul>
+      {guide?.diet_guide && (
+  <div className="mt-6">
+    <h3 className="mb-2 font-medium">식사 안내</h3>
+
+    <div className="space-y-2 text-sm">
+      <div>
+        <p className="font-medium">권장 음식</p>
+        <ul className="list-disc pl-5">
+          {guide.diet_guide.recommended.map((item: string) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <p className="font-medium">주의 음식</p>
+        <ul className="list-disc pl-5">
+          {guide.diet_guide.forbidden.map((item: string) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <p className="font-medium">수분 섭취</p>
+        <p>{guide.diet_guide.hydration}</p>
+      </div>
+    </div>
+  </div>
+)}
+
+{guide?.exercise_guide && (
+  <div className="mt-6">
+    <h3 className="mb-2 font-medium">운동 안내</h3>
+
+    <div className="space-y-2 text-sm">
+      <p>
+        <span className="font-medium">운동 강도:</span>{" "}
+        {guide.exercise_guide.intensity}
+      </p>
+
+      <p>
+        <span className="font-medium">운동 빈도:</span>{" "}
+        {guide.exercise_guide.frequency}
+      </p>
+
+      <p>
+        <span className="font-medium">운동 시간:</span>{" "}
+        {guide.exercise_guide.duration}
+      </p>
+
+      <div>
+        <p className="font-medium">주의사항</p>
+        <ul className="list-disc pl-5">
+          {guide.exercise_guide.cautions.map((item: string) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </div>
+)}
+    </CardContent>
+  </Card>
+)}
 
           {guideId && (
             <Card>

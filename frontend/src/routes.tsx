@@ -54,6 +54,6 @@ export const router = createBrowserRouter([
   },
 
   { path: "/guide-demo", element: <GuideDemo /> },
-  
+  { path: "/health-guide-test", element: <HealthGuide /> },
   { path: "*", element: <NotFound /> },
 ]);
