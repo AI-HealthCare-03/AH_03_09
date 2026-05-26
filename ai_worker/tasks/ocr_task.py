@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import logging
@@ -36,8 +37,6 @@ async def _read_file(s3_key: str, s3_bucket: str) -> bytes:
         s3 = boto3.client("s3")
         obj = s3.get_object(Bucket=s3_bucket, Key=s3_key)
         return obj["Body"].read()
-
-    import asyncio
 
     return await asyncio.to_thread(_get)
 
@@ -136,6 +135,8 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
             elapsed_ms,
         )
 
+        await conn.execute("DELETE FROM medications WHERE document_id = $1", payload.record_id)
+        await conn.execute("DELETE FROM disease_codes WHERE document_id = $1", payload.record_id)
         parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
         await _insert_medications(conn, payload.record_id, parsed["medications"])
         if doc_type == "PRESCRIPTION":
@@ -173,6 +174,18 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
                     "UPDATE ocr_documents SET ocr_status = 'FAILED', updated_at = NOW() WHERE job_id = $1",
                     payload.job_id,
                 )
+                error_msg = str(exc)[:500]
+                updated = await conn.execute(
+                    "UPDATE ocr_results SET error_message = $2 WHERE document_id = $1",
+                    payload.record_id,
+                    error_msg,
+                )
+                if updated == "UPDATE 0":
+                    await conn.execute(
+                        "INSERT INTO ocr_results (document_id, error_message, is_user_edited) VALUES ($1, $2, FALSE)",
+                        payload.record_id,
+                        error_msg,
+                    )
             except Exception:
                 pass
     finally:
@@ -185,12 +198,14 @@ async def _insert_medications(conn: asyncpg.Connection, record_id: int, medicati
         await conn.execute(
             """
             INSERT INTO medications
-                (document_id, medication_name, generic_name, dosage, frequency, timing,
-                 usage_time, duration_days, time_of_day, warnings, confidence_score)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                (document_id, medication_name, edi_code, generic_name, dosage, frequency, timing,
+                 usage_time, duration_days, time_of_day, warnings, confidence_score,
+                 is_confirmed, is_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, FALSE, TRUE)
             """,
             record_id,
             m.get("medication_name") or "",
+            m.get("edi_code"),
             m.get("generic_name"),
             m.get("dosage"),
             m.get("frequency"),
@@ -207,12 +222,13 @@ async def _insert_disease_codes(conn: asyncpg.Connection, record_id: int, diseas
     for c in disease_codes:
         await conn.execute(
             """
-            INSERT INTO disease_codes (document_id, icd10_code, disease_name, is_primary, confidence_score)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO disease_codes
+                (document_id, icd10_code, disease_name, confidence_score,
+                 is_confirmed, is_active)
+            VALUES ($1, $2, $3, $4, FALSE, TRUE)
             """,
             record_id,
             c.get("icd10_code") or "",
             c.get("disease_name"),
-            bool(c.get("is_primary", False)),
             c.get("confidence_score"),
         )
