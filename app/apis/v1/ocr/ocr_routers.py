@@ -155,6 +155,7 @@ async def get_job_status(
         message=message_map.get(ocr_status),
         result_url=None,
         estimated_remaining_seconds=None,
+        reanalyze_count=doc.reanalyze_count,
     )
 
 
@@ -248,6 +249,7 @@ async def reanalyze_record(
         status=doc.ocr_status,
         progress_pct=0,
         message="재추출 요청이 접수되었습니다.",
+        reanalyze_count=doc.reanalyze_count,
     )
 
 

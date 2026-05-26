@@ -67,6 +67,14 @@ class OcrDocumentService:
 
         existing = await self.repo.get_by_file_hash(user_id, file_hash)
         if existing is not None:
+            if existing.reanalyze_count >= 5 and existing.ocr_status == OcrStatus.FAILED:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "처리할 수 없는 파일입니다. 파일에 문제가 있을 수 있으니 다른 파일로 시도해주세요.",
+                        "existing_record_id": existing.record_id,
+                    },
+                )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
@@ -133,9 +141,17 @@ class OcrDocumentService:
 
     async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status == OcrStatus.DONE:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 처리 완료된 문서는 재추출할 수 없습니다.")
         if doc.ocr_status == OcrStatus.PROCESSING:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 재추출할 수 없습니다.")
+        if doc.reanalyze_count >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
+            )
         doc.ocr_status = OcrStatus.PENDING
+        doc.reanalyze_count += 1
         await self.session.commit()
         await self.session.refresh(doc)
         await self._publish_ocr_job(doc)

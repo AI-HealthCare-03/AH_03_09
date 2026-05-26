@@ -92,6 +92,7 @@ class OcrJobStatusResponse(BaseSerializerModel):
     message: str | None = None
     result_url: str | None = None
     estimated_remaining_seconds: int | None = None
+    reanalyze_count: int = 0
 
 
 class OcrPreviewResponse(BaseSerializerModel):
