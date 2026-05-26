@@ -49,9 +49,11 @@ services:
     image: ${DOCKER_USER}/${DOCKER_REPOSITORY}:app-${APP_VERSION}
     env_file: .env
     command: |
-      sh -c "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
       - ocr_uploads:/tmp/ocr_uploads
     restart: always
     ports:
