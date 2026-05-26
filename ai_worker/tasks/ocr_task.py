@@ -136,6 +136,8 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
             elapsed_ms,
         )
 
+        await conn.execute("DELETE FROM medications WHERE document_id = $1", payload.record_id)
+        await conn.execute("DELETE FROM disease_codes WHERE document_id = $1", payload.record_id)
         parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
         await _insert_medications(conn, payload.record_id, parsed["medications"])
         if doc_type == "PRESCRIPTION":
