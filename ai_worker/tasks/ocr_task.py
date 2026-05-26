@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import logging
@@ -175,6 +176,18 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
                     "UPDATE ocr_documents SET ocr_status = 'FAILED', updated_at = NOW() WHERE job_id = $1",
                     payload.job_id,
                 )
+                error_msg = str(exc)[:500]
+                updated = await conn.execute(
+                    "UPDATE ocr_results SET error_message = $2 WHERE document_id = $1",
+                    payload.record_id,
+                    error_msg,
+                )
+                if updated == "UPDATE 0":
+                    await conn.execute(
+                        "INSERT INTO ocr_results (document_id, error_message, is_user_edited) VALUES ($1, $2, FALSE)",
+                        payload.record_id,
+                        error_msg,
+                    )
             except Exception:
                 pass
     finally:
