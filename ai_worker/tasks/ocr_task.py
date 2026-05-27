@@ -122,15 +122,17 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
         ocr = await _call_clova_ocr(content, payload.mime_type)
         doc_type = await classify_document(ocr["raw_text"])
         elapsed_ms = int(time.monotonic() * 1000) - start_ms
+        processed_text = _mask_pii(ocr["raw_text"])
 
         await conn.execute(
             """
             INSERT INTO ocr_results
                 (document_id, raw_text, processed_text, clova_request_id, confidence_score, processing_time_ms, is_user_edited)
-            VALUES ($1, $2, $2, $3, $4, $5, FALSE)
+            VALUES ($1, $2, $3, $4, $5, $6, FALSE)
             """,
             payload.record_id,
             ocr["raw_text"],
+            processed_text,
             ocr["request_id"],
             ocr["confidence"],
             elapsed_ms,
@@ -194,6 +196,20 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
     finally:
         if conn is not None:
             await conn.close()
+
+
+_PII_PATTERNS = [
+    (re.compile(r"\d{6}-[1-8]\d{6}"), "******-*******"),  # 주민등록번호 + 외국인등록번호
+    (re.compile(r"[A-Z]{1,2}\d{7,9}"), "***-*****"),  # 여권번호
+    (re.compile(r"0\d{1,2}-\d{3,4}-\d{4}"), "***-****-****"),  # 전화번호
+]
+
+
+def _mask_pii(text: str) -> str:
+    """processed_text의 주민번호·외국인등록번호·여권번호·전화번호를 마스킹합니다. (REQ-OCR-022)"""
+    for pattern, replacement in _PII_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
 
 
 _DOSAGE_PATTERN = re.compile(

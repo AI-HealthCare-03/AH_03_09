@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from ai_worker.tasks.ocr_parser import _clean_ocr_text, parse_medications_and_diseases
-from ai_worker.tasks.ocr_task import _normalize_medication_names, _strip_dosage
+from ai_worker.tasks.ocr_task import _mask_pii, _normalize_medication_names, _strip_dosage
 
 # ── _clean_ocr_text ────────────────────────────────────────────────────────────
 
@@ -427,3 +427,61 @@ class TestParseMedicationsAndDiseases:
                 result = await parse_medications_and_diseases("약봉투", "DRUG_BAG")
 
         assert result["medications"][0]["warnings"] == []
+
+
+# ── _mask_pii ──────────────────────────────────────────────────────────────────
+
+
+class TestMaskPii:
+    def test_masks_resident_registration_number(self):
+        text = "환자 주민번호: 900101-1234567"
+        result = _mask_pii(text)
+        assert "900101-1234567" not in result
+        assert "******-*******" in result
+
+    def test_masks_female_resident_registration_number(self):
+        text = "850315-2456789"
+        result = _mask_pii(text)
+        assert "850315-2456789" not in result
+        assert "******-*******" in result
+
+    def test_masks_foreigner_registration_number(self):
+        text = "외국인등록번호: 900101-5123456"
+        result = _mask_pii(text)
+        assert "900101-5123456" not in result
+        assert "******-*******" in result
+
+    def test_masks_multiple_rrn_in_text(self):
+        text = "보호자: 651020-1123456\n환자: 900101-2345678"
+        result = _mask_pii(text)
+        assert "651020-1123456" not in result
+        assert "900101-2345678" not in result
+        assert result.count("******-*******") == 2
+
+    def test_masks_passport_number(self):
+        text = "여권번호: M12345678"
+        result = _mask_pii(text)
+        assert "M12345678" not in result
+        assert "***-*****" in result
+
+    def test_masks_mobile_phone_number(self):
+        text = "연락처: 010-1234-5678"
+        result = _mask_pii(text)
+        assert "010-1234-5678" not in result
+        assert "***-****-****" in result
+
+    def test_masks_landline_phone_number(self):
+        text = "전화: 02-123-4567"
+        result = _mask_pii(text)
+        assert "02-123-4567" not in result
+        assert "***-****-****" in result
+
+    def test_preserves_non_pii_content(self):
+        text = "암로디핀정 5mg 1일 1회 식후 30분"
+        result = _mask_pii(text)
+        assert result == text
+
+    def test_does_not_mask_plain_numbers(self):
+        text = "EDI코드: 123456789 용량: 5mg"
+        result = _mask_pii(text)
+        assert result == text
