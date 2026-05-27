@@ -1,7 +1,8 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -22,6 +23,7 @@ from app.dtos.ocr.document_dtos import (
     OcrUploadResponse,
     UploadedFileItem,
 )
+from app.models.ocr.ocr_document import DocType, OcrStatus
 from app.models.users import User
 from app.services.ocr.document_service import OcrDocumentService
 from app.services.ocr.file_validator import validate_file_count, validate_upload
@@ -153,6 +155,7 @@ async def get_job_status(
         message=message_map.get(ocr_status),
         result_url=None,
         estimated_remaining_seconds=None,
+        reanalyze_count=doc.reanalyze_count,
     )
 
 
@@ -163,13 +166,25 @@ async def get_job_status(
 async def list_records(
     current_user: _AUTH,
     session: _SESSION,
+    doc_type: Annotated[DocType | None, Query()] = None,
+    ocr_status: Annotated[OcrStatus | None, Query()] = None,
+    sort: Annotated[str, Query()] = "created_at_desc",
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> OcrDocumentListResponse:
     """사용자의 OCR 처리 결과 목록을 조회합니다. (REQ-OCR-007)"""
     svc = OcrDocumentService(session)
-    docs = await svc.list_documents(current_user.id)
+    docs, total = await svc.list_documents(
+        current_user.id,
+        doc_type=doc_type,
+        ocr_status=ocr_status,
+        sort=sort,
+        page=page,
+        size=size,
+    )
     return OcrDocumentListResponse(
         documents=[OcrDocumentResponse.model_validate(d) for d in docs],
-        total=len(docs),
+        total=total,
     )
 
 
@@ -183,6 +198,17 @@ async def get_record(
     svc = OcrDocumentService(session)
     doc = await svc.get_document(record_id, current_user.id)
     return OcrDocumentDetailResponse.model_validate(doc)
+
+
+@ocr_router.get("/records/{record_id}/file")
+async def get_record_file(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> Response:
+    """원본 파일(이미지·PDF)을 서빙합니다."""
+    svc = OcrDocumentService(session)
+    return await svc.get_file_response(record_id, current_user.id)
 
 
 @ocr_router.patch("/records/{record_id}", response_model=OcrDocumentResponse)
@@ -203,8 +229,28 @@ async def delete_record(
     current_user: _AUTH,
     session: _SESSION,
 ) -> None:
-    """OCR 문서를 소프트 삭제합니다. (REQ-OCR-009)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    """OCR 문서를 소프트 삭제합니다. 30일 후 완전히 삭제됩니다. (REQ-OCR-009)"""
+    svc = OcrDocumentService(session)
+    await svc.delete_document(record_id, current_user.id)
+
+
+@ocr_router.post("/records/{record_id}/reanalyze", response_model=OcrJobStatusResponse)
+async def reanalyze_record(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrJobStatusResponse:
+    """FAILED/DONE 문서를 재추출합니다. PROCESSING 중이면 409."""
+    svc = OcrDocumentService(session)
+    doc = await svc.reanalyze_document(record_id, current_user.id)
+    return OcrJobStatusResponse(
+        job_id=doc.job_id,
+        record_id=doc.record_id,
+        status=doc.ocr_status,
+        progress_pct=0,
+        message="재추출 요청이 접수되었습니다.",
+        reanalyze_count=doc.reanalyze_count,
+    )
 
 
 # ── Medications ───────────────────────────────────────────────────────────────

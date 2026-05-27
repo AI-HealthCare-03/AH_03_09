@@ -1,9 +1,12 @@
 import json
 import logging
+import os
 import uuid
+from datetime import UTC, datetime
 
 import redis.asyncio as aioredis
 from fastapi import HTTPException, status
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
@@ -22,8 +25,23 @@ class OcrDocumentService:
         self.repo = OcrDocumentRepository(session)
         self._redis = redis
 
-    async def list_documents(self, user_id: int) -> list[OcrDocument]:
-        return await self.repo.list_by_user(user_id)
+    async def list_documents(
+        self,
+        user_id: int,
+        doc_type: str | None = None,
+        ocr_status: str | None = None,
+        sort: str = "created_at_desc",
+        page: int = 1,
+        size: int = 20,
+    ) -> tuple[list[OcrDocument], int]:
+        return await self.repo.list_by_user(
+            user_id,
+            doc_type=doc_type,
+            ocr_status=ocr_status,
+            sort=sort,
+            limit=size,
+            offset=(page - 1) * size,
+        )
 
     async def get_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.repo.get_by_record_id(record_id, user_id)
@@ -49,6 +67,14 @@ class OcrDocumentService:
 
         existing = await self.repo.get_by_file_hash(user_id, file_hash)
         if existing is not None:
+            if existing.reanalyze_count >= 5 and existing.ocr_status == OcrStatus.FAILED:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "처리할 수 없는 파일입니다. 파일에 문제가 있을 수 있으니 다른 파일로 시도해주세요.",
+                        "existing_record_id": existing.record_id,
+                    },
+                )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
@@ -83,6 +109,23 @@ class OcrDocumentService:
 
         return doc
 
+    async def delete_document(self, record_id: int, user_id: int) -> None:
+        doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status == "PROCESSING":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 삭제할 수 없습니다.")
+        doc.is_active = False
+        doc.deleted_at = datetime.now(UTC)
+        await self.session.commit()
+
+    async def get_file_response(self, record_id: int, user_id: int) -> Response:
+        doc = await self.get_document(record_id, user_id)
+        if doc.s3_bucket == LOCAL_BUCKET:
+            if not os.path.exists(doc.s3_key):
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파일을 찾을 수 없습니다.")
+            return FileResponse(doc.s3_key, media_type=doc.mime_type, filename=doc.original_filename)
+        url = S3Service().presigned_url(doc.s3_key)
+        return RedirectResponse(url)
+
     async def update_document(self, record_id: int, user_id: int, body: OcrDocumentUpdateRequest) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
         if body.doc_type is not None:
@@ -94,6 +137,26 @@ class OcrDocumentService:
         if body.hospital_name is not None:
             doc.hospital_name = body.hospital_name
         await self.session.flush()
+        return doc
+
+    async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
+        doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status == OcrStatus.DONE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="이미 처리 완료된 문서는 재추출할 수 없습니다."
+            )
+        if doc.ocr_status == OcrStatus.PROCESSING:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 재추출할 수 없습니다.")
+        if doc.reanalyze_count >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
+            )
+        doc.ocr_status = OcrStatus.PENDING
+        doc.reanalyze_count += 1
+        await self.session.commit()
+        await self.session.refresh(doc)
+        await self._publish_ocr_job(doc)
         return doc
 
     async def _publish_ocr_job(self, doc: OcrDocument) -> None:

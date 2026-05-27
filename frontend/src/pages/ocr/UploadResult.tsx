@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { Maximize2Icon } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchDocument, fetchOcrResult } from "@/api/ocr";
+import { fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DocType } from "@/types/api";
 
@@ -31,6 +34,23 @@ export default function UploadResult() {
   const { recordId: recordIdStr } = useParams<{ recordId: string }>();
   const recordId = Number(recordIdStr);
   const navigate = useNavigate();
+
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!recordId) return;
+    let url: string | null = null;
+    fetchDocumentFile(recordId)
+      .then((objectUrl) => {
+        url = objectUrl;
+        setFileUrl(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [recordId]);
 
   const { data: doc, isLoading: docLoading } = useQuery({
     queryKey: ["ocr-document", recordId],
@@ -152,6 +172,12 @@ export default function UploadResult() {
                       scope="col"
                       className="pb-2 text-left text-xs font-medium text-muted-foreground"
                     >
+                      EDI 코드
+                    </th>
+                    <th
+                      scope="col"
+                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
+                    >
                       성분명
                     </th>
                     <th
@@ -184,6 +210,7 @@ export default function UploadResult() {
                   {medications.map((m) => (
                     <tr key={m.id}>
                       <td className="py-2.5 font-medium">{m.medication_name}</td>
+                      <td className="py-2.5 font-mono text-muted-foreground">{m.edi_code ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
@@ -237,12 +264,6 @@ export default function UploadResult() {
                       >
                         질병명
                       </th>
-                      <th
-                        scope="col"
-                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                      >
-                        구분
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -250,9 +271,6 @@ export default function UploadResult() {
                       <tr key={c.id}>
                         <td className="py-2.5 font-mono font-medium">{c.icd10_code}</td>
                         <td className="py-2.5 text-muted-foreground">{c.disease_name ?? "-"}</td>
-                        <td className="py-2.5">
-                          {c.is_primary && <Badge variant="outline">주상병</Badge>}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -261,6 +279,51 @@ export default function UploadResult() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* File preview */}
+      {fileUrl && (
+        <>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">원본 문서</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setModalOpen(true)}>
+                  <Maximize2Icon className="mr-1.5 size-4" />
+                  전체 화면
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              {doc.original_filename.toLowerCase().endsWith(".pdf") ? (
+                <embed src={fileUrl} type="application/pdf" className="h-64 w-full rounded" />
+              ) : (
+                <img
+                  src={fileUrl}
+                  alt={doc.original_filename}
+                  className="max-h-64 cursor-zoom-in rounded object-contain"
+                  onClick={() => setModalOpen(true)}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <DialogContent className="top-0 left-0 w-screen h-screen max-w-none sm:max-w-none translate-x-0 translate-y-0 rounded-none flex flex-col p-4">
+              {doc.original_filename.toLowerCase().endsWith(".pdf") ? (
+                <embed src={fileUrl} type="application/pdf" className="flex-1 rounded" />
+              ) : (
+                <div className="flex flex-1 items-center justify-center overflow-auto">
+                  <img
+                    src={fileUrl}
+                    alt={doc.original_filename}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        </>
       )}
 
       {/* OCR text */}

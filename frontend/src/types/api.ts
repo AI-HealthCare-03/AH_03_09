@@ -87,17 +87,19 @@ export interface OcrJobStatusResponse {
   message: string | null;
   result_url: string | null;
   estimated_remaining_seconds: number | null;
+  reanalyze_count: number;
 }
 
 export interface MedicationResponse {
   id: number;
   medication_name: string;
+  edi_code: string | null;
   generic_name: string | null;
   dosage: string | null;
   frequency: string | null;
   timing: string | null;
   duration_days: number | null;
-  time_of_day: Record<string, unknown> | null;
+  time_of_day: string[] | null;
   instructions: string | null;
   warnings: string[] | null;
   confidence_score: number | null;
@@ -109,7 +111,6 @@ export interface DiseaseCodeResponse {
   id: number;
   icd10_code: string;
   disease_name: string | null;
-  is_primary: boolean;
   confidence_score: number | null;
   is_confirmed: boolean;
   is_active: boolean;
