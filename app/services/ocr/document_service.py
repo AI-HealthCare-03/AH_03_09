@@ -159,6 +159,45 @@ class OcrDocumentService:
         await self._publish_ocr_job(doc)
         return doc
 
+    async def confirm_document(
+        self,
+        job_id: uuid.UUID,
+        user_id: int,
+        trigger_guide: bool,
+        trigger_chatbot_context: bool,
+    ) -> tuple[int, uuid.UUID, str | None]:
+        """OCR 결과를 확인하고 가이드 생성·챗봇 컨텍스트 등록을 트리거합니다."""
+        doc = await self.repo.get_by_job_id_with_medications(job_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="작업을 찾을 수 없습니다.")
+        if doc.ocr_status != OcrStatus.DONE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="OCR 처리가 완료된 문서만 확인할 수 있습니다.",
+            )
+
+        guide_job_id: str | None = None
+        if trigger_guide:
+            from app.dtos.guides import GenerateGuideRequest, GuideType
+            from app.services.guides import GuideService
+
+            medication_names = [m.medication_name for m in (doc.medications or []) if m.medication_name]
+            guide_req = GenerateGuideRequest(
+                patient_id=str(user_id),
+                guide_types=list(GuideType),
+                medication_names=medication_names,
+            )
+            guide_resp = await GuideService().create_guide_job(guide_req)
+            guide_job_id = guide_resp.job_id
+
+        if trigger_chatbot_context:
+            logger.info(
+                "trigger_chatbot_context: REQ-OCR-018 pgvector 임베딩 미구현, 건너뜀 (record_id=%s)",
+                doc.record_id,
+            )
+
+        return doc.record_id, doc.job_id, guide_job_id
+
     async def _publish_ocr_job(self, doc: OcrDocument) -> None:
         payload = {
             "job_id": str(doc.job_id),

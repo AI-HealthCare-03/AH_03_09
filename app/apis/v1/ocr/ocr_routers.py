@@ -12,6 +12,8 @@ from app.dtos.ocr.document_dtos import (
     DiseaseCodeUpdateRequest,
     MedicationResponse,
     MedicationUpdateRequest,
+    OcrConfirmRequest,
+    OcrConfirmResponse,
     OcrDocumentDetailResponse,
     OcrDocumentListResponse,
     OcrDocumentResponse,
@@ -167,6 +169,21 @@ async def get_job_status(
         reanalyze_count=doc.reanalyze_count,
         retake_recommended=retake_recommended,
     )
+
+
+@ocr_router.post("/jobs/{job_id}/confirm", response_model=OcrConfirmResponse, status_code=status.HTTP_200_OK)
+async def confirm_ocr(
+    job_id: uuid.UUID,
+    body: OcrConfirmRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrConfirmResponse:
+    """OCR 결과를 확인하고 가이드 생성·챗봇 컨텍스트 등록을 트리거합니다."""
+    svc = OcrDocumentService(session)
+    record_id, doc_job_id, guide_job_id = await svc.confirm_document(
+        job_id, current_user.id, body.trigger_guide, body.trigger_chatbot_context
+    )
+    return OcrConfirmResponse(record_id=record_id, job_id=doc_job_id, guide_job_id=guide_job_id)
 
 
 # ── OCR Records ───────────────────────────────────────────────────────────────

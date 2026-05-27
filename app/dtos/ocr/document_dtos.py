@@ -134,3 +134,14 @@ class DiseaseCodeUpdateRequest(BaseModel):
 
 class OcrResultUpdateRequest(BaseModel):
     processed_text: str
+
+
+class OcrConfirmRequest(BaseModel):
+    trigger_guide: bool = False
+    trigger_chatbot_context: bool = False
+
+
+class OcrConfirmResponse(BaseSerializerModel):
+    record_id: int
+    job_id: uuid.UUID
+    guide_job_id: str | None = None
