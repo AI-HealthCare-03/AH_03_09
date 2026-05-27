@@ -244,7 +244,7 @@ export default function HealthGuide() {
 
                 {guideContext && (
                   <div className="space-y-3 rounded-md border p-4 text-sm">
-                    
+
 
                     <div>
                       <p className="font-medium">약물</p>
