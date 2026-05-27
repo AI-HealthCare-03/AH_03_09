@@ -1,11 +1,30 @@
 import json
 import logging
+import re
 
 from openai import AsyncOpenAI
 
 from ai_worker.core.config import config
 
 logger = logging.getLogger(__name__)
+
+_NOISE_PATTERNS = [
+    re.compile(r"영수증|계산서|약제비|수납|본인부담|공단부담|약가총합|기술조제|복약관리|약국관리|보관기본료"),
+    re.compile(r"사업자번호|대표약사|약국명|상호.*전화|소재지"),
+    re.compile(r"조제약사|조제일자|영수번호|연말정산|국세청|비과세"),
+    re.compile(r"분홍색|흰색|백색|노란색|원형정제|타원형|캡슐형|실온보관|냉장보관"),
+    re.compile(r"^\s*[\d,]+\s*$"),  # 금액 숫자만 있는 줄
+    re.compile(r"RECEIPT|PATIENT-\d+|RX-\d+|MEDICAL-MOCK"),  # 테스트 태그
+    re.compile(r"^\s*[.。·■●◆▶▷※\-\*]+\s*$"),  # 특수문자만 있는 줄
+]
+
+
+def _clean_ocr_text(raw_text: str) -> str:
+    """OCR 원문에서 영수증·약국 행정 정보 등 파싱에 불필요한 노이즈 라인을 제거합니다."""
+    lines = raw_text.splitlines()
+    cleaned = [line for line in lines if not any(p.search(line) for p in _NOISE_PATTERNS)]
+    return "\n".join(cleaned)
+
 
 _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 구조화된 정보를 추출하는 전문가입니다.
 주어진 OCR 텍스트에서 약물 정보와 질병분류기호를 JSON으로 추출하세요.
@@ -53,6 +72,7 @@ async def parse_medications_and_diseases(raw_text: str, doc_type: str) -> dict:
         logger.warning("OPENAI_API_KEY 미설정 — OCR 파싱 건너뜀")
         return {"medications": [], "disease_codes": []}
 
+    cleaned_text = _clean_ocr_text(raw_text)
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = await client.chat.completions.create(
@@ -61,7 +81,7 @@ async def parse_medications_and_diseases(raw_text: str, doc_type: str) -> dict:
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": f"문서 유형: {doc_type}\n\nOCR 텍스트:\n{raw_text[:3000]}",
+                    "content": f"문서 유형: {doc_type}\n\nOCR 텍스트:\n{cleaned_text[:3000]}",
                 },
             ],
             response_format={"type": "json_object"},

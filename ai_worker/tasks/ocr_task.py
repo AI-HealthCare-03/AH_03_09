@@ -138,11 +138,12 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
 
         await conn.execute("DELETE FROM medications WHERE document_id = $1", payload.record_id)
         await conn.execute("DELETE FROM disease_codes WHERE document_id = $1", payload.record_id)
-        parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
-        medications = await _normalize_medication_names(conn, parsed["medications"])
-        await _insert_medications(conn, payload.record_id, medications)
-        if doc_type == "PRESCRIPTION":
-            await _insert_disease_codes(conn, payload.record_id, parsed["disease_codes"])
+        if doc_type != "OTHER":
+            parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
+            medications = await _normalize_medication_names(conn, parsed["medications"])
+            await _insert_medications(conn, payload.record_id, medications)
+            if doc_type == "PRESCRIPTION":
+                await _insert_disease_codes(conn, payload.record_id, parsed["disease_codes"])
 
         await conn.execute(
             "UPDATE ocr_documents SET ocr_status = 'DONE', doc_type = $2, updated_at = NOW() WHERE job_id = $1",
