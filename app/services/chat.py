@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db.sqlalchemy_client import get_async_session
 from app.core.redis_client import get_redis
 from app.models.chat import ChatMessage, ChatSession, MessageRole
+from app.models.health_profiles import HealthProfile
 from app.repositories.chat_repository import ChatRepository
 
 RESPONSE_TIMEOUT_SECONDS = 60
@@ -17,6 +18,17 @@ RESPONSE_TIMEOUT_SECONDS = 60
 class ChatService:
     def __init__(self, session: Annotated[AsyncSession, Depends(get_async_session)]) -> None:
         self.repo = ChatRepository(session)
+
+    async def update_message_feedback(
+        self, session_id: UUID | str, message_id: int, user_id: int, feedback: str
+    ) -> ChatMessage:
+        session = await self.repo.get_session(session_id, user_id)
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
+        msg = await self.repo.update_message_feedback(message_id, session_id, feedback)
+        if not msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="메시지를 찾을 수 없습니다.")
+        return msg
 
     async def create_session(self, user_id: int, title: str = "새 대화") -> ChatSession:
         return await self.repo.create_session(user_id, title)
@@ -43,6 +55,20 @@ class ChatService:
         history = await self.repo.get_messages(session_id, limit=20)
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
+        health_profile = await HealthProfile.get_or_none(user_id=user_id)
+        health_context = (
+            {
+                "primary_conditions": health_profile.primary_conditions,
+                "allergies": health_profile.allergies,
+                "current_medications": health_profile.current_medications,
+                "lifestyle_exercise": health_profile.lifestyle_exercise,
+                "lifestyle_smoking": health_profile.lifestyle_smoking,
+                "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+            }
+            if health_profile
+            else None
+        )
+
         redis = await get_redis()
         pubsub = redis.pubsub()
         await pubsub.subscribe(f"chat:stream:{session_id}")
@@ -52,6 +78,7 @@ class ChatService:
                 "session_id": str(session_id),
                 "user_message": content,
                 "history": history_payload,
+                "health_profile": health_context,
             }
         )
         await redis.publish(f"chat:request:{session_id}", task_payload)
@@ -101,12 +128,27 @@ class ChatService:
                 history = await self.repo.get_messages(session_id, limit=20)
                 history_payload = [{"role": msg.role, "content": msg.content} for msg in history[:-1]]
 
+                health_profile = await HealthProfile.get_or_none(user_id=user_id)
+                health_context = (
+                    {
+                        "primary_conditions": health_profile.primary_conditions,
+                        "allergies": health_profile.allergies,
+                        "current_medications": health_profile.current_medications,
+                        "lifestyle_exercise": health_profile.lifestyle_exercise,
+                        "lifestyle_smoking": health_profile.lifestyle_smoking,
+                        "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+                    }
+                    if health_profile
+                    else None
+                )
+
                 # AI Worker에 task 발행
                 task_payload = json.dumps(
                     {
                         "session_id": session_id,
                         "user_message": user_text,
                         "history": history_payload,
+                        "health_profile": health_context,
                     }
                 )
                 await redis.publish(f"chat:request:{session_id}", task_payload)

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -21,7 +22,12 @@ class ChatMessageResponse(BaseSerializerModel):
     id: int
     role: str
     content: str
+    feedback: str | None = None
     created_at: datetime
+
+
+class MessageFeedbackRequest(BaseModel):
+    feedback: Literal["good", "bad"]
 
 
 class ChatMessageListResponse(BaseModel):

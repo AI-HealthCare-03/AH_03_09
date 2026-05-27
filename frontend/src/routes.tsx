@@ -16,6 +16,7 @@ import Upload from "@/pages/ocr/Upload";
 import UploadProcessing from "@/pages/ocr/UploadProcessing";
 import UploadResult from "@/pages/ocr/UploadResult";
 import UploadReview from "@/pages/ocr/UploadReview";
+import Pharmacy from "@/pages/Pharmacy";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
           { path: "/documents", element: <MyDocuments /> },
           { path: "/health-guide", element: <HealthGuide /> },
           { path: "/health-profile", element: <HealthProfile /> },
+          { path: "/pharmacy", element: <Pharmacy /> },
           { path: "/profile", element: <Profile /> },
           { path: "/settings", element: <Settings /> },
         ],

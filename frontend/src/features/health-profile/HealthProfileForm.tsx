@@ -21,11 +21,6 @@ import {
 } from "@/components/ui/select";
 import { type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
 
-const HEIGHT_OPTIONS = Array.from({ length: 250 - 80 + 1 }, (_, i) => String(80 + i));
-const WEIGHT_OPTIONS = Array.from({ length: 300 - 20 + 1 }, (_, i) => String(20 + i));
-const SYSTOLIC_OPTIONS = Array.from({ length: 250 - 70 + 1 }, (_, i) => String(70 + i));
-const DIASTOLIC_OPTIONS = Array.from({ length: 150 - 40 + 1 }, (_, i) => String(40 + i));
-
 const EXERCISE_OPTIONS = [
   { value: "NONE", label: "운동 안 함" },
   { value: "IRREGULAR", label: "비규칙적" },
@@ -43,6 +38,7 @@ interface Props {
   onSubmit: (values: HealthProfileFormValues) => void;
   onCancel?: () => void;
   submitLabel?: string;
+  isSaving?: boolean;
 }
 
 export function HealthProfileForm({
@@ -50,6 +46,7 @@ export function HealthProfileForm({
   onSubmit,
   onCancel,
   submitLabel = "저장",
+  isSaving = false,
 }: Props) {
   const form = useForm<HealthProfileFormValues>({
     resolver: zodResolver(healthProfileSchema),
@@ -66,23 +63,35 @@ export function HealthProfileForm({
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
         {/* 신체 정보 */}
         <div className="grid grid-cols-2 gap-4">
-          <NumericSelect
+          <FormField
             control={form.control}
             name="heightCm"
-            label="키 (cm)"
-            required
-            options={HEIGHT_OPTIONS}
-            placeholder="선택"
-            suffix="cm"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  키 (cm)<span className="text-destructive"> *</span>
+                </FormLabel>
+                <FormControl>
+                  <Input type="number" min={80} max={250} placeholder="예) 170" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-          <NumericSelect
+          <FormField
             control={form.control}
             name="weightKg"
-            label="체중 (kg)"
-            required
-            options={WEIGHT_OPTIONS}
-            placeholder="선택"
-            suffix="kg"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  체중 (kg)<span className="text-destructive"> *</span>
+                </FormLabel>
+                <FormControl>
+                  <Input type="number" min={20} max={300} placeholder="예) 65" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
         </div>
 
@@ -106,25 +115,31 @@ export function HealthProfileForm({
         <FormItem>
           <FormLabel>혈압 (mmHg)</FormLabel>
           <div className="grid grid-cols-2 gap-2">
-            <NumericSelect
+            <FormField
               control={form.control}
               name="systolic"
-              options={SYSTOLIC_OPTIONS}
-              placeholder="수축기"
-              suffix="수축기"
-              hideLabel
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input type="number" min={70} max={250} placeholder="수축기" {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
             />
-            <NumericSelect
+            <FormField
               control={form.control}
               name="diastolic"
-              options={DIASTOLIC_OPTIONS}
-              placeholder="이완기"
-              suffix="이완기"
-              hideLabel
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input type="number" min={40} max={150} placeholder="이완기" {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
             />
           </div>
           <FormDescription>
-            선택 입력입니다. 입력 시 수축기·이완기 모두 선택해주세요.
+            선택 입력입니다. 입력 시 수축기·이완기 모두 입력해주세요.
           </FormDescription>
           <FormFieldErrors form={form} names={["systolic", "diastolic"]} />
         </FormItem>
@@ -251,8 +266,8 @@ export function HealthProfileForm({
               취소
             </Button>
           ) : null}
-          <Button type="submit" className="h-11 flex-1 text-base">
-            {submitLabel}
+          <Button type="submit" disabled={isSaving} className="h-11 flex-1 text-base">
+            {isSaving ? "저장 중…" : submitLabel}
           </Button>
         </div>
       </form>
@@ -320,62 +335,7 @@ function TagSection({
   );
 }
 
-type Control = ReturnType<typeof useForm<HealthProfileFormValues>>["control"];
 type FieldName = keyof HealthProfileFormValues;
-
-interface NumericSelectProps {
-  control: Control;
-  name: FieldName;
-  label?: string;
-  required?: boolean;
-  options: string[];
-  placeholder: string;
-  suffix: string;
-  hideLabel?: boolean;
-}
-
-function NumericSelect({
-  control,
-  name,
-  label,
-  required,
-  options,
-  placeholder,
-  suffix,
-  hideLabel,
-}: NumericSelectProps) {
-  return (
-    <FormField
-      control={control}
-      name={name}
-      render={({ field }) => (
-        <FormItem>
-          {!hideLabel && label ? (
-            <FormLabel>
-              {label}
-              {required ? <span className="text-destructive"> *</span> : null}
-            </FormLabel>
-          ) : null}
-          <FormControl>
-            <Select value={field.value as string} onValueChange={field.onChange}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={placeholder} />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((opt) => (
-                  <SelectItem key={opt} value={opt}>
-                    {opt} {suffix}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormControl>
-          {!hideLabel ? <FormMessage /> : null}
-        </FormItem>
-      )}
-    />
-  );
-}
 
 function FormFieldErrors({
   form,

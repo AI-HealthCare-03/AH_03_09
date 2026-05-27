@@ -31,6 +31,17 @@ export function deleteSession(sessionId: string): Promise<void> {
   return request<void>(`/chat/sessions/${sessionId}`, { method: "DELETE" });
 }
 
+export function submitFeedback(
+  sessionId: string,
+  messageId: number,
+  feedback: "good" | "bad",
+): Promise<void> {
+  return request<void>(`/chat/sessions/${sessionId}/messages/${messageId}/feedback`, {
+    method: "PATCH",
+    body: JSON.stringify({ feedback }),
+  });
+}
+
 export const streamMessage = async (
   sessionId: string,
   content: string,

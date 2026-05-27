@@ -49,3 +49,18 @@ class ChatRepository:
         stmt = update(ChatSession).where(ChatSession.id == session_id).values(updated_at=datetime.now(UTC))
         await self.session.execute(stmt)
         await self.session.commit()
+
+    async def update_message_feedback(
+        self, message_id: int, session_id: UUID | str, feedback: str
+    ) -> ChatMessage | None:
+        stmt = select(ChatMessage).where(
+            ChatMessage.id == message_id,
+            ChatMessage.session_id == session_id,
+        )
+        result = await self.session.execute(stmt)
+        msg = result.scalar_one_or_none()
+        if msg:
+            msg.feedback = feedback
+            await self.session.commit()
+            await self.session.refresh(msg)
+        return msg

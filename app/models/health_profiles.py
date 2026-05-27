@@ -29,6 +29,10 @@ class HealthProfile(models.Model):
         on_delete=fields.CASCADE,
         unique=True,
     )
+    height_cm = fields.SmallIntField(null=True)
+    weight_kg = fields.SmallIntField(null=True)
+    blood_pressure_systolic = fields.SmallIntField(null=True)
+    blood_pressure_diastolic = fields.SmallIntField(null=True)
     primary_conditions = fields.JSONField(default=list)
     allergies = fields.JSONField(default=list)
     current_medications = fields.JSONField(default=list)

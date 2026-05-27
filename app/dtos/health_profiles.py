@@ -7,6 +7,10 @@ from app.models.health_profiles import AlcoholHabit, ExerciseHabit, ProfileChang
 
 
 class HealthProfileUpdateRequest(BaseModel):
+    height_cm: int | None = None
+    weight_kg: int | None = None
+    blood_pressure_systolic: int | None = None
+    blood_pressure_diastolic: int | None = None
     primary_conditions: list[str] | None = None
     allergies: list[str] | None = None
     current_medications: list[str] | None = None
@@ -17,6 +21,10 @@ class HealthProfileUpdateRequest(BaseModel):
 
 class HealthProfileResponse(BaseSerializerModel):
     id: int
+    height_cm: int | None
+    weight_kg: int | None
+    blood_pressure_systolic: int | None
+    blood_pressure_diastolic: int | None
     primary_conditions: list
     allergies: list
     current_medications: list

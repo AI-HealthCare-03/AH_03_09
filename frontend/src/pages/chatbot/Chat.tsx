@@ -1,5 +1,6 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
 import InputComposer from "@/components/chat/InputComposer";
 import MessageBubble from "@/components/chat/MessageBubble";
@@ -7,10 +8,18 @@ import SessionSidebar from "@/components/chat/SessionSidebar";
 import { Button } from "@/components/ui/button";
 import { useMessages, useStreamMessage } from "@/hooks/useMessages";
 import { useCreateSession } from "@/hooks/useSessions";
+import { submitFeedback } from "@/api/chat";
 import { useAuthStore } from "@/store/authStore";
 import { useChatStore } from "@/store/chatStore";
 
 const EMERGENCY_KEYWORDS = ["응급", "119", "심정지", "의식 없", "숨 못 쉬"];
+
+const SUGGESTED_QUESTIONS = [
+  "이 약의 부작용이 있나요?",
+  "공복에 먹어도 되는 약인가요?",
+  "약을 먹고 술을 마셔도 되나요?",
+  "처방받은 약을 임의로 끊어도 될까요?",
+];
 
 export default function Chat() {
   const navigate = useNavigate();
@@ -54,8 +63,11 @@ export default function Chat() {
     await streamMut.mutate({ sessionId, content });
   };
 
-  const handleFeedback = (messageId: number, _feedback: "good" | "bad") => {
+  const handleFeedback = async (messageId: number, feedback: "good" | "bad") => {
     setFeedbackGiven((prev) => new Set(prev).add(messageId));
+    if (currentSessionId) {
+      await submitFeedback(currentSessionId, messageId, feedback).catch(() => null);
+    }
   };
 
   const busy = streamMut.isPending || createMut.isPending;
@@ -102,8 +114,32 @@ export default function Chat() {
             ) : (
               <div className="space-y-4">
                 {messages.length === 0 && !streamMut.streamingContent && (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                    메시지를 입력해 대화를 시작하세요.
+                  <div className="flex h-full flex-col items-center justify-center gap-6 py-12">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <div className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+                        <span className="text-2xl">💊</span>
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-slate-800">
+                          안녕하세요! 복약 도우미예요.
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          약 복용법, 부작용, 상호작용 등 궁금한 점을 물어보세요.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid w-full max-w-md grid-cols-2 gap-2">
+                      {SUGGESTED_QUESTIONS.map((q) => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => handleSubmit(q)}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-xs text-slate-600 transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -118,8 +154,10 @@ export default function Chat() {
 
                 {streamMut.streamingContent && (
                   <div className="flex flex-col items-start">
-                    <div className="max-w-2xl whitespace-pre-wrap rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900">
-                      {streamMut.streamingContent}
+                    <div className="max-w-2xl rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900">
+                      <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:mt-2 prose-headings:mb-1 prose-strong:font-semibold prose-code:rounded prose-code:bg-slate-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-xs">
+                        <Markdown>{streamMut.streamingContent}</Markdown>
+                      </div>
                       <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-slate-400" />
                     </div>
                     <p className="mt-1 text-xs text-slate-400">

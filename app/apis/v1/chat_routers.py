@@ -13,6 +13,7 @@ from app.dtos.chat import (
     ChatSendMessageResponse,
     ChatSessionCreateRequest,
     ChatSessionResponse,
+    MessageFeedbackRequest,
 )
 from app.models.users import User
 from app.repositories.chat_repository import ChatRepository
@@ -74,6 +75,27 @@ async def send_message(
         user_message=ChatMessageResponse.model_validate(user_msg),
         assistant_message=ChatMessageResponse.model_validate(assistant_msg),
     )
+
+
+@chat_router.patch(
+    "/sessions/{session_id}/messages/{message_id}/feedback",
+    response_model=ChatMessageResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def update_message_feedback(
+    session_id: UUID,
+    message_id: int,
+    body: MessageFeedbackRequest,
+    current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
+) -> ChatMessageResponse:
+    msg = await chat_svc.update_message_feedback(
+        session_id=session_id,
+        message_id=message_id,
+        user_id=current_user.id,
+        feedback=body.feedback,
+    )
+    return ChatMessageResponse.model_validate(msg)
 
 
 @chat_router.websocket("/ws/{session_id}")
