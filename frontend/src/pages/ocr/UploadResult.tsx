@@ -198,12 +198,6 @@ export default function UploadResult() {
                     >
                       기간
                     </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      신뢰도
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -216,9 +210,6 @@ export default function UploadResult() {
                       <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">
                         {m.duration_days != null ? `${m.duration_days}일` : "-"}
-                      </td>
-                      <td className="py-2.5">
-                        <ConfidenceBadge score={m.confidence_score} />
                       </td>
                     </tr>
                   ))}
