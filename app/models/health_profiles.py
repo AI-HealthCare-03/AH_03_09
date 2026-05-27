@@ -23,12 +23,7 @@ class ProfileChangedBy(StrEnum):
 
 class HealthProfile(models.Model):
     id = fields.BigIntField(primary_key=True)
-    user = fields.ForeignKeyField(
-        "models.User",
-        related_name="health_profile",
-        on_delete=fields.CASCADE,
-        unique=True,
-    )
+    user_id = fields.BigIntField(unique=True)
     height_cm = fields.SmallIntField(null=True)
     weight_kg = fields.SmallIntField(null=True)
     blood_pressure_systolic = fields.SmallIntField(null=True)

@@ -17,11 +17,7 @@ class VerificationStatus(StrEnum):
 
 class HealthGuidance(models.Model):
     id = fields.BigIntField(primary_key=True)
-    user = fields.ForeignKeyField(
-        "models.User",
-        related_name="health_guidances",
-        on_delete=fields.CASCADE,
-    )
+    user_id = fields.BigIntField()
     health_profile = fields.ForeignKeyField(
         "models.HealthProfile",
         related_name="guidances",
