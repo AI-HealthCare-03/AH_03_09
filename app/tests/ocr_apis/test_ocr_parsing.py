@@ -369,3 +369,61 @@ class TestParseMedicationsAndDiseases:
         # 3000자 제한 + 문서유형 헤더가 포함된 user message
         # OCR 텍스트 부분만 3000자 이하인지 확인
         assert len(user_content) <= 3100  # 헤더 포함 약간의 여유
+
+    @pytest.mark.asyncio
+    async def test_warnings_present_in_document(self):
+        """문서에 약물별 주의 문구가 있으면 warnings에 담긴다."""
+        payload = {
+            "medications": [
+                {
+                    "medication_name": "졸피뎀정",
+                    "dosage": "1정",
+                    "frequency": "1일 1회",
+                    "timing": "취침 전",
+                    "duration_days": 14,
+                    "time_of_day": None,
+                    "warnings": ["졸음 유발 - 운전 주의", "음주 금지"],
+                    "confidence_score": 0.91,
+                }
+            ],
+            "disease_codes": [],
+        }
+        mock_resp = MagicMock()
+        mock_resp.choices[0].message.content = json.dumps(payload)
+
+        with patch("ai_worker.tasks.ocr_parser.config") as mock_cfg:
+            mock_cfg.OPENAI_API_KEY = "test-key"
+            with patch("ai_worker.tasks.ocr_parser.AsyncOpenAI") as mock_cls:
+                mock_client = mock_cls.return_value
+                mock_client.chat.completions.create = AsyncMock(return_value=mock_resp)
+                result = await parse_medications_and_diseases("약봉투", "DRUG_BAG")
+
+        med = result["medications"][0]
+        assert med["warnings"] == ["졸음 유발 - 운전 주의", "음주 금지"]
+
+    @pytest.mark.asyncio
+    async def test_warnings_empty_when_not_in_document(self):
+        """문서에 약물 전용 주의 문구가 없으면 warnings는 빈 배열."""
+        payload = {
+            "medications": [
+                {
+                    "medication_name": "타이레놀정",
+                    "dosage": "1정",
+                    "frequency": "1일 3회",
+                    "warnings": [],
+                    "confidence_score": 0.88,
+                }
+            ],
+            "disease_codes": [],
+        }
+        mock_resp = MagicMock()
+        mock_resp.choices[0].message.content = json.dumps(payload)
+
+        with patch("ai_worker.tasks.ocr_parser.config") as mock_cfg:
+            mock_cfg.OPENAI_API_KEY = "test-key"
+            with patch("ai_worker.tasks.ocr_parser.AsyncOpenAI") as mock_cls:
+                mock_client = mock_cls.return_value
+                mock_client.chat.completions.create = AsyncMock(return_value=mock_resp)
+                result = await parse_medications_and_diseases("약봉투", "DRUG_BAG")
+
+        assert result["medications"][0]["warnings"] == []
