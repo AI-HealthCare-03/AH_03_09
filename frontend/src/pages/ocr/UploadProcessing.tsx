@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchJobStatus, reanalyzeDocument } from "@/api/ocr";
+import { useOcrStore } from "@/store/ocrStore";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ export default function UploadProcessing() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { setActiveJob, clearActiveJob } = useOcrStore();
   const [displayPct, setDisplayPct] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -25,6 +27,19 @@ export default function UploadProcessing() {
       return 2000;
     },
   });
+
+  // jobId를 전역 store에 등록 → 다른 페이지로 이동해도 백그라운드 폴링 유지
+  useEffect(() => {
+    if (jobId && data?.record_id) {
+      setActiveJob(jobId, data.record_id);
+    }
+  }, [jobId, data?.record_id, setActiveJob]);
+
+  useEffect(() => {
+    if (data?.status === "DONE" || data?.status === "FAILED") {
+      clearActiveJob();
+    }
+  }, [data?.status, clearActiveJob]);
 
   const reanalyzeMutation = useMutation({
     mutationFn: () => reanalyzeDocument(data!.record_id),
