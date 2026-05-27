@@ -347,3 +347,40 @@ class TestOcrJobStatus:
             response = client.get(f"/api/v1/ocr/jobs/{job_id}/status", headers=auth_headers)
 
         assert response.status_code == 404
+
+    def test_get_job_status_low_confidence_sets_retake_recommended(self, client, mock_db, auth_headers):
+        """DONE + confidence < 0.7 → retake_recommended=True (REQ-OCR-020)"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+
+        doc = _mock_doc()
+        doc.ocr_status = "DONE"
+        doc.result = MagicMock()
+        doc.result.confidence_score = 0.55
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.get_job_status = AsyncMock(return_value=doc)
+            response = client.get(f"/api/v1/ocr/jobs/{job_id}/status", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retake_recommended"] is True
+        assert "재촬영" in data["message"]
+
+    def test_get_job_status_high_confidence_no_retake(self, client, mock_db, auth_headers):
+        """DONE + confidence >= 0.7 → retake_recommended=False (REQ-OCR-020)"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+
+        doc = _mock_doc()
+        doc.ocr_status = "DONE"
+        doc.result = MagicMock()
+        doc.result.confidence_score = 0.92
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.get_job_status = AsyncMock(return_value=doc)
+            response = client.get(f"/api/v1/ocr/jobs/{job_id}/status", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retake_recommended"] is False
