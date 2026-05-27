@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import time
 import uuid as uuid_lib
 
@@ -138,7 +139,8 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
         await conn.execute("DELETE FROM medications WHERE document_id = $1", payload.record_id)
         await conn.execute("DELETE FROM disease_codes WHERE document_id = $1", payload.record_id)
         parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
-        await _insert_medications(conn, payload.record_id, parsed["medications"])
+        medications = await _normalize_medication_names(conn, parsed["medications"])
+        await _insert_medications(conn, payload.record_id, medications)
         if doc_type == "PRESCRIPTION":
             await _insert_disease_codes(conn, payload.record_id, parsed["disease_codes"])
 
@@ -191,6 +193,37 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
     finally:
         if conn is not None:
             await conn.close()
+
+
+_DOSAGE_PATTERN = re.compile(
+    r"\s*\(.*?\)\s*|\s*[0-9]+(?:\.[0-9]+)?\s*(?:mg|mL|g|밀리그람|밀리리터|마이크로그람|mcg|IU|%)\s*",
+    re.IGNORECASE,
+)
+
+
+def _strip_dosage(name: str) -> str:
+    return _DOSAGE_PATTERN.sub("", name).strip()
+
+
+async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
+    """OCR 약물명을 drug_master 테이블과 pg_trgm으로 매칭해 정규화합니다.
+    word_similarity > 0.7이면 DB 약물명으로 교체, 미달이면 원문 유지.
+    """
+    result = []
+    for m in medications:
+        name = (m.get("medication_name") or "").strip()
+        if not name:
+            result.append(m)
+            continue
+        stripped = _strip_dosage(name)
+        row = await conn.fetchrow(
+            "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.7 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
+            stripped,
+        )
+        if row:
+            m = {**m, "medication_name": row["item_name"]}
+        result.append(m)
+    return result
 
 
 async def _insert_medications(conn: asyncpg.Connection, record_id: int, medications: list[dict]) -> None:

@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from testcontainers.postgres import PostgresContainer
@@ -72,6 +73,7 @@ async def db_session(postgres_url):
     """테스트마다 모든 SQLAlchemy 테이블을 생성/삭제해 격리."""
     engine = create_async_engine(postgres_url)
     async with engine.begin() as conn:
+        await conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as s:
