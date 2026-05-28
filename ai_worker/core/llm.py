@@ -45,6 +45,7 @@ _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
 - 불확실한 정보는 반드시 명시하고, 필요시 의사·약사 확인을 권장합니다.""",
 }
 
+# TODO: 식약처 공식 약품명 매핑 — ILIKE 퍼지 매칭 대신 EDI 코드 기반 표준 약품명으로 스킬 정확도 향상
 # 스킬별 키워드
 _SKILL_KEYWORDS: dict[ChatSkill, list[str]] = {
     ChatSkill.DRUG_INTERACTION: [
