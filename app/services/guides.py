@@ -1,7 +1,9 @@
 import asyncio
+import html
 import json
 import os
 import pathlib
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -51,12 +53,42 @@ def _get_drug_df() -> pd.DataFrame:
     return _drug_df
 
 
+# ── 제품허가정보 CSV 싱글턴 (optional fallback) ────────────────────────────────
+_MASTER_CSV_PATH = pathlib.Path(__file__).parent.parent / "data" / "all_drugs_master.csv"
+_master_drug_df: pd.DataFrame | None = None
+_master_csv_unavailable: bool = False
+
+
+def _get_master_drug_df() -> pd.DataFrame | None:
+    global _master_drug_df, _master_csv_unavailable
+    if _master_csv_unavailable:
+        return None
+    if _master_drug_df is None:
+        if not _MASTER_CSV_PATH.exists():
+            _master_csv_unavailable = True
+            return None
+        try:
+            _master_drug_df = pd.read_csv(_MASTER_CSV_PATH, encoding="utf-8-sig")
+        except Exception:
+            _master_csv_unavailable = True
+            return None
+    return _master_drug_df
+
+
 # ── CSV 매핑 헬퍼 ─────────────────────────────────────────────────────────────
 
 
 def _safe_str(val: object) -> str:
     s = str(val).strip()
     return s if s and s.lower() != "nan" else ""
+
+
+def _strip_html(text: str) -> str:
+    text = html.unescape(text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def _shorten_text(text: str, limit: int = 120) -> str:
@@ -193,11 +225,60 @@ def _make_easy_summary(
     return summaries
 
 
+_DEFAULT_SUMMARY_PROMPT = (
+    "당신은 복약 정보를 환자 친화적인 한국어로 요약하는 도우미입니다.\n"
+    "반드시 아래 규칙을 따르세요:\n"
+    "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
+    "- 환자가 실제로 해야 할 복약 행동 중심으로 짧고 명확하게 설명하세요.\n"
+    "- '의사와 상담' 또는 '전문가와 상담' 문장이 여러 개 나올 경우 하나로 통합하세요.\n"
+    "- '반드시 의사와 상담하세요' 같은 강한 표현 대신 '이상 증상이 있으면 의료진과 상담하세요' 형태를 사용하세요.\n"
+    "- 추상적이거나 막연한 표현보다 구체적인 행동 문장을 우선하세요.\n"
+    "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
+    '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
+)
+
+_PATIENT_SUMMARY_PROMPT = (
+    "당신은 이미 처방받은 환자가 집에서 약을 올바르게 복용하도록 돕는 도우미입니다.\n"
+    "반드시 아래 규칙을 따르세요:\n"
+    "- 이미 처방받은 환자 대상이므로, 처방 여부나 용량을 다시 결정하는 표현은 절대 사용하지 마세요.\n"
+    "- 복용 중 주의사항과 실제 복약 행동 중심으로 설명하세요.\n"
+    "- 복용 횟수·방법, 식사 관계, 임신/수유 주의, 간·신장 주의, 어린이 사용 주의를 우선 포함하세요.\n"
+    "- '복용 전 상담' 표현은 사용하지 마세요.\n"
+    "- 복용 기간 연장, 병용요법, 용량 조절은 환자가 임의로 결정할 수 있는 것처럼 작성하지 마세요.\n"
+    "- 복용 방법·기간에 대해서는 '처방받은 기간과 방법을 지켜 복용하세요' 또는 '의료진 안내를 따르세요' 형태를 우선 사용하세요.\n"
+    "- 다음 내용은 절대 포함하지 마세요:\n"
+    "  * 치료 전환이나 약 변경 관련 표현\n"
+    "  * 임상시험·연구 설명\n"
+    "  * 허가·승인·처방 문체\n"
+    "  * 의사·약사 전용 표현\n"
+    "  * 초기 용량 조절 관련 표현\n"
+    "  * 환자가 임의로 복용 기간을 연장하거나 병용을 결정하는 표현\n"
+    "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
+    "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
+    '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
+)
+
+_BAD_PHRASES_WEB_REFERENCE = [
+    "전환할 수 있",
+    "초기 용량",
+    "임상시험",
+    "복용 전 의료진",
+    "복용 전 상담",
+    "더 복용할 수 있",
+    "병용요법으로",
+]
+
+
+def _filter_patient_summary(sentences: list[str]) -> list[str]:
+    return [s for s in sentences if not any(phrase in s for phrase in _BAD_PHRASES_WEB_REFERENCE)]
+
+
 async def _make_easy_summary_llm(
     dosage: str,
     cautions: list[str],
     side_effects: list[str],
     storage: str,
+    system_prompt: str = _DEFAULT_SUMMARY_PROMPT,
 ) -> list[str]:
     parts: list[str] = []
     if dosage:
@@ -217,13 +298,7 @@ async def _make_easy_summary_llm(
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "당신은 복약 정보를 환자 친화적인 한국어로 요약하는 도우미입니다.\n"
-                    "반드시 아래 규칙을 따르세요:\n"
-                    "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
-                    "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
-                    '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
-                ),
+                "content": system_prompt,
             },
             {
                 "role": "user",
@@ -244,15 +319,60 @@ async def _enrich_easy_summary(item: MedicationItem) -> list[str]:
         return item.easy_summary
     if not os.getenv("OPENAI_API_KEY"):
         return item.easy_summary
+    is_web_ref = item.match_status == MedicationMatchStatus.WEB_REFERENCE
+    prompt = _PATIENT_SUMMARY_PROMPT if is_web_ref else _DEFAULT_SUMMARY_PROMPT
     try:
-        return await _make_easy_summary_llm(
+        result = await _make_easy_summary_llm(
             item.dosage,
             item.cautions,
             item.side_effects,
             item.storage,
+            system_prompt=prompt,
         )
+        if is_web_ref:
+            result = _filter_patient_summary(result)
+        return result if result else item.easy_summary
     except Exception:
         return item.easy_summary
+
+
+def _search_medication_master(name: str) -> MedicationItem | None:
+    df = _get_master_drug_df()
+    if df is None:
+        return None
+    normalized = name.strip().lower().replace(" ", "")
+    mask = (
+        df["ITEM_NAME"]
+        .astype(str)
+        .str.lower()
+        .str.replace(" ", "", regex=False)
+        .str.contains(normalized, na=False, regex=False)
+    )
+    matches = df[mask]
+    if matches.empty:
+        return None
+    row = matches.iloc[0]
+    dosage = _strip_html(_safe_str(row.get("UD_DOC_DATA")))
+    cautions_str = _strip_html(_safe_str(row.get("NB_DOC_DATA")))
+    if len(cautions_str) > 1500:
+        cautions_str = cautions_str[:1500] + "... (제품허가정보 원문 일부)"
+    cautions = [cautions_str] if cautions_str else []
+    return MedicationItem(
+        name=_safe_str(row.get("ITEM_NAME")),
+        dosage=dosage,
+        timing="",
+        before_after_meal="",
+        side_effects=[],
+        cautions=cautions,
+        missed_dose="",
+        storage="",
+        action_icons=_make_medication_action_icons(cautions, [], ""),
+        usage_icons=_make_medication_usage_icons(dosage),
+        easy_summary=_make_easy_summary(cautions, "", dosage),
+        match_status=MedicationMatchStatus.WEB_REFERENCE,
+        source_name="제품허가정보",
+        disclaimer=None,
+    )
 
 
 def _search_medication(name: str) -> MedicationItem:
@@ -267,6 +387,9 @@ def _search_medication(name: str) -> MedicationItem:
     )
     matches = df[mask]
     if matches.empty:
+        master_result = _search_medication_master(name)
+        if master_result:
+            return master_result
         return MedicationItem(
             name=name,
             dosage="",
