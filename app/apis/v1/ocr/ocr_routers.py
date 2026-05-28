@@ -324,10 +324,11 @@ async def reanalyze_record(
     record_id: int,
     current_user: _AUTH,
     session: _SESSION,
+    is_reclassify: Annotated[bool, Query()] = False,
 ) -> OcrJobStatusResponse:
-    """FAILED/DONE 문서를 재추출합니다. PROCESSING 중이면 409."""
+    """FAILED/DONE 문서를 재추출합니다. PROCESSING 중이면 409. is_reclassify=true이면 재추출 횟수를 소모하지 않습니다."""
     svc = OcrDocumentService(session)
-    doc = await svc.reanalyze_document(record_id, current_user.id)
+    doc = await svc.reanalyze_document(record_id, current_user.id, is_reclassify=is_reclassify)
     return OcrJobStatusResponse(
         job_id=doc.job_id,
         record_id=doc.record_id,

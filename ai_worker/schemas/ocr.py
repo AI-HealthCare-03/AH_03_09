@@ -11,3 +11,4 @@ class OcrTaskPayload(BaseModel):
     user_id: int
     mime_type: str
     original_filename: str
+    doc_type_hint: str | None = None
