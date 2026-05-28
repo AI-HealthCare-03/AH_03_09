@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -10,6 +11,8 @@ from app.dependencies.security import get_request_user
 from app.dtos.ocr.document_dtos import (
     DiseaseCodeResponse,
     DiseaseCodeUpdateRequest,
+    DrugSearchResult,
+    MedicationCreateRequest,
     MedicationResponse,
     MedicationUpdateRequest,
     OcrConfirmRequest,
@@ -42,6 +45,32 @@ _SESSION = Annotated[AsyncSession, Depends(get_async_session)]
 @ocr_router.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# ── Drug search ───────────────────────────────────────────────────────────────
+
+
+@ocr_router.get("/drugs/search", response_model=list[DrugSearchResult])
+async def search_drugs(
+    q: Annotated[str, Query(min_length=1, max_length=100)],
+    current_user: _AUTH,  # noqa: ARG001
+    session: _SESSION,
+    limit: Annotated[int, Query(ge=1, le=20)] = 10,
+) -> list[DrugSearchResult]:
+    """약물명 검색 (drug_master ILIKE + word_similarity 랭킹)"""
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    rows = await session.execute(
+        text(
+            "SELECT item_name FROM drug_master"
+            " WHERE item_name ILIKE :pattern"
+            " ORDER BY word_similarity(:q, item_name) DESC, length(item_name)"
+            " LIMIT :limit"
+        ),
+        {"q": q, "pattern": f"%{q}%", "limit": limit},
+    )
+    return [DrugSearchResult(item_name=row[0]) for row in rows.fetchall()]
 
 
 # ── Upload & Preview ──────────────────────────────────────────────────────────
@@ -304,6 +333,24 @@ async def reanalyze_record(
 
 
 # ── Medications ───────────────────────────────────────────────────────────────
+
+
+@ocr_router.post(
+    "/records/{record_id}/medications",
+    response_model=MedicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_medication(
+    record_id: int,
+    body: MedicationCreateRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> MedicationResponse:
+    """약물 항목을 수동으로 추가합니다."""
+    svc = OcrDocumentService(session)
+    med = await svc.add_medication(record_id, current_user.id, body)
+    await session.commit()
+    return MedicationResponse.model_validate(med)
 
 
 @ocr_router.get("/records/{record_id}/medications", response_model=list[MedicationResponse])

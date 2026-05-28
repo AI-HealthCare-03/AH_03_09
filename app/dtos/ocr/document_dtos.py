@@ -128,6 +128,16 @@ class MedicationUpdateRequest(BaseModel):
     warnings: list | None = None
 
 
+class MedicationCreateRequest(BaseModel):
+    medication_name: str
+    frequency: str | None = None
+    duration_days: int | None = None
+
+
+class DrugSearchResult(BaseSerializerModel):
+    item_name: str
+
+
 class DiseaseCodeUpdateRequest(BaseModel):
     icd10_code: str | None = None
     disease_name: str | None = None

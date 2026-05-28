@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
 from app.core.redis_client import get_redis
-from app.dtos.ocr.document_dtos import MedicationUpdateRequest, OcrDocumentUpdateRequest
+from app.dtos.ocr.document_dtos import MedicationCreateRequest, MedicationUpdateRequest, OcrDocumentUpdateRequest
 from app.models.ocr.ocr_document import Medication, OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
@@ -138,6 +138,20 @@ class OcrDocumentService:
             doc.hospital_name = body.hospital_name
         await self.session.flush()
         return doc
+
+    async def add_medication(self, record_id: int, user_id: int, body: MedicationCreateRequest) -> Medication:
+        doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status not in (OcrStatus.DONE, OcrStatus.FAILED):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="처리 중인 문서에는 약물을 추가할 수 없습니다.",
+            )
+        return await self.repo.add_medication(
+            document_id=record_id,
+            medication_name=body.medication_name,
+            frequency=body.frequency,
+            duration_days=body.duration_days,
+        )
 
     async def update_medication(
         self, record_id: int, medication_id: int, user_id: int, body: MedicationUpdateRequest

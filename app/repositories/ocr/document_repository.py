@@ -95,6 +95,24 @@ class OcrDocumentRepository:
         )
         return result.scalar_one()
 
+    async def add_medication(
+        self,
+        document_id: int,
+        medication_name: str,
+        frequency: str | None,
+        duration_days: int | None,
+    ) -> Medication:
+        med = Medication(
+            document_id=document_id,
+            medication_name=medication_name,
+            frequency=frequency,
+            duration_days=duration_days,
+        )
+        self.session.add(med)
+        await self.session.flush()
+        await self.session.refresh(med)
+        return med
+
     async def get_medication(self, record_id: int, medication_id: int, user_id: int) -> Medication | None:
         result = await self.session.execute(
             select(Medication)
