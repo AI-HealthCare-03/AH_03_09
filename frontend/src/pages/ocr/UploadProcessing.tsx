@@ -75,7 +75,9 @@ export default function UploadProcessing() {
     const status = data?.status;
     if (status !== "DONE" || !data?.record_id) return;
     const timer = setTimeout(() => {
-      navigate(`/upload/review/${jobId}`, { state: { recordId: data.record_id } });
+      navigate(`/upload/review/${jobId}`, {
+        state: { recordId: data.record_id, retakeRecommended: data.retake_recommended },
+      });
     }, 1000);
     return () => clearTimeout(timer);
   }, [displayPct, data, jobId, navigate]);

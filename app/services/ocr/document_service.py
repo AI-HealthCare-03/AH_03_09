@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
 from app.core.redis_client import get_redis
-from app.dtos.ocr.document_dtos import OcrDocumentUpdateRequest
-from app.models.ocr.ocr_document import OcrDocument, OcrStatus
+from app.dtos.ocr.document_dtos import MedicationCreateRequest, MedicationUpdateRequest, OcrDocumentUpdateRequest
+from app.models.ocr.ocr_document import Medication, OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
 
@@ -139,6 +139,38 @@ class OcrDocumentService:
         await self.session.flush()
         return doc
 
+    async def add_medication(self, record_id: int, user_id: int, body: MedicationCreateRequest) -> Medication:
+        doc = await self.get_document(record_id, user_id)
+        if doc.ocr_status != OcrStatus.DONE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="OCR 처리가 완료된 문서에만 약물을 추가할 수 있습니다.",
+            )
+        return await self.repo.add_medication(
+            document_id=record_id,
+            medication_name=body.medication_name,
+            frequency=body.frequency,
+            duration_days=body.duration_days,
+        )
+
+    async def update_medication(
+        self, record_id: int, medication_id: int, user_id: int, body: MedicationUpdateRequest
+    ) -> Medication:
+        med = await self.repo.get_medication(record_id, medication_id, user_id)
+        if med is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
+        for field, value in body.model_dump(exclude_unset=True).items():
+            setattr(med, field, value)
+        await self.session.flush()
+        return med
+
+    async def delete_medication(self, record_id: int, medication_id: int, user_id: int) -> None:
+        med = await self.repo.get_medication(record_id, medication_id, user_id)
+        if med is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
+        med.is_active = False
+        await self.session.flush()
+
     async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
         if doc.ocr_status == OcrStatus.DONE:
@@ -158,6 +190,45 @@ class OcrDocumentService:
         await self.session.refresh(doc)
         await self._publish_ocr_job(doc)
         return doc
+
+    async def confirm_document(
+        self,
+        job_id: uuid.UUID,
+        user_id: int,
+        trigger_guide: bool,
+        trigger_chatbot_context: bool,
+    ) -> tuple[int, uuid.UUID, str | None]:
+        """OCR 결과를 확인하고 가이드 생성·챗봇 컨텍스트 등록을 트리거합니다."""
+        doc = await self.repo.get_by_job_id_with_medications(job_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="작업을 찾을 수 없습니다.")
+        if doc.ocr_status != OcrStatus.DONE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="OCR 처리가 완료된 문서만 확인할 수 있습니다.",
+            )
+
+        guide_job_id: str | None = None
+        if trigger_guide:
+            from app.dtos.guides import GenerateGuideRequest, GuideType
+            from app.services.guides import GuideService
+
+            medication_names = [m.medication_name for m in (doc.medications or []) if m.medication_name]
+            guide_req = GenerateGuideRequest(
+                patient_id=str(user_id),
+                guide_types=list(GuideType),
+                medication_names=medication_names,
+            )
+            guide_resp = await GuideService().create_guide_job(guide_req)
+            guide_job_id = guide_resp.job_id
+
+        if trigger_chatbot_context:
+            logger.info(
+                "trigger_chatbot_context: REQ-OCR-018 pgvector 임베딩 미구현, 건너뜀 (record_id=%s)",
+                doc.record_id,
+            )
+
+        return doc.record_id, doc.job_id, guide_job_id
 
     async def _publish_ocr_job(self, doc: OcrDocument) -> None:
         payload = {

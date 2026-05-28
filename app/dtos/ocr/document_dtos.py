@@ -59,6 +59,7 @@ class OcrDocumentResponse(BaseSerializerModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    low_confidence: bool = False
 
 
 class OcrDocumentDetailResponse(OcrDocumentResponse):
@@ -93,6 +94,7 @@ class OcrJobStatusResponse(BaseSerializerModel):
     result_url: str | None = None
     estimated_remaining_seconds: int | None = None
     reanalyze_count: int = 0
+    retake_recommended: bool = False
 
 
 class OcrPreviewResponse(BaseSerializerModel):
@@ -126,6 +128,16 @@ class MedicationUpdateRequest(BaseModel):
     warnings: list | None = None
 
 
+class MedicationCreateRequest(BaseModel):
+    medication_name: str
+    frequency: str | None = None
+    duration_days: int | None = None
+
+
+class DrugSearchResult(BaseSerializerModel):
+    item_name: str
+
+
 class DiseaseCodeUpdateRequest(BaseModel):
     icd10_code: str | None = None
     disease_name: str | None = None
@@ -133,3 +145,14 @@ class DiseaseCodeUpdateRequest(BaseModel):
 
 class OcrResultUpdateRequest(BaseModel):
     processed_text: str
+
+
+class OcrConfirmRequest(BaseModel):
+    trigger_guide: bool = False
+    trigger_chatbot_context: bool = False
+
+
+class OcrConfirmResponse(BaseSerializerModel):
+    record_id: int
+    job_id: uuid.UUID
+    guide_job_id: str | None = None
