@@ -52,7 +52,7 @@ export default function UploadReview() {
   const reclassifyMutation = useMutation({
     mutationFn: async (newDocType: DocType) => {
       await patchDocument(recordId as number, { doc_type: newDocType });
-      return reanalyzeDocument(recordId as number);
+      return reanalyzeDocument(recordId as number, true);
     },
     onSuccess: (job) => {
       navigate(`/upload/processing/${job.job_id}`, {

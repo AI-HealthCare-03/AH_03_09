@@ -171,17 +171,18 @@ class OcrDocumentService:
         med.is_active = False
         await self.session.flush()
 
-    async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
+    async def reanalyze_document(self, record_id: int, user_id: int, is_reclassify: bool = False) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
         if doc.ocr_status == OcrStatus.PROCESSING:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 재추출할 수 없습니다.")
-        if doc.reanalyze_count >= 5:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
-            )
+        if not is_reclassify:
+            if doc.reanalyze_count >= 5:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
+                )
+            doc.reanalyze_count += 1
         doc.ocr_status = OcrStatus.PENDING
-        doc.reanalyze_count += 1
         await self.session.commit()
         await self.session.refresh(doc)
         await self._publish_ocr_job(doc)
