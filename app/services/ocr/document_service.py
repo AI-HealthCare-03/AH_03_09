@@ -141,10 +141,10 @@ class OcrDocumentService:
 
     async def add_medication(self, record_id: int, user_id: int, body: MedicationCreateRequest) -> Medication:
         doc = await self.get_document(record_id, user_id)
-        if doc.ocr_status not in (OcrStatus.DONE, OcrStatus.FAILED):
+        if doc.ocr_status != OcrStatus.DONE:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="처리 중인 문서에는 약물을 추가할 수 없습니다.",
+                detail="OCR 처리가 완료된 문서에만 약물을 추가할 수 있습니다.",
             )
         return await self.repo.add_medication(
             document_id=record_id,
