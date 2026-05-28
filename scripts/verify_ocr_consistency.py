@@ -63,11 +63,17 @@ async def _get_confidence(client: httpx.AsyncClient, record_id: int) -> float | 
     return result.get("confidence_score")
 
 
-async def _upload_and_first_run(client: httpx.AsyncClient, image_path: Path, mime_type: str) -> tuple[int, str, float]:
-    """파일을 업로드하고 첫 번째 OCR 결과를 반환합니다. (record_id, job_id, confidence)"""
-    print(f"[1/{RUNS}] 파일 업로드 중...")
+async def _upload_run(
+    client: httpx.AsyncClient, image_path: Path, mime_type: str, run_no: int, padding: int
+) -> tuple[int, float] | None:
+    """파일을 업로드하고 confidence_score를 반환합니다. (record_id, confidence) / 실패 시 None.
+
+    padding: 같은 파일을 여러 번 업로드하기 위해 null byte를 추가해 SHA-256 hash를 다르게 만듦.
+    JPEG는 EOI(FF D9) 이후 바이트를 무시하므로 OCR 결과에 영향 없음.
+    """
+    print(f"[{run_no}/{RUNS}] 업로드 중...")
     with image_path.open("rb") as f:
-        content = f.read()
+        content = f.read() + b"\x00" * padding
 
     upload_resp = await client.post(
         f"{BASE_URL}{API_PREFIX}/upload",
@@ -77,9 +83,8 @@ async def _upload_and_first_run(client: httpx.AsyncClient, image_path: Path, mim
     if upload_resp.status_code == 409:
         err = upload_resp.json()
         existing_id = (err.get("detail") or {}).get("existing_record_id")
-        print(f"[경고] 이미 업로드된 파일입니다 (record_id={existing_id}).")
-        print("       다른 이미지 파일을 사용하거나 기존 레코드를 DB에서 삭제 후 재시도하세요.")
-        sys.exit(1)
+        print(f"  └ [건너뜀] 중복 파일 (record_id={existing_id})")
+        return None
     upload_resp.raise_for_status()
 
     uploaded = upload_resp.json().get("uploaded_files", [{}])[0]
@@ -89,37 +94,13 @@ async def _upload_and_first_run(client: httpx.AsyncClient, image_path: Path, mim
 
     status_data = await _poll_until_done(client, job_id)
     if status_data["status"] == "FAILED":
-        print("  └ [실패] OCR 처리에 실패했습니다. 파일 또는 서버 상태를 확인하세요.")
-        sys.exit(1)
-
-    score = await _get_confidence(client, record_id)
-    confidence = score if score is not None else 0.0
-    print(f"  └ confidence_score: {score}\n")
-    return record_id, job_id, confidence
-
-
-async def _reanalyze_run(client: httpx.AsyncClient, record_id: int, run_no: int) -> float | None:
-    """reanalyze를 수행하고 confidence_score를 반환합니다. 한도 초과·실패 시 None."""
-    print(f"[{run_no}/{RUNS}] reanalyze 요청 중...")
-    reanalyze_resp = await client.post(
-        f"{BASE_URL}{API_PREFIX}/records/{record_id}/reanalyze",
-        headers=_headers(),
-    )
-    if reanalyze_resp.status_code == 429:
-        print(f"  └ [종료] 재분석 한도 초과. {run_no - 1}회까지의 결과로 분석합니다.")
-        return None
-    reanalyze_resp.raise_for_status()
-
-    job_id = str(reanalyze_resp.json()["job_id"])
-    status_data = await _poll_until_done(client, job_id)
-    if status_data["status"] == "FAILED":
-        print(f"  └ [실패] {run_no}회차 OCR 처리 실패. 이전 결과로 분석합니다.")
+        print(f"  └ [실패] {run_no}회차 OCR 처리 실패.")
         return None
 
     score = await _get_confidence(client, record_id)
     confidence = score if score is not None else 0.0
     print(f"  └ confidence_score: {score}\n")
-    return confidence
+    return record_id, confidence
 
 
 def _print_report(scores: list[float], record_id: int) -> None:
@@ -184,18 +165,22 @@ async def run_consistency_check(image_path: Path) -> None:
     print(f"{sep}\n")
 
     scores: list[float] = []
+    record_ids: list[int] = []
 
     async with httpx.AsyncClient(timeout=30) as client:
-        record_id, _, first_score = await _upload_and_first_run(client, image_path, mime_type)
-        scores.append(first_score)
+        for run_no in range(1, RUNS + 1):
+            result = await _upload_run(client, image_path, mime_type, run_no, padding=run_no - 1)
+            if result is None:
+                continue
+            rid, confidence = result
+            record_ids.append(rid)
+            scores.append(confidence)
 
-        for run_no in range(2, RUNS + 1):
-            score = await _reanalyze_run(client, record_id, run_no)
-            if score is None:
-                break
-            scores.append(score)
+    if not scores:
+        print("[오류] 성공한 OCR 실행이 없습니다.")
+        sys.exit(1)
 
-    _print_report(scores, record_id)
+    _print_report(scores, record_ids[0])
 
 
 def _main() -> None:
