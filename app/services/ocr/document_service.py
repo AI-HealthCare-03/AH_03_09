@@ -207,14 +207,29 @@ class OcrDocumentService:
 
         guide_job_id: str | None = None
         if trigger_guide:
-            from app.dtos.guides import GenerateGuideRequest, GuideType
+            from app.dtos.guides import GenerateGuideRequest, GuideType, MedicationDetail
             from app.services.guides import GuideService
 
-            medication_names = [m.medication_name for m in (doc.medications or []) if m.medication_name]
+            active_meds = [m for m in (doc.medications or []) if m.is_active and m.medication_name]
+            active_codes = [c for c in (doc.disease_codes or []) if c.is_active and c.icd10_code]
             guide_req = GenerateGuideRequest(
                 patient_id=str(user_id),
                 guide_types=list(GuideType),
-                medication_names=medication_names,
+                medication_names=[m.medication_name for m in active_meds],
+                medications=[
+                    MedicationDetail(
+                        medication_name=m.medication_name,
+                        generic_name=m.generic_name,
+                        dosage=m.dosage,
+                        frequency=m.frequency,
+                        timing=m.timing,
+                        duration_days=m.duration_days,
+                        time_of_day=m.time_of_day,
+                        warnings=m.warnings,
+                    )
+                    for m in active_meds
+                ],
+                disease_codes=[c.icd10_code for c in active_codes],
             )
             guide_resp = await GuideService().create_guide_job(guide_req)
             guide_job_id = guide_resp.job_id

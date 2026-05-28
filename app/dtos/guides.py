@@ -39,10 +39,23 @@ class MedicationMatchStatus(StrEnum):
 # ── 요청 스키마 ──────────────────────────────────────────────────────────────
 
 
+class MedicationDetail(BaseModel):
+    medication_name: str
+    generic_name: str | None = None
+    dosage: str | None = None
+    frequency: str | None = None
+    timing: str | None = None
+    duration_days: int | None = None
+    time_of_day: list | None = None
+    warnings: list | None = None
+
+
 class GenerateGuideRequest(BaseModel):
     patient_id: str
     guide_types: list[GuideType]
     medication_names: list[str] = Field(default_factory=list)
+    medications: list[MedicationDetail] = Field(default_factory=list)
+    disease_codes: list[str] = Field(default_factory=list)
 
 
 class FeedbackRequest(BaseModel):
