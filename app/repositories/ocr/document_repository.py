@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,6 +82,18 @@ class OcrDocumentRepository:
             doc.is_active = False
             await self.session.flush()
         return doc
+
+    async def count_today_uploads(self, user_id: int) -> int:
+        today_start = datetime.combine(date.today(), datetime.min.time()).replace(tzinfo=UTC)
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(OcrDocument)
+            .where(
+                OcrDocument.user_id == user_id,
+                OcrDocument.created_at >= today_start,
+            )
+        )
+        return result.scalar_one()
 
     async def list_by_user(
         self,

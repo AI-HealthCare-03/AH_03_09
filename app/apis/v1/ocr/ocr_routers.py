@@ -81,6 +81,20 @@ async def upload_documents(
     validate_file_count(files)
     svc = OcrDocumentService(session)
 
+    daily_limit = 20
+    today_count = await svc.repo.count_today_uploads(current_user.id)
+    if today_count + len(files) > daily_limit:
+        remaining = max(0, daily_limit - today_count)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": f"일일 업로드 한도({daily_limit}건)를 초과했습니다. 오늘 {today_count}건 업로드하셨으며 {remaining}건 더 업로드 가능합니다.",
+                "today_count": today_count,
+                "daily_limit": daily_limit,
+                "remaining": remaining,
+            },
+        )
+
     uploaded: list[UploadedFileItem] = []
     for file in files:
         content = await validate_upload(file)
