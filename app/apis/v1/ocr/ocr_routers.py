@@ -108,6 +108,13 @@ async def upload_documents(
 ) -> OcrUploadResponse:
     """처방전·약봉투 파일을 S3에 업로드하고 OCR 처리 작업을 생성합니다. (REQ-OCR-002/003)"""
     validate_file_count(files)
+
+    # 파일 유효성 검사를 DB 호출보다 먼저 수행
+    file_contents: list[tuple[UploadFile, bytes]] = []
+    for file in files:
+        content = await validate_upload(file)
+        file_contents.append((file, content))
+
     svc = OcrDocumentService(session)
 
     daily_limit = 20
@@ -125,8 +132,7 @@ async def upload_documents(
         )
 
     uploaded: list[UploadedFileItem] = []
-    for file in files:
-        content = await validate_upload(file)
+    for file, content in file_contents:
         doc = await svc.upload_document(
             user_id=current_user.id,
             filename=file.filename or "upload",
