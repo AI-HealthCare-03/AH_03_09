@@ -59,6 +59,7 @@ class OcrDocumentResponse(BaseSerializerModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    low_confidence: bool = False
 
 
 class OcrDocumentDetailResponse(OcrDocumentResponse):

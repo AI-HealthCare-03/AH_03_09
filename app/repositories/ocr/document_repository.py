@@ -103,6 +103,11 @@ class OcrDocumentRepository:
         total = total_result.scalar_one()
 
         result = await self.session.execute(
-            select(OcrDocument).where(*conditions).order_by(order).limit(limit).offset(offset)
+            select(OcrDocument)
+            .options(selectinload(OcrDocument.result))
+            .where(*conditions)
+            .order_by(order)
+            .limit(limit)
+            .offset(offset)
         )
         return list(result.scalars().all()), total

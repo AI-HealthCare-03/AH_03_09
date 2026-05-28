@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2Icon } from "lucide-react";
+import { AlertTriangleIcon, Trash2Icon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -218,9 +219,23 @@ export default function MyDocuments() {
                       {data.documents.map((doc) => (
                         <tr key={doc.record_id} className="transition-colors hover:bg-muted/30">
                           <td className="px-4 py-3">
-                            <p className="max-w-50 truncate font-medium">
-                              {doc.original_filename}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="max-w-50 truncate font-medium">
+                                {doc.original_filename}
+                              </p>
+                              {doc.low_confidence && (
+                                <TooltipProvider delayDuration={0}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <AlertTriangleIcon className="size-3.5 shrink-0 text-amber-500" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>OCR 인식률이 낮습니다. 재촬영을 권장합니다.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
                             {doc.hospital_name !== null && (
                               <p className="text-xs text-muted-foreground">{doc.hospital_name}</p>
                             )}

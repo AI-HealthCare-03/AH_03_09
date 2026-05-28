@@ -120,6 +120,7 @@ export interface OcrDocumentResponse {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  low_confidence: boolean;
 }
 
 export interface OcrDocumentDetailResponse extends OcrDocumentResponse {

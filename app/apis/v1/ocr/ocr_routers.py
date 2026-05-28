@@ -210,7 +210,16 @@ async def list_records(
         size=size,
     )
     return OcrDocumentListResponse(
-        documents=[OcrDocumentResponse.model_validate(d) for d in docs],
+        documents=[
+            OcrDocumentResponse.model_validate(d).model_copy(
+                update={
+                    "low_confidence": d.result is not None
+                    and d.result.confidence_score is not None
+                    and d.result.confidence_score < 0.7
+                }
+            )
+            for d in docs
+        ],
         total=total,
     )
 
