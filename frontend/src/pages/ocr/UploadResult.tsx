@@ -1,8 +1,17 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Maximize2Icon } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Maximize2Icon, PencilIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { confirmOcr, fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
+import { toast } from "sonner";
+import {
+  type MedicationUpdateBody,
+  confirmOcr,
+  deleteMedication,
+  fetchDocument,
+  fetchDocumentFile,
+  fetchOcrResult,
+  updateMedication,
+} from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,9 +43,32 @@ export default function UploadResult() {
   const { recordId: recordIdStr } = useParams<{ recordId: string }>();
   const recordId = Number(recordIdStr);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<MedicationUpdateBody>({});
+
+  const updateMedMutation = useMutation({
+    mutationFn: ({ medId, body }: { medId: number; body: MedicationUpdateBody }) =>
+      updateMedication(recordId, medId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      setEditingId(null);
+      toast.success("약물 정보가 수정되었습니다.");
+    },
+    onError: () => toast.error("수정에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const deleteMedMutation = useMutation({
+    mutationFn: (medId: number) => deleteMedication(recordId, medId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      toast.success("약물이 삭제되었습니다.");
+    },
+    onError: () => toast.error("삭제에 실패했습니다. 다시 시도해주세요."),
+  });
 
   const confirmMutation = useMutation({
     mutationFn: (jobId: string) =>
@@ -177,57 +209,166 @@ export default function UploadResult() {
               <table className="w-full text-sm">
                 <thead className="border-b">
                   <tr>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      약물명
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      EDI 코드
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      성분명
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      용량
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      복약 횟수
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      기간
-                    </th>
+                    {["약물명", "EDI 코드", "성분명", "용량", "복약 횟수", "기간", ""].map((h) => (
+                      <th
+                        key={h}
+                        scope="col"
+                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {medications.map((m) => (
-                    <tr key={m.id}>
-                      <td className="py-2.5 font-medium">{m.medication_name}</td>
-                      <td className="py-2.5 font-mono text-muted-foreground">{m.edi_code ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">
-                        {m.duration_days != null ? `${m.duration_days}일` : "-"}
-                      </td>
-                    </tr>
-                  ))}
+                  {medications.map((m) => {
+                    const isEditing = editingId === m.id;
+                    const isBusy =
+                      (updateMedMutation.isPending && updateMedMutation.variables?.medId === m.id) ||
+                      (deleteMedMutation.isPending && deleteMedMutation.variables === m.id);
+
+                    if (isEditing) {
+                      return (
+                        <tr key={m.id} className="bg-muted/20">
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-full rounded border px-2 py-1 text-sm"
+                              value={editForm.medication_name ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, medication_name: e.target.value }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-24 rounded border px-2 py-1 font-mono text-sm"
+                              value={editForm.edi_code ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({
+                                  ...f,
+                                  edi_code: e.target.value || null,
+                                }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-28 rounded border px-2 py-1 text-sm"
+                              value={editForm.generic_name ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({
+                                  ...f,
+                                  generic_name: e.target.value || null,
+                                }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-20 rounded border px-2 py-1 text-sm"
+                              value={editForm.dosage ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, dosage: e.target.value || null }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-24 rounded border px-2 py-1 text-sm"
+                              value={editForm.frequency ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({
+                                  ...f,
+                                  frequency: e.target.value || null,
+                                }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="number"
+                              className="w-16 rounded border px-2 py-1 text-sm"
+                              value={editForm.duration_days ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({
+                                  ...f,
+                                  duration_days: e.target.value ? Number(e.target.value) : null,
+                                }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5">
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                disabled={isBusy || !editForm.medication_name?.trim()}
+                                onClick={() =>
+                                  updateMedMutation.mutate({ medId: m.id, body: editForm })
+                                }
+                              >
+                                저장
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={isBusy}
+                                onClick={() => setEditingId(null)}
+                              >
+                                <XIcon className="size-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={m.id} className="transition-colors hover:bg-muted/20">
+                        <td className="py-2.5 font-medium">{m.medication_name}</td>
+                        <td className="py-2.5 font-mono text-muted-foreground">
+                          {m.edi_code ?? "-"}
+                        </td>
+                        <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
+                        <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
+                        <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
+                        <td className="py-2.5 text-muted-foreground">
+                          {m.duration_days != null ? `${m.duration_days}일` : "-"}
+                        </td>
+                        <td className="py-2.5">
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2"
+                              disabled={isBusy || editingId !== null}
+                              onClick={() => {
+                                setEditForm({
+                                  medication_name: m.medication_name,
+                                  edi_code: m.edi_code,
+                                  generic_name: m.generic_name,
+                                  dosage: m.dosage,
+                                  frequency: m.frequency,
+                                  duration_days: m.duration_days,
+                                });
+                                setEditingId(m.id);
+                              }}
+                            >
+                              <PencilIcon className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-destructive hover:text-destructive"
+                              disabled={isBusy || editingId !== null}
+                              onClick={() => deleteMedMutation.mutate(m.id)}
+                            >
+                              <Trash2Icon className="size-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

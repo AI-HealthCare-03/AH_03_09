@@ -75,6 +75,32 @@ export function deleteDocument(recordId: number): Promise<void> {
   return request<void>(`/ocr/records/${recordId}`, { method: "DELETE" });
 }
 
+export interface MedicationUpdateBody {
+  medication_name?: string;
+  edi_code?: string | null;
+  generic_name?: string | null;
+  dosage?: string | null;
+  frequency?: string | null;
+  timing?: string | null;
+  duration_days?: number | null;
+}
+
+export function updateMedication(
+  recordId: number,
+  medicationId: number,
+  body: MedicationUpdateBody,
+): Promise<MedicationResponse> {
+  return request<MedicationResponse>(`/ocr/records/${recordId}/medications/${medicationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteMedication(recordId: number, medicationId: number): Promise<void> {
+  return request<void>(`/ocr/records/${recordId}/medications/${medicationId}`, { method: "DELETE" });
+}
+
 export function reanalyzeDocument(recordId: number): Promise<OcrJobStatusResponse> {
   return request<OcrJobStatusResponse>(`/ocr/records/${recordId}/reanalyze`, { method: "POST" });
 }
