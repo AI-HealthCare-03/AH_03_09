@@ -112,7 +112,7 @@ export default function UploadResult() {
     );
   }
 
-  const medications = doc.medications.filter((m) => m.is_active);
+  const medications = doc.medications.filter((m) => m.is_active).sort((a, b) => a.id - b.id);
   const diseaseCodes = doc.disease_codes.filter((c) => c.is_active);
   const ocrText = result?.processed_text ?? result?.raw_text;
 
@@ -230,63 +230,25 @@ export default function UploadResult() {
                     if (isEditing) {
                       return (
                         <tr key={m.id} className="bg-muted/20">
-                          <td className="py-1.5 pr-2">
-                            <input
-                              className="w-full rounded border px-2 py-1 text-sm"
-                              value={editForm.medication_name ?? ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({ ...f, medication_name: e.target.value }))
-                              }
-                            />
+                          <td className="py-2.5 font-medium">{m.medication_name}</td>
+                          <td className="py-2.5 font-mono text-muted-foreground">
+                            {m.edi_code ?? "-"}
                           </td>
-                          <td className="py-1.5 pr-2">
-                            <input
-                              className="w-24 rounded border px-2 py-1 font-mono text-sm"
-                              value={editForm.edi_code ?? ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  edi_code: e.target.value || null,
-                                }))
-                              }
-                            />
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            <input
-                              className="w-28 rounded border px-2 py-1 text-sm"
-                              value={editForm.generic_name ?? ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  generic_name: e.target.value || null,
-                                }))
-                              }
-                            />
-                          </td>
-                          <td className="py-1.5 pr-2">
-                            <input
-                              className="w-20 rounded border px-2 py-1 text-sm"
-                              value={editForm.dosage ?? ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({ ...f, dosage: e.target.value || null }))
-                              }
-                            />
-                          </td>
+                          <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
+                          <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
                           <td className="py-1.5 pr-2">
                             <input
                               className="w-24 rounded border px-2 py-1 text-sm"
                               value={editForm.frequency ?? ""}
                               onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  frequency: e.target.value || null,
-                                }))
+                                setEditForm((f) => ({ ...f, frequency: e.target.value || null }))
                               }
                             />
                           </td>
                           <td className="py-1.5 pr-2">
                             <input
                               type="number"
+                              min={1}
                               className="w-16 rounded border px-2 py-1 text-sm"
                               value={editForm.duration_days ?? ""}
                               onChange={(e) =>
@@ -301,9 +263,15 @@ export default function UploadResult() {
                             <div className="flex gap-1">
                               <Button
                                 size="sm"
-                                disabled={isBusy || !editForm.medication_name?.trim()}
+                                disabled={isBusy}
                                 onClick={() =>
-                                  updateMedMutation.mutate({ medId: m.id, body: editForm })
+                                  updateMedMutation.mutate({
+                                    medId: m.id,
+                                    body: {
+                                      frequency: editForm.frequency,
+                                      duration_days: editForm.duration_days,
+                                    },
+                                  })
                                 }
                               >
                                 저장
@@ -343,10 +311,6 @@ export default function UploadResult() {
                               disabled={isBusy || editingId !== null}
                               onClick={() => {
                                 setEditForm({
-                                  medication_name: m.medication_name,
-                                  edi_code: m.edi_code,
-                                  generic_name: m.generic_name,
-                                  dosage: m.dosage,
                                   frequency: m.frequency,
                                   duration_days: m.duration_days,
                                 });
