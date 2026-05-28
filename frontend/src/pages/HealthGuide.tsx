@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   generateGuide,
@@ -29,6 +30,7 @@ const iconMap: Record<string, string> = {
 };
 
 export default function HealthGuide() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
@@ -47,7 +49,21 @@ export default function HealthGuide() {
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
   const [ratingSafety, setRatingSafety] = useState(5);
   const [comment, setComment] = useState("");
-  console.log(guide)
+  async function handleChatNavigation() {
+    let ctx = guideContext;
+    if (!ctx && guideId) {
+      ctx = await getGuideContext(guideId);
+      setGuideContext(ctx);
+    }
+    navigate("/chat", {
+      state: {
+        fromGuide: true,
+        medications: ctx?.medications ?? [],
+        keyInstructions: ctx?.key_instructions ?? [],
+      },
+    });
+  }
+
   async function handleGenerate() {
     try {
       setLoading(true);
@@ -164,6 +180,12 @@ export default function HealthGuide() {
           </Button>
 
           {status && <p className="text-sm text-muted-foreground">{status}</p>}
+
+          {guideId && (
+            <Button type="button" variant="outline" onClick={handleChatNavigation}>
+              💬 챗봇에서 이어서 질문하기
+            </Button>
+          )}
 
           {guide?.medication_guide && (
             <div className="space-y-4">

@@ -1,7 +1,7 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import InputComposer from "@/components/chat/InputComposer";
 import MessageBubble from "@/components/chat/MessageBubble";
 import SessionSidebar from "@/components/chat/SessionSidebar";
@@ -19,14 +19,23 @@ const SUGGESTED_QUESTIONS = [
   "처방받은 약을 임의로 끊어도 될까요?",
 ];
 
+interface GuideState {
+  fromGuide?: boolean;
+  medications?: string[];
+  keyInstructions?: string[];
+}
+
 export default function Chat() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const guideState = (location.state as GuideState) ?? {};
   const clear = useAuthStore((s) => s.clear);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
+  const [guideContextSent, setGuideContextSent] = useState(false);
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
   const streamMut = useStreamMessage();
@@ -46,6 +55,22 @@ export default function Chat() {
     clear();
     navigate("/", { replace: true });
   };
+
+  useEffect(() => {
+    if (!guideState.fromGuide || guideContextSent) return;
+    const meds = guideState.medications ?? [];
+    const instructions = guideState.keyInstructions ?? [];
+    if (meds.length === 0) return;
+
+    const parts = [`복용 약물: ${meds.join(", ")}`];
+    if (instructions.length > 0) parts.push(`핵심 지침: ${instructions.join(" / ")}`);
+    const initialMessage = `건강 가이드에서 넘어왔습니다.\n${parts.join("\n")}\n관련 질문을 도와드릴게요.`;
+
+    setGuideContextSent(true);
+    handleSubmit(initialMessage);
+  // handleSubmit은 의존성에서 제외 — 마운트 시 1회만 실행
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideState.fromGuide]);
 
   const handleSubmit = async (content: string) => {
     let sessionId = currentSessionId;
