@@ -67,11 +67,13 @@ export default function UploadResult() {
     frequency: null,
     duration_days: null,
   });
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
 
   const resetAddForm = () => {
     setDrugSearch("");
     setAddForm({ medication_name: "", frequency: null, duration_days: null });
     setShowSuggestions(false);
+    setDupWarning(null);
   };
 
   const updateMedMutation = useMutation({
@@ -111,6 +113,26 @@ export default function UploadResult() {
     enabled: drugSearch.length >= 2,
     staleTime: 30_000,
   });
+
+  const findDuplicate = (name: string): string | null => {
+    const n = name.toLowerCase().replace(/\s/g, "");
+    for (const m of medications) {
+      const e = m.medication_name.toLowerCase().replace(/\s/g, "");
+      if (e.includes(n) || n.includes(e)) return m.medication_name;
+    }
+    return null;
+  };
+
+  const handleAddSubmit = (force = false) => {
+    if (!force) {
+      const dup = findDuplicate(addForm.medication_name);
+      if (dup) {
+        setDupWarning(dup);
+        return;
+      }
+    }
+    addMedMutation.mutate(addForm);
+  };
 
   const confirmMutation = useMutation({
     mutationFn: (jobId: string) =>
@@ -588,16 +610,32 @@ export default function UploadResult() {
             </div>
           </div>
 
+          {dupWarning && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span className="font-medium">"{dupWarning}"</span>이(가) 이미 목록에 있습니다.
+              그래도 추가하시겠습니까?
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddModalOpen(false)}>
               취소
             </Button>
-            <Button
-              disabled={!addForm.medication_name.trim() || addMedMutation.isPending}
-              onClick={() => addMedMutation.mutate(addForm)}
-            >
-              {addMedMutation.isPending ? "추가 중..." : "추가"}
-            </Button>
+            {dupWarning ? (
+              <Button
+                disabled={addMedMutation.isPending}
+                onClick={() => handleAddSubmit(true)}
+              >
+                {addMedMutation.isPending ? "추가 중..." : "그래도 추가"}
+              </Button>
+            ) : (
+              <Button
+                disabled={!addForm.medication_name.trim() || addMedMutation.isPending}
+                onClick={() => handleAddSubmit()}
+              >
+                {addMedMutation.isPending ? "추가 중..." : "추가"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
