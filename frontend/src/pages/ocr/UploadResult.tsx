@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Maximize2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
+import { confirmOcr, fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,12 @@ export default function UploadResult() {
 
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  const confirmMutation = useMutation({
+    mutationFn: (jobId: string) =>
+      confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
+    onSuccess: () => navigate("/health-guide"),
+  });
 
   useEffect(() => {
     if (!recordId) return;
@@ -89,6 +95,15 @@ export default function UploadResult() {
           <Button variant="outline" size="sm" onClick={() => navigate("/documents")}>
             목록으로
           </Button>
+          {doc?.job_id && (
+            <Button
+              size="sm"
+              onClick={() => confirmMutation.mutate(doc.job_id)}
+              disabled={confirmMutation.isPending}
+            >
+              {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -198,12 +213,6 @@ export default function UploadResult() {
                     >
                       기간
                     </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      신뢰도
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -216,9 +225,6 @@ export default function UploadResult() {
                       <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
                       <td className="py-2.5 text-muted-foreground">
                         {m.duration_days != null ? `${m.duration_days}일` : "-"}
-                      </td>
-                      <td className="py-2.5">
-                        <ConfidenceBadge score={m.confidence_score} />
                       </td>
                     </tr>
                   ))}

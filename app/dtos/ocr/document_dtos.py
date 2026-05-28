@@ -59,6 +59,7 @@ class OcrDocumentResponse(BaseSerializerModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    low_confidence: bool = False
 
 
 class OcrDocumentDetailResponse(OcrDocumentResponse):
@@ -93,6 +94,7 @@ class OcrJobStatusResponse(BaseSerializerModel):
     result_url: str | None = None
     estimated_remaining_seconds: int | None = None
     reanalyze_count: int = 0
+    retake_recommended: bool = False
 
 
 class OcrPreviewResponse(BaseSerializerModel):
@@ -133,3 +135,14 @@ class DiseaseCodeUpdateRequest(BaseModel):
 
 class OcrResultUpdateRequest(BaseModel):
     processed_text: str
+
+
+class OcrConfirmRequest(BaseModel):
+    trigger_guide: bool = False
+    trigger_chatbot_context: bool = False
+
+
+class OcrConfirmResponse(BaseSerializerModel):
+    record_id: int
+    job_id: uuid.UUID
+    guide_job_id: str | None = None

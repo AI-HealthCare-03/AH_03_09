@@ -12,6 +12,8 @@ from app.dtos.ocr.document_dtos import (
     DiseaseCodeUpdateRequest,
     MedicationResponse,
     MedicationUpdateRequest,
+    OcrConfirmRequest,
+    OcrConfirmResponse,
     OcrDocumentDetailResponse,
     OcrDocumentListResponse,
     OcrDocumentResponse,
@@ -147,6 +149,15 @@ async def get_job_status(
         "FAILED": "OCR 처리에 실패했습니다.",
     }
 
+    retake_recommended = False
+    if ocr_status == "DONE" and doc.result is not None:
+        score = doc.result.confidence_score
+        if score is not None and score < 0.7:
+            retake_recommended = True
+            message_map["DONE"] = (
+                "OCR 처리가 완료되었으나 이미지 품질이 낮습니다. 더 선명하게 재촬영하시면 정확도가 높아집니다."
+            )
+
     return OcrJobStatusResponse(
         job_id=doc.job_id,
         record_id=doc.record_id,
@@ -156,7 +167,23 @@ async def get_job_status(
         result_url=None,
         estimated_remaining_seconds=None,
         reanalyze_count=doc.reanalyze_count,
+        retake_recommended=retake_recommended,
     )
+
+
+@ocr_router.post("/jobs/{job_id}/confirm", response_model=OcrConfirmResponse, status_code=status.HTTP_200_OK)
+async def confirm_ocr(
+    job_id: uuid.UUID,
+    body: OcrConfirmRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> OcrConfirmResponse:
+    """OCR 결과를 확인하고 가이드 생성·챗봇 컨텍스트 등록을 트리거합니다."""
+    svc = OcrDocumentService(session)
+    record_id, doc_job_id, guide_job_id = await svc.confirm_document(
+        job_id, current_user.id, body.trigger_guide, body.trigger_chatbot_context
+    )
+    return OcrConfirmResponse(record_id=record_id, job_id=doc_job_id, guide_job_id=guide_job_id)
 
 
 # ── OCR Records ───────────────────────────────────────────────────────────────
@@ -183,7 +210,16 @@ async def list_records(
         size=size,
     )
     return OcrDocumentListResponse(
-        documents=[OcrDocumentResponse.model_validate(d) for d in docs],
+        documents=[
+            OcrDocumentResponse.model_validate(d).model_copy(
+                update={
+                    "low_confidence": d.result is not None
+                    and d.result.confidence_score is not None
+                    and d.result.confidence_score < 0.7
+                }
+            )
+            for d in docs
+        ],
         total=total,
     )
 

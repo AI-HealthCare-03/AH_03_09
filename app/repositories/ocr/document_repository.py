@@ -44,6 +44,20 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_job_id_with_medications(self, job_id: uuid.UUID, user_id: int) -> OcrDocument | None:
+        result = await self.session.execute(
+            select(OcrDocument)
+            .options(
+                selectinload(OcrDocument.result),
+                selectinload(OcrDocument.medications),
+            )
+            .where(
+                OcrDocument.job_id == job_id,
+                OcrDocument.user_id == user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_file_hash(self, user_id: int, file_hash: str) -> OcrDocument | None:
         result = await self.session.execute(
             select(OcrDocument).where(
@@ -89,6 +103,11 @@ class OcrDocumentRepository:
         total = total_result.scalar_one()
 
         result = await self.session.execute(
-            select(OcrDocument).where(*conditions).order_by(order).limit(limit).offset(offset)
+            select(OcrDocument)
+            .options(selectinload(OcrDocument.result))
+            .where(*conditions)
+            .order_by(order)
+            .limit(limit)
+            .offset(offset)
         )
         return list(result.scalars().all()), total

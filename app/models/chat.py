@@ -39,7 +39,7 @@ class ChatMessage(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
     )
-    role: Mapped[str] = mapped_column(String(10), nullable=False)
+    role: Mapped[str] = mapped_column(String(10), nullable=False, comment="USER: user\nASSISTANT: assistant")
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 

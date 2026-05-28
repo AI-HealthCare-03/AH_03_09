@@ -60,6 +60,13 @@ export interface OcrJobStatusResponse {
   result_url: string | null;
   estimated_remaining_seconds: number | null;
   reanalyze_count: number;
+  retake_recommended: boolean;
+}
+
+export interface OcrConfirmResponse {
+  record_id: number;
+  job_id: string;
+  guide_job_id: string | null;
 }
 
 export interface MedicationResponse {
@@ -113,6 +120,7 @@ export interface OcrDocumentResponse {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  low_confidence: boolean;
 }
 
 export interface OcrDocumentDetailResponse extends OcrDocumentResponse {
