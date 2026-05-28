@@ -74,6 +74,10 @@ export function deleteDocument(recordId: number): Promise<void> {
   return request<void>(`/ocr/records/${recordId}`, { method: "DELETE" });
 }
 
+export function reanalyzeDocument(recordId: number): Promise<OcrJobStatusResponse> {
+  return request<OcrJobStatusResponse>(`/ocr/records/${recordId}/reanalyze`, { method: "POST" });
+}
+
 export async function fetchDocumentFile(recordId: number): Promise<string> {
   const path = `/ocr/records/${recordId}/file`;
   const res = await withAuthRetry(path, (token) =>

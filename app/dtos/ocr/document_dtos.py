@@ -11,12 +11,13 @@ from app.dtos.base import BaseSerializerModel
 class MedicationResponse(BaseSerializerModel):
     id: int
     medication_name: str
+    edi_code: str | None = None
     generic_name: str | None = None
     dosage: str | None = None
     frequency: str | None = None
     timing: str | None = None
     duration_days: int | None = None
-    time_of_day: dict | None = None
+    time_of_day: list | None = None
     instructions: str | None = None
     warnings: list | None = None
     confidence_score: float | None = None
@@ -28,7 +29,6 @@ class DiseaseCodeResponse(BaseSerializerModel):
     id: int
     icd10_code: str
     disease_name: str | None = None
-    is_primary: bool
     confidence_score: float | None = None
     is_confirmed: bool
     is_active: bool
@@ -92,6 +92,7 @@ class OcrJobStatusResponse(BaseSerializerModel):
     message: str | None = None
     result_url: str | None = None
     estimated_remaining_seconds: int | None = None
+    reanalyze_count: int = 0
 
 
 class OcrPreviewResponse(BaseSerializerModel):
@@ -114,12 +115,13 @@ class OcrDocumentUpdateRequest(BaseModel):
 
 class MedicationUpdateRequest(BaseModel):
     medication_name: str | None = None
+    edi_code: str | None = None
     generic_name: str | None = None
     dosage: str | None = None
     frequency: str | None = None
     timing: str | None = None
     duration_days: int | None = None
-    time_of_day: dict | None = None
+    time_of_day: list | None = None
     instructions: str | None = None
     warnings: list | None = None
 
@@ -127,7 +129,6 @@ class MedicationUpdateRequest(BaseModel):
 class DiseaseCodeUpdateRequest(BaseModel):
     icd10_code: str | None = None
     disease_name: str | None = None
-    is_primary: bool | None = None
 
 
 class OcrResultUpdateRequest(BaseModel):

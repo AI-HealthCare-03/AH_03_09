@@ -97,14 +97,20 @@ export default function Upload() {
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         try {
-          const parsed = JSON.parse(e.body) as { detail: { existing_record_id: number } };
-          toast.warning("이미 업로드된 파일입니다.", {
-            description: "동일한 파일이 이미 존재합니다.",
-            action: {
-              label: "기존 문서 보기",
-              onClick: () => navigate(`/upload/result/${parsed.detail.existing_record_id}`),
-            },
-          });
+          const parsed = JSON.parse(e.body) as { detail: { message: string; existing_record_id: number } };
+          if (parsed.detail.message === "이미 업로드된 파일입니다.") {
+            toast.warning("이미 업로드된 파일입니다.", {
+              description: "동일한 파일이 이미 존재합니다.",
+              action: {
+                label: "기존 문서 보기",
+                onClick: () => navigate(`/upload/result/${parsed.detail.existing_record_id}`),
+              },
+            });
+          } else {
+            toast.error("처리할 수 없는 파일입니다.", {
+              description: "파일에 문제가 있을 수 있으니 다른 파일로 시도해주세요.",
+            });
+          }
         } catch {
           toast.error("이미 업로드된 파일입니다.");
         }
