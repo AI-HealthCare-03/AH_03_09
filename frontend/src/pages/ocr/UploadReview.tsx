@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { fetchDocument, fetchJobStatus, patchDocument } from "@/api/ocr";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +30,7 @@ export default function UploadReview() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const stateRecordId = location.state?.recordId as number | undefined;
+  const retakeRecommended = location.state?.retakeRecommended as boolean | undefined;
 
   const { data: jobStatus } = useQuery({
     queryKey: ["ocr-status", jobId],
@@ -84,6 +87,14 @@ export default function UploadReview() {
         <CardTitle>문서 유형 확인</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        {retakeRecommended && (
+          <Alert variant="destructive">
+            <AlertTriangleIcon className="size-4" />
+            <AlertDescription>
+              이미지 품질이 낮아 인식 정확도가 떨어질 수 있습니다. 더 선명하게 재촬영하시면 정확도가 높아집니다.
+            </AlertDescription>
+          </Alert>
+        )}
         <div>
           <p className="text-sm text-muted-foreground mb-1">파일명</p>
           <p className="font-medium">{doc.original_filename}</p>

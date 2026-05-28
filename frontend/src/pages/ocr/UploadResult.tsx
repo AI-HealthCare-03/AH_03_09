@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Maximize2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
+import { confirmOcr, fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,12 @@ export default function UploadResult() {
 
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  const confirmMutation = useMutation({
+    mutationFn: (jobId: string) =>
+      confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
+    onSuccess: () => navigate("/health-guide"),
+  });
 
   useEffect(() => {
     if (!recordId) return;
@@ -89,6 +95,15 @@ export default function UploadResult() {
           <Button variant="outline" size="sm" onClick={() => navigate("/documents")}>
             목록으로
           </Button>
+          {doc?.job_id && (
+            <Button
+              size="sm"
+              onClick={() => confirmMutation.mutate(doc.job_id)}
+              disabled={confirmMutation.isPending}
+            >
+              {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
+            </Button>
+          )}
         </div>
       </div>
 

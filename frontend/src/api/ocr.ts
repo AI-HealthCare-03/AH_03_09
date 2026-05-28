@@ -5,6 +5,7 @@ import type {
   DiseaseCodeResponse,
   DocType,
   MedicationResponse,
+  OcrConfirmResponse,
   OcrDocumentDetailResponse,
   OcrDocumentListResponse,
   OcrDocumentResponse,
@@ -76,6 +77,17 @@ export function deleteDocument(recordId: number): Promise<void> {
 
 export function reanalyzeDocument(recordId: number): Promise<OcrJobStatusResponse> {
   return request<OcrJobStatusResponse>(`/ocr/records/${recordId}/reanalyze`, { method: "POST" });
+}
+
+export function confirmOcr(
+  jobId: string,
+  body: { trigger_guide: boolean; trigger_chatbot_context: boolean },
+): Promise<OcrConfirmResponse> {
+  return request<OcrConfirmResponse>(`/ocr/jobs/${jobId}/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function fetchDocumentFile(recordId: number): Promise<string> {
