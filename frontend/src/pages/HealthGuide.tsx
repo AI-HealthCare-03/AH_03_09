@@ -12,6 +12,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+const iconMap: Record<string, string> = {
+  alcohol: "🍺",
+  pregnancy: "🤰",
+  grapefruit: "🍊",
+  drowsiness: "😴",
+  driving: "🚗",
+  headache: "🤕",
+  liver: "🩺",
+  kidney: "💧",
+  child_storage: "🧒",
+  interval: "⏰",
+  max_dose: "🚫",
+  no_water: "👅",
+  weight: "⚖️",
+};
+
 export default function HealthGuide() {
   const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
@@ -158,18 +174,81 @@ export default function HealthGuide() {
                   </CardHeader>
 
                   <CardContent className="space-y-2 text-sm">
-                    <p>용법: {medication.dosage}</p>
-                    <p>복용 시간: {medication.timing}</p>
-                    <p>식사 관계: {medication.before_after_meal}</p>
+                    {medication.action_icons?.length > 0 && (
+  <>
+    <p className="text-sm font-medium text-blue-700 mb-1">
+      핵심 주의사항
+    </p>
 
-                    <div>
-                      <p className="font-medium">주의사항</p>
-                      <ul className="list-disc pl-5">
-                        {medication.cautions.map((caution) => (
-                          <li key={caution}>{caution}</li>
-                        ))}
-                      </ul>
-                    </div>
+    <div className="flex flex-wrap gap-2 mb-2">
+      {medication.action_icons.map((icon) => (
+        <div
+          key={icon.type}
+          className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs"
+        >
+          <span className="mr-1">{iconMap[icon.type] ?? "💊"}</span>
+          {icon.label}
+        </div>
+      ))}
+    </div>
+  </>
+)}
+
+  {medication.usage_icons?.length > 0 && (
+  <>
+    <p className="text-sm font-medium text-green-700 mb-1">
+      핵심 복용법
+    </p>
+
+    <div className="flex flex-wrap gap-2 mb-2">
+      {medication.usage_icons.map((icon) => (
+        <div
+          key={icon.type}
+          className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs"
+        >
+          <span className="mr-1">{iconMap[icon.type] ?? "💊"}</span>
+          {icon.label}
+        </div>
+      ))}
+    </div>
+  </>
+)}
+{medication.easy_summary?.length > 0 && (
+  <div className="rounded-lg bg-slate-50 p-3 mb-2">
+    <p className="font-medium mb-2">쉬운 설명</p>
+
+    <ul className="list-disc pl-5 text-sm space-y-1">
+      {medication.easy_summary.map((summary) => (
+        <li key={summary}>{summary}</li>
+      ))}
+    </ul>
+  </div>
+)}
+  {medication.match_status === "EXACT_DB_MATCH" && (
+  <details className="mt-4 rounded-lg border p-3">
+    <summary className="cursor-pointer font-medium text-blue-700">
+      전체 복약정보 보기
+    </summary>
+
+    <div className="mt-3 space-y-3">
+      <p>용법: {medication.dosage}</p>
+
+      <p>복용 시간: {medication.timing}</p>
+
+      <p>식사 관계: {medication.before_after_meal}</p>
+
+      <div>
+        <p className="font-medium">주의사항</p>
+
+        <ul className="list-disc pl-5">
+          {medication.cautions.map((caution) => (
+            <li key={caution}>{caution}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </details>
+)}
 
                     {medication.disclaimer && (
                       <div className="rounded-md bg-amber-50 p-3 text-amber-800">
