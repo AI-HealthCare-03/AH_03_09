@@ -29,6 +29,15 @@ export type MedicationItem = {
   cautions: string[];
   missed_dose: string;
   storage: string;
+  action_icons: {
+  type: string;
+  label: string;
+}[];
+  usage_icons: {
+  type: string;
+  label: string;
+}[];
+  easy_summary: string[];
   match_status: string | null;
   disclaimer: string | null;
   source_name: string | null;

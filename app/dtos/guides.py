@@ -75,8 +75,11 @@ class MedicationItem(BaseModel):
     before_after_meal: str
     side_effects: list[str]
     cautions: list[str]
+    easy_summary: list[str] = []
     missed_dose: str
     storage: str
+    action_icons: list[dict] = []
+    usage_icons: list[dict] = []
     match_status: MedicationMatchStatus | None = None
     disclaimer: str | None = None
     source_name: str | None = None
