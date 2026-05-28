@@ -10,21 +10,11 @@ _client: AsyncOpenAI | None = None
 class ChatSkill(StrEnum):
     MEDICATION_GUIDE = "MEDICATION_GUIDE"
     DRUG_INTERACTION = "DRUG_INTERACTION"
-    SIDE_EFFECT = "SIDE_EFFECT"
-    EMERGENCY = "EMERGENCY"
     GENERAL = "GENERAL"
 
 
 # 스킬별 시스템 프롬프트 템플릿 (Harness Engineering)
 _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
-    ChatSkill.EMERGENCY: """당신은 의료 응급 상황을 안내하는 AI 어시스턴트입니다.
-
-역할: 응급 증상 식별 및 즉각적 행동 안내
-- 현재 증상이 응급인지 판단하고 즉시 119 또는 응급실 방문을 안내합니다.
-- 대기 중 취할 수 있는 안전 조치를 간결하게 제공합니다.
-- 자가 치료를 권유하지 않습니다.
-
-답변 형식: 1) 응급 여부 판단 → 2) 즉각 행동 안내 → 3) 추가 주의사항""",
     ChatSkill.DRUG_INTERACTION: """당신은 약물 상호작용 전문 AI 어시스턴트입니다.
 
 역할: 약물 간 상호작용 분석 및 안전한 복용 가이드
@@ -33,14 +23,6 @@ _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
 - 불확실한 경우 반드시 약사·의사 확인을 권장합니다.
 
 답변 형식: 1) 상호작용 여부 → 2) 위험 수준 → 3) 권장 행동""",
-    ChatSkill.SIDE_EFFECT: """당신은 약물 부작용 정보를 제공하는 AI 어시스턴트입니다.
-
-역할: 약물 부작용 정보 안내 및 대처 방법 가이드
-- 흔한 부작용과 드문 부작용을 구분하여 설명합니다.
-- 즉시 중단이 필요한 심각한 부작용을 명확히 경고합니다.
-- 부작용 완화를 위한 일반적인 방법을 안내합니다.
-
-답변 형식: 1) 해당 부작용 여부 → 2) 흔함/드묾 구분 → 3) 대처 방법""",
     ChatSkill.MEDICATION_GUIDE: """당신은 복약 지도 전문 AI 어시스턴트입니다.
 
 역할: 올바른 복약 방법과 주의사항 안내
@@ -63,29 +45,8 @@ _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
 - 불확실한 정보는 반드시 명시하고, 필요시 의사·약사 확인을 권장합니다.""",
 }
 
-# 스킬별 키워드 — 응급이 최우선
+# 스킬별 키워드
 _SKILL_KEYWORDS: dict[ChatSkill, list[str]] = {
-    ChatSkill.EMERGENCY: [
-        "응급",
-        "쓰러",
-        "기절",
-        "호흡 곤란",
-        "숨을 못 쉬",
-        "가슴 통증",
-        "가슴이 아파",
-        "심장",
-        "뇌졸중",
-        "경련",
-        "발작",
-        "알레르기 반응",
-        "아나필락시스",
-        "119",
-        "죽을 것 같",
-        "의식을 잃",
-        "입술이 부어",
-        "과다 복용",
-        "너무 많이 먹었",
-    ],
     ChatSkill.DRUG_INTERACTION: [
         "같이 먹어",
         "함께 먹어",
@@ -97,25 +58,6 @@ _SKILL_KEYWORDS: dict[ChatSkill, list[str]] = {
         "병용",
         "같이 마셔",
         "혼용",
-    ],
-    ChatSkill.SIDE_EFFECT: [
-        "부작용",
-        "이상반응",
-        "이상이 생겼",
-        "먹고 나서",
-        "복용 후",
-        "두통",
-        "어지럼",
-        "어지러",
-        "메스꺼움",
-        "구역질",
-        "구토",
-        "두드러기",
-        "가려움",
-        "졸려",
-        "졸음",
-        "불면",
-        "잠이 안 와",
     ],
     ChatSkill.MEDICATION_GUIDE: [
         "복용법",
@@ -148,11 +90,7 @@ _RECENT_KEEP = 8
 
 def detect_skill(user_message: str) -> ChatSkill:
     """키워드 기반으로 사용자 메시지 의도를 분류해 적절한 스킬을 반환한다."""
-    # 응급 최우선
-    for keyword in _SKILL_KEYWORDS[ChatSkill.EMERGENCY]:
-        if keyword in user_message:
-            return ChatSkill.EMERGENCY
-    for skill in (ChatSkill.DRUG_INTERACTION, ChatSkill.SIDE_EFFECT, ChatSkill.MEDICATION_GUIDE):
+    for skill in (ChatSkill.DRUG_INTERACTION, ChatSkill.MEDICATION_GUIDE):
         for keyword in _SKILL_KEYWORDS[skill]:
             if keyword in user_message:
                 return skill

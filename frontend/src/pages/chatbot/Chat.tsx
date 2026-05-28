@@ -12,8 +12,6 @@ import { submitFeedback } from "@/api/chat";
 import { useAuthStore } from "@/store/authStore";
 import { useChatStore } from "@/store/chatStore";
 
-const EMERGENCY_KEYWORDS = ["응급", "119", "심정지", "의식 없", "숨 못 쉬"];
-
 const SUGGESTED_QUESTIONS = [
   "이 약의 부작용이 있나요?",
   "공복에 먹어도 되는 약인가요?",
@@ -28,7 +26,6 @@ export default function Chat() {
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [hasEmergency, setHasEmergency] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
@@ -51,9 +48,6 @@ export default function Chat() {
   };
 
   const handleSubmit = async (content: string) => {
-    const isEmergency = EMERGENCY_KEYWORDS.some((kw) => content.includes(kw));
-    setHasEmergency(isEmergency);
-
     let sessionId = currentSessionId;
     if (!sessionId) {
       const session = await createMut.mutateAsync(undefined);
@@ -74,19 +68,6 @@ export default function Chat() {
 
   return (
     <div className="flex h-dvh flex-col bg-slate-50 text-slate-900">
-      {hasEmergency && (
-        <div className="flex items-center justify-between bg-red-600 px-4 py-2 text-sm font-medium text-white">
-          🚨 응급 상황이라면 즉시 119에 신고하세요.
-          <button
-            type="button"
-            onClick={() => setHasEmergency(false)}
-            className="ml-4 underline opacity-80 hover:opacity-100"
-          >
-            닫기
-          </button>
-        </div>
-      )}
-
       <div className="flex flex-1 overflow-hidden">
         <SessionSidebar onProfileClick={() => navigate("/profile")} onLogout={handleLogout} />
 
