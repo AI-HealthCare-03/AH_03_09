@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
 from app.core.redis_client import get_redis
-from app.dtos.ocr.document_dtos import OcrDocumentUpdateRequest
-from app.models.ocr.ocr_document import OcrDocument, OcrStatus
+from app.dtos.ocr.document_dtos import MedicationUpdateRequest, OcrDocumentUpdateRequest
+from app.models.ocr.ocr_document import Medication, OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
 
@@ -138,6 +138,24 @@ class OcrDocumentService:
             doc.hospital_name = body.hospital_name
         await self.session.flush()
         return doc
+
+    async def update_medication(
+        self, record_id: int, medication_id: int, user_id: int, body: MedicationUpdateRequest
+    ) -> Medication:
+        med = await self.repo.get_medication(record_id, medication_id, user_id)
+        if med is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
+        for field, value in body.model_dump(exclude_unset=True).items():
+            setattr(med, field, value)
+        await self.session.flush()
+        return med
+
+    async def delete_medication(self, record_id: int, medication_id: int, user_id: int) -> None:
+        med = await self.repo.get_medication(record_id, medication_id, user_id)
+        if med is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
+        med.is_active = False
+        await self.session.flush()
 
     async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)

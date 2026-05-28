@@ -327,7 +327,23 @@ async def update_medication(
     session: _SESSION,
 ) -> MedicationResponse:
     """약물 정보를 수정합니다. (REQ-OCR-013)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    svc = OcrDocumentService(session)
+    med = await svc.update_medication(record_id, medication_id, current_user.id, body)
+    await session.commit()
+    return MedicationResponse.model_validate(med)
+
+
+@ocr_router.delete("/records/{record_id}/medications/{medication_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_medication(
+    record_id: int,
+    medication_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> None:
+    """약물 항목을 소프트 삭제합니다."""
+    svc = OcrDocumentService(session)
+    await svc.delete_medication(record_id, medication_id, current_user.id)
+    await session.commit()
 
 
 @ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)

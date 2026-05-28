@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.ocr.ocr_document import OcrDocument
+from app.models.ocr.ocr_document import Medication, OcrDocument
 
 
 class OcrDocumentRepository:
@@ -94,6 +94,20 @@ class OcrDocumentRepository:
             )
         )
         return result.scalar_one()
+
+    async def get_medication(self, record_id: int, medication_id: int, user_id: int) -> Medication | None:
+        result = await self.session.execute(
+            select(Medication)
+            .join(OcrDocument, Medication.document_id == OcrDocument.record_id)
+            .where(
+                Medication.id == medication_id,
+                Medication.document_id == record_id,
+                Medication.is_active.is_(True),
+                OcrDocument.user_id == user_id,
+                OcrDocument.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def list_by_user(
         self,
