@@ -120,7 +120,7 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
 
         content = await _read_file(payload.s3_key, payload.s3_bucket)
         ocr = await _call_clova_ocr(content, payload.mime_type)
-        doc_type = await classify_document(ocr["raw_text"])
+        doc_type = payload.doc_type_hint or await classify_document(ocr["raw_text"])
         elapsed_ms = int(time.monotonic() * 1000) - start_ms
         processed_text = _mask_pii(ocr["raw_text"])
 
