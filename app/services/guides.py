@@ -1,10 +1,16 @@
 import asyncio
+import json
+import os
 import pathlib
 import uuid
 from datetime import UTC, datetime
 
+# client = AsyncOpenAI(
+#     api_key=os.getenv("OPENAI_API_KEY"),
+# )
 import pandas as pd
 from fastapi import HTTPException, status
+from openai import AsyncOpenAI
 
 from app.dtos.guides import (
     DietGuide,
@@ -53,7 +59,69 @@ def _safe_str(val: object) -> str:
     return s if s and s.lower() != "nan" else ""
 
 
+def _shorten_text(text: str, limit: int = 120) -> str:
+    text = text.replace("\n", " ").strip()
+    return text[:limit] + "..." if len(text) > limit else text
+
+
+def _make_medication_action_icons(cautions: list[str], side_effects: list[str], storage: str = "") -> list[dict]:
+    text = " ".join(cautions + side_effects + [storage])
+
+    icons = []
+
+    if any(keyword in text for keyword in ["임부", "임신", "수유"]):
+        icons.append({"type": "pregnancy", "label": "임부·수유부 주의"})
+
+    if any(keyword in text for keyword in ["알코올", "음주", "술"]):
+        icons.append({"type": "alcohol", "label": "알코올 X"})
+
+    if "자몽" in text:
+        icons.append({"type": "grapefruit", "label": "자몽주스 X"})
+
+    if any(keyword in text for keyword in ["졸음", "어지러움", "현기증"]):
+        icons.append({"type": "drowsiness", "label": "졸음·어지러움 주의"})
+
+    if any(keyword in text for keyword in ["운전", "기계 조작", "기계조작"]):
+        icons.append({"type": "driving", "label": "운전 주의"})
+
+    if any(keyword in text for keyword in ["두통"]):
+        icons.append({"type": "headache", "label": "두통 가능"})
+
+    if any(keyword in text for keyword in ["간손상", "간장애", "간질환", "간 기능"]):
+        icons.append({"type": "liver", "label": "간 질환 상담"})
+
+    if any(keyword in text for keyword in ["신장", "콩팥", "신장애"]):
+        icons.append({"type": "kidney", "label": "신장 질환 상담"})
+
+    if any(keyword in text for keyword in ["어린이의 손이 닿지 않는 곳"]):
+        icons.append({"type": "child_storage", "label": "어린이 손 닿지 않게 보관"})
+
+    return icons
+
+
+def _make_medication_usage_icons(dosage: str) -> list[dict]:
+    icons = []
+
+    if any(keyword in dosage for keyword in ["4~6시간", "4-6시간"]):
+        icons.append({"type": "interval", "label": "4~6시간 간격"})
+
+    if any(keyword in dosage for keyword in ["1일 5회", "초과"]):
+        icons.append({"type": "max_dose", "label": "1일 최대횟수 주의"})
+
+    if any(keyword in dosage for keyword in ["물 없이"]):
+        icons.append({"type": "no_water", "label": "물 없이 복용 가능"})
+
+    if any(keyword in dosage for keyword in ["몸무게", "체중"]):
+        icons.append({"type": "weight", "label": "체중 기준 용량 확인"})
+
+    return icons
+
+
 def _row_to_medication_item(row: pd.Series) -> MedicationItem:
+    dosage = _safe_str(row.get("useMethodQesitm"))
+    storage = _safe_str(row.get("depositMethodQesitm"))
+    side_effects_str = _safe_str(row.get("seQesitm"))
+
     cautions = [
         c
         for c in [
@@ -63,20 +131,128 @@ def _row_to_medication_item(row: pd.Series) -> MedicationItem:
         ]
         if c
     ]
-    side_effects_str = _safe_str(row.get("seQesitm"))
+
     return MedicationItem(
         name=_safe_str(row.get("itemName")),
-        dosage=_safe_str(row.get("useMethodQesitm")),
+        dosage=dosage,
         timing="",
         before_after_meal="",
         side_effects=[side_effects_str] if side_effects_str else [],
         cautions=cautions,
         missed_dose="",
-        storage=_safe_str(row.get("depositMethodQesitm")),
+        storage=storage,
+        action_icons=_make_medication_action_icons(
+            cautions,
+            [side_effects_str] if side_effects_str else [],
+            storage,
+        ),
+        usage_icons=_make_medication_usage_icons(dosage),
+        easy_summary=_make_easy_summary(
+            cautions,
+            side_effects_str,
+            dosage,
+            storage,
+        ),
         match_status=MedicationMatchStatus.EXACT_DB_MATCH,
         source_name="식약처 의약품개요정보",
         disclaimer=None,
     )
+
+
+def _make_easy_summary(
+    cautions: list[str],
+    side_effects: str,
+    dosage: str,
+    storage: str = "",
+) -> list[str]:
+    text = " ".join(cautions + [side_effects, dosage, storage])
+
+    summaries = []
+
+    if any(keyword in text for keyword in ["알코올", "음주", "술"]):
+        summaries.append("술과 함께 복용하지 마세요.")
+
+    if any(keyword in text for keyword in ["간손상", "간장애", "간질환", "간 기능"]):
+        summaries.append("간 질환이 있으면 복용 전 전문가와 상담하세요.")
+
+    if any(keyword in text for keyword in ["신장", "콩팥", "신장애"]):
+        summaries.append("신장 질환이 있으면 복용 전 전문가와 상담하세요.")
+
+    if any(keyword in text for keyword in ["4~6시간", "4-6시간"]):
+        summaries.append("복용 간격을 지켜 주세요.")
+
+    if any(keyword in text for keyword in ["1일 5회", "초과"]):
+        summaries.append("하루 최대 복용 횟수를 넘기지 마세요.")
+
+    if any(keyword in text for keyword in ["몸무게", "체중"]):
+        summaries.append("아이들은 체중 기준 용량 확인이 중요해요.")
+
+    if any(keyword in text for keyword in ["어린이의 손이 닿지 않는 곳"]):
+        summaries.append("어린이 손이 닿지 않는 곳에 보관하세요.")
+
+    return summaries
+
+
+async def _make_easy_summary_llm(
+    dosage: str,
+    cautions: list[str],
+    side_effects: list[str],
+    storage: str,
+) -> list[str]:
+    parts: list[str] = []
+    if dosage:
+        parts.append(f"용법·용량: {dosage}")
+    if cautions:
+        parts.append(f"주의사항: {'; '.join(cautions)}")
+    if side_effects:
+        parts.append(f"이상반응: {'; '.join(side_effects)}")
+    if storage:
+        parts.append(f"보관방법: {storage}")
+    if not parts:
+        return []
+
+    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "당신은 복약 정보를 환자 친화적인 한국어로 요약하는 도우미입니다.\n"
+                    "반드시 아래 규칙을 따르세요:\n"
+                    "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
+                    "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
+                    '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"다음 의약품 공식 정보를 환자가 이해하기 쉽게 요약해주세요:\n\n{chr(10).join(parts)}",
+            },
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=400,
+        temperature=0.3,
+    )
+    result = json.loads(response.choices[0].message.content)
+    sentences = result.get("sentences", [])
+    return [str(s) for s in sentences[:5]] if isinstance(sentences, list) else []
+
+
+async def _enrich_easy_summary(item: MedicationItem) -> list[str]:
+    if item.match_status == MedicationMatchStatus.NOT_FOUND:
+        return item.easy_summary
+    if not os.getenv("OPENAI_API_KEY"):
+        return item.easy_summary
+    try:
+        return await _make_easy_summary_llm(
+            item.dosage,
+            item.cautions,
+            item.side_effects,
+            item.storage,
+        )
+    except Exception:
+        return item.easy_summary
 
 
 def _search_medication(name: str) -> MedicationItem:
@@ -107,8 +283,12 @@ def _search_medication(name: str) -> MedicationItem:
     return _row_to_medication_item(matches.iloc[0])
 
 
-def _make_medication_guide_from_csv(medication_names: list[str]) -> MedicationGuide:
-    return MedicationGuide(medications=[_search_medication(n) for n in medication_names])
+async def _make_medication_guide_from_csv(medication_names: list[str]) -> MedicationGuide:
+    items = [_search_medication(n) for n in medication_names]
+    enriched_summaries = await asyncio.gather(*[_enrich_easy_summary(item) for item in items])
+    for item, summary in zip(items, enriched_summaries, strict=True):
+        item.easy_summary = summary
+    return MedicationGuide(medications=items)
 
 
 # ── Mock 데이터 생성 헬퍼 (LIFESTYLE / DIET / EXERCISE) ──────────────────────
@@ -146,6 +326,50 @@ def _make_exercise_guide() -> ExerciseGuide:
     )
 
 
+async def _make_lifestyle_guide_with_llm(medication_names: list[str]):
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    client = AsyncOpenAI(api_key=api_key)
+
+    prompt = f"""
+다음 약물을 복용하는 환자를 위한 생활관리 가이드를 작성해주세요.
+
+조건:
+- 한국어로 작성
+- 환자가 이해하기 쉬운 표현 사용
+- 생활관리 팁 4개를 줄바꿈 목록으로 작성
+- 각 항목은 한 문장으로 작성
+- 각 항목은 반드시 "[LLM생성]"으로 시작할 것
+- 진단이나 처방처럼 단정하지 말 것
+
+약물:
+{", ".join(medication_names)}
+"""
+
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "당신은 환자 친화적인 복약 생활관리 가이드를 작성하는 의료 AI입니다.",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        temperature=0.5,
+    )
+
+    content = response.choices[0].message.content or ""
+
+    tips = [line.strip("-•1234567890. ").strip() for line in content.splitlines() if line.strip()]
+
+    return LifestyleGuide(tips=tips)
+
+
 async def _run_mock_worker(
     job_id: str, guide_id: str, guide_types: list[GuideType], medication_names: list[str]
 ) -> None:
@@ -158,12 +382,21 @@ async def _run_mock_worker(
 
     generation_results = [GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types]
 
+    if GuideType.LIFESTYLE in guide_types:
+        try:
+            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names)
+        except Exception as e:
+            print(f"LLM guide generation failed: {e}")
+            lifestyle_guide = _make_lifestyle_guide()
+    else:
+        lifestyle_guide = None
+
     guide = GuideResponse(
         guide_id=guide_id,
         guide_types=guide_types,
         created_at=now,
         medication_guide=(
-            _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
+            await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
         ),
         schedule_table=[
             {
@@ -175,7 +408,7 @@ async def _run_mock_worker(
                 "medications": ["어린이타이레놀산160밀리그램(아세트아미노펜)"],
             },
         ],
-        lifestyle_guide=_make_lifestyle_guide() if GuideType.LIFESTYLE in guide_types else None,
+        lifestyle_guide=lifestyle_guide,
         diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
         generation_results=generation_results,
