@@ -85,6 +85,28 @@ export interface MedicationUpdateBody {
   duration_days?: number | null;
 }
 
+export interface DrugSearchResult {
+  item_name: string;
+}
+
+export interface MedicationCreateBody {
+  medication_name: string;
+  frequency?: string | null;
+  duration_days?: number | null;
+}
+
+export function searchDrugs(q: string): Promise<DrugSearchResult[]> {
+  return request<DrugSearchResult[]>(`/ocr/drugs/search?q=${encodeURIComponent(q)}`);
+}
+
+export function addMedication(recordId: number, body: MedicationCreateBody): Promise<MedicationResponse> {
+  return request<MedicationResponse>(`/ocr/records/${recordId}/medications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export function updateMedication(
   recordId: number,
   medicationId: number,

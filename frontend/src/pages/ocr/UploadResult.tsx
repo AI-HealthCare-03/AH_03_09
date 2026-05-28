@@ -1,21 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Maximize2Icon, PencilIcon, Trash2Icon, XIcon } from "lucide-react";
+import { Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
+  type MedicationCreateBody,
   type MedicationUpdateBody,
+  addMedication,
   confirmOcr,
   deleteMedication,
   fetchDocument,
   fetchDocumentFile,
   fetchOcrResult,
+  searchDrugs,
   updateMedication,
 } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DocType } from "@/types/api";
 
@@ -50,6 +59,21 @@ export default function UploadResult() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<MedicationUpdateBody>({});
 
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [drugSearch, setDrugSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [addForm, setAddForm] = useState<MedicationCreateBody>({
+    medication_name: "",
+    frequency: null,
+    duration_days: null,
+  });
+
+  const resetAddForm = () => {
+    setDrugSearch("");
+    setAddForm({ medication_name: "", frequency: null, duration_days: null });
+    setShowSuggestions(false);
+  };
+
   const updateMedMutation = useMutation({
     mutationFn: ({ medId, body }: { medId: number; body: MedicationUpdateBody }) =>
       updateMedication(recordId, medId, body),
@@ -68,6 +92,24 @@ export default function UploadResult() {
       toast.success("약물이 삭제되었습니다.");
     },
     onError: () => toast.error("삭제에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const addMedMutation = useMutation({
+    mutationFn: (body: MedicationCreateBody) => addMedication(recordId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      setAddModalOpen(false);
+      resetAddForm();
+      toast.success("약물이 추가되었습니다.");
+    },
+    onError: () => toast.error("추가에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const { data: drugSuggestions } = useQuery({
+    queryKey: ["drug-search", drugSearch],
+    queryFn: () => searchDrugs(drugSearch),
+    enabled: drugSearch.length >= 2,
+    staleTime: 30_000,
   });
 
   const confirmMutation = useMutation({
@@ -190,14 +232,25 @@ export default function UploadResult() {
       {/* Medications */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            약물 목록
-            {medications.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {medications.length}개
-              </span>
-            )}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">
+              약물 목록
+              {medications.length > 0 && (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  {medications.length}개
+                </span>
+              )}
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddModalOpen(true)}
+              disabled={editingId !== null}
+            >
+              <PlusIcon className="mr-1 size-3.5" />
+              약물 추가
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {medications.length === 0 ? (
@@ -450,6 +503,104 @@ export default function UploadResult() {
           </CardContent>
         </Card>
       )}
+
+      {/* Add medication modal */}
+      <Dialog
+        open={addModalOpen}
+        onOpenChange={(open) => {
+          setAddModalOpen(open);
+          if (!open) resetAddForm();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>약물 추가</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Drug name autocomplete */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                약물명 <span className="text-destructive">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="약물명 검색 또는 직접 입력"
+                  value={drugSearch}
+                  onChange={(e) => {
+                    setDrugSearch(e.target.value);
+                    setAddForm((f) => ({ ...f, medication_name: e.target.value }));
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                />
+                {showSuggestions && drugSuggestions && drugSuggestions.length > 0 && (
+                  <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-background shadow-md">
+                    {drugSuggestions.map((s) => (
+                      <li
+                        key={s.item_name}
+                        className="cursor-pointer px-3 py-2 text-sm hover:bg-muted"
+                        onMouseDown={() => {
+                          setDrugSearch(s.item_name);
+                          setAddForm((f) => ({ ...f, medication_name: s.item_name }));
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        {s.item_name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {/* Frequency */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">복약 횟수</label>
+              <input
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="예: 1일 3회"
+                value={addForm.frequency ?? ""}
+                onChange={(e) =>
+                  setAddForm((f) => ({ ...f, frequency: e.target.value || null }))
+                }
+              />
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">기간 (일)</label>
+              <input
+                type="number"
+                min={1}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="예: 30"
+                value={addForm.duration_days ?? ""}
+                onChange={(e) =>
+                  setAddForm((f) => ({
+                    ...f,
+                    duration_days: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddModalOpen(false)}>
+              취소
+            </Button>
+            <Button
+              disabled={!addForm.medication_name.trim() || addMedMutation.isPending}
+              onClick={() => addMedMutation.mutate(addForm)}
+            >
+              {addMedMutation.isPending ? "추가 중..." : "추가"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
