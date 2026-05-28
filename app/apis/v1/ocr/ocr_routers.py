@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -10,6 +11,8 @@ from app.dependencies.security import get_request_user
 from app.dtos.ocr.document_dtos import (
     DiseaseCodeResponse,
     DiseaseCodeUpdateRequest,
+    DrugSearchResult,
+    MedicationCreateRequest,
     MedicationResponse,
     MedicationUpdateRequest,
     OcrConfirmRequest,
@@ -42,6 +45,32 @@ _SESSION = Annotated[AsyncSession, Depends(get_async_session)]
 @ocr_router.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# ── Drug search ───────────────────────────────────────────────────────────────
+
+
+@ocr_router.get("/drugs/search", response_model=list[DrugSearchResult])
+async def search_drugs(
+    q: Annotated[str, Query(min_length=1, max_length=100)],
+    current_user: _AUTH,  # noqa: ARG001
+    session: _SESSION,
+    limit: Annotated[int, Query(ge=1, le=20)] = 10,
+) -> list[DrugSearchResult]:
+    """약물명 검색 (drug_master ILIKE + word_similarity 랭킹)"""
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    rows = await session.execute(
+        text(
+            "SELECT item_name FROM drug_master"
+            " WHERE item_name ILIKE :pattern"
+            " ORDER BY word_similarity(:q, item_name) DESC, length(item_name)"
+            " LIMIT :limit"
+        ),
+        {"q": q, "pattern": f"%{q}%", "limit": limit},
+    )
+    return [DrugSearchResult(item_name=row[0]) for row in rows.fetchall()]
 
 
 # ── Upload & Preview ──────────────────────────────────────────────────────────
@@ -79,11 +108,31 @@ async def upload_documents(
 ) -> OcrUploadResponse:
     """처방전·약봉투 파일을 S3에 업로드하고 OCR 처리 작업을 생성합니다. (REQ-OCR-002/003)"""
     validate_file_count(files)
-    svc = OcrDocumentService(session)
 
-    uploaded: list[UploadedFileItem] = []
+    # 파일 유효성 검사를 DB 호출보다 먼저 수행
+    file_contents: list[tuple[UploadFile, bytes]] = []
     for file in files:
         content = await validate_upload(file)
+        file_contents.append((file, content))
+
+    svc = OcrDocumentService(session)
+
+    daily_limit = 20
+    today_count = await svc.repo.count_today_uploads(current_user.id)
+    if today_count + len(files) > daily_limit:
+        remaining = max(0, daily_limit - today_count)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": f"일일 업로드 한도({daily_limit}건)를 초과했습니다. 오늘 {today_count}건 업로드하셨으며 {remaining}건 더 업로드 가능합니다.",
+                "today_count": today_count,
+                "daily_limit": daily_limit,
+                "remaining": remaining,
+            },
+        )
+
+    uploaded: list[UploadedFileItem] = []
+    for file, content in file_contents:
         doc = await svc.upload_document(
             user_id=current_user.id,
             filename=file.filename or "upload",
@@ -292,6 +341,24 @@ async def reanalyze_record(
 # ── Medications ───────────────────────────────────────────────────────────────
 
 
+@ocr_router.post(
+    "/records/{record_id}/medications",
+    response_model=MedicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_medication(
+    record_id: int,
+    body: MedicationCreateRequest,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> MedicationResponse:
+    """약물 항목을 수동으로 추가합니다."""
+    svc = OcrDocumentService(session)
+    med = await svc.add_medication(record_id, current_user.id, body)
+    await session.commit()
+    return MedicationResponse.model_validate(med)
+
+
 @ocr_router.get("/records/{record_id}/medications", response_model=list[MedicationResponse])
 async def list_medications(
     record_id: int,
@@ -313,7 +380,23 @@ async def update_medication(
     session: _SESSION,
 ) -> MedicationResponse:
     """약물 정보를 수정합니다. (REQ-OCR-013)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    svc = OcrDocumentService(session)
+    med = await svc.update_medication(record_id, medication_id, current_user.id, body)
+    await session.commit()
+    return MedicationResponse.model_validate(med)
+
+
+@ocr_router.delete("/records/{record_id}/medications/{medication_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_medication(
+    record_id: int,
+    medication_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> None:
+    """약물 항목을 소프트 삭제합니다."""
+    svc = OcrDocumentService(session)
+    await svc.delete_medication(record_id, medication_id, current_user.id)
+    await session.commit()
 
 
 @ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)

@@ -68,6 +68,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(return_value=_mock_doc())
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -88,6 +89,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(side_effect=[_mock_doc(i) for i in range(1, 4)])
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -120,6 +122,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(return_value=_mock_doc())
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -134,6 +137,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(return_value=_mock_doc())
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -199,6 +203,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(
                 side_effect=HTTPException(
                     status_code=409,

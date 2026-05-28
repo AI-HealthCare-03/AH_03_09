@@ -75,6 +75,54 @@ export function deleteDocument(recordId: number): Promise<void> {
   return request<void>(`/ocr/records/${recordId}`, { method: "DELETE" });
 }
 
+export interface MedicationUpdateBody {
+  medication_name?: string;
+  edi_code?: string | null;
+  generic_name?: string | null;
+  dosage?: string | null;
+  frequency?: string | null;
+  timing?: string | null;
+  duration_days?: number | null;
+}
+
+export interface DrugSearchResult {
+  item_name: string;
+}
+
+export interface MedicationCreateBody {
+  medication_name: string;
+  frequency?: string | null;
+  duration_days?: number | null;
+}
+
+export function searchDrugs(q: string): Promise<DrugSearchResult[]> {
+  return request<DrugSearchResult[]>(`/ocr/drugs/search?q=${encodeURIComponent(q)}`);
+}
+
+export function addMedication(recordId: number, body: MedicationCreateBody): Promise<MedicationResponse> {
+  return request<MedicationResponse>(`/ocr/records/${recordId}/medications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateMedication(
+  recordId: number,
+  medicationId: number,
+  body: MedicationUpdateBody,
+): Promise<MedicationResponse> {
+  return request<MedicationResponse>(`/ocr/records/${recordId}/medications/${medicationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteMedication(recordId: number, medicationId: number): Promise<void> {
+  return request<void>(`/ocr/records/${recordId}/medications/${medicationId}`, { method: "DELETE" });
+}
+
 export function reanalyzeDocument(recordId: number): Promise<OcrJobStatusResponse> {
   return request<OcrJobStatusResponse>(`/ocr/records/${recordId}/reanalyze`, { method: "POST" });
 }
