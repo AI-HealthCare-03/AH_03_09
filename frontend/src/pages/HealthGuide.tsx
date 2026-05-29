@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useLocation } from "react-router-dom";
 
 import {
   generateGuide,
@@ -47,7 +49,54 @@ export default function HealthGuide() {
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
   const [ratingSafety, setRatingSafety] = useState(5);
   const [comment, setComment] = useState("");
-  console.log(guide)
+  const location = useLocation();
+  const initialJobIdRef = useRef(
+    (location.state as { guide_job_id?: string } | null)?.guide_job_id ?? null,
+  );
+
+  useEffect(() => {
+    const jobId = initialJobIdRef.current;
+    if (!jobId) return;
+
+    let cancelled = false;
+
+    async function pollFromOcr(id: string) {
+      setLoading(true);
+      setStatus("OCR 결과를 바탕으로 가이드 생성 중...");
+
+      while (!cancelled) {
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const statusResult = await getGuideStatus(id);
+          if (cancelled) break;
+          setStatus(`현재 상태: ${statusResult.status}`);
+          if (statusResult.status === "DONE" && statusResult.guide_id) {
+            const guideResult = await getGuide(statusResult.guide_id);
+            if (!cancelled) {
+              setGuide(guideResult);
+              setGuideId(statusResult.guide_id);
+              setStatus("가이드 생성 완료");
+            }
+            break;
+          }
+          if (statusResult.status === "FAILED") {
+            if (!cancelled) setStatus("가이드 생성 실패");
+            break;
+          }
+        } catch {
+          if (!cancelled) setStatus("에러 발생");
+          break;
+        }
+      }
+      if (!cancelled) setLoading(false);
+    }
+
+    pollFromOcr(jobId);
+    return () => {
+      cancelled = true;
+    };
+  }, []); // initialJobIdRef는 마운트 시 한 번만 읽음
+
   async function handleGenerate() {
     try {
       setLoading(true);

@@ -541,7 +541,11 @@ async def _run_mock_worker(
         medication_guide=(
             await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
         ),
-        schedule_table=_build_schedule_table(medications) or None,
+        schedule_table=(
+            _build_schedule_table(medications)
+            if medications
+            else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
+        ),
         lifestyle_guide=lifestyle_guide,
         diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
