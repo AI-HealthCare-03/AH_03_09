@@ -228,19 +228,29 @@ def _mask_pii(text: str) -> str:
     return text
 
 
-_DOSAGE_PATTERN = re.compile(
-    r"\s*\(.*?\)\s*|\s*[0-9]+(?:\.[0-9]+)?\s*(?:mg|mL|g|밀리그람|밀리리터|마이크로그람|mcg|IU|%)\s*",
-    re.IGNORECASE,
-)
+_UNIT_NORMALIZE = [
+    (re.compile(r"(\d+(?:\.\d+)?)\s*mg\b", re.IGNORECASE), r"\1밀리그램"),
+    (re.compile(r"(\d+(?:\.\d+)?)\s*mL\b", re.IGNORECASE), r"\1밀리리터"),
+    (re.compile(r"(\d+(?:\.\d+)?)\s*mcg\b", re.IGNORECASE), r"\1마이크로그램"),
+    (re.compile(r"(\d+(?:\.\d+)?)\s*g\b", re.IGNORECASE), r"\1그램"),
+]
+
+_PAREN_PATTERN = re.compile(r"\s*\(.*?\)\s*")
 
 
-def _strip_dosage(name: str) -> str:
-    return _DOSAGE_PATTERN.sub("", name).strip()
+def _normalize_drug_name(name: str) -> str:
+    """OCR 약물명의 단위(mg→밀리그램 등)를 DB 형식으로 정규화하고 공백·괄호를 제거합니다."""
+    name = _PAREN_PATTERN.sub("", name)
+    for pattern, repl in _UNIT_NORMALIZE:
+        name = pattern.sub(repl, name)
+    return re.sub(r"\s+", "", name).strip()
 
 
 async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
     """OCR 약물명을 drug_master 테이블과 pg_trgm으로 매칭해 정규화합니다.
-    word_similarity > 0.7이면 DB 약물명으로 교체, 미달이면 원문 유지.
+
+    단위 정규화(mg→밀리그램) 후 word_similarity > 0.6으로 1차 매칭.
+    미달이면 원문 유지.
     """
     result = []
     for m in medications:
@@ -248,10 +258,10 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
         if not name:
             result.append(m)
             continue
-        stripped = _strip_dosage(name)
+        normalized = _normalize_drug_name(name)
         row = await conn.fetchrow(
-            "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.7 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
-            stripped,
+            "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.6 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
+            normalized,
         )
         if row:
             m = {**m, "medication_name": row["item_name"]}
