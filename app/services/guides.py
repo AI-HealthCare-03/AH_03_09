@@ -337,11 +337,21 @@ async def _enrich_easy_summary(item: MedicationItem) -> list[str]:
         return item.easy_summary
 
 
+def _normalize_drug_name(name: str) -> str:
+    n = name.strip().lower().replace(" ", "")
+    # .lower() 이후이므로 이미 소문자이지만 re.IGNORECASE로 명시적 처리 (40mg, 40MG 모두 대응)
+    n = re.sub(r"(\d)mg\b", r"\1밀리그램", n, flags=re.IGNORECASE)
+    n = re.sub(r"(\d)mcg\b", r"\1마이크로그램", n, flags=re.IGNORECASE)
+    n = re.sub(r"(\d)ml\b", r"\1밀리리터", n, flags=re.IGNORECASE)
+    n = re.sub(r"[캡캅]셀", "캡슐", n)
+    return n
+
+
 def _search_medication_master(name: str) -> MedicationItem | None:
     df = _get_master_drug_df()
     if df is None:
         return None
-    normalized = name.strip().lower().replace(" ", "")
+    normalized = _normalize_drug_name(name)
     mask = (
         df["ITEM_NAME"]
         .astype(str)
@@ -378,7 +388,7 @@ def _search_medication_master(name: str) -> MedicationItem | None:
 
 def _search_medication(name: str) -> MedicationItem:
     df = _get_drug_df()
-    normalized = name.strip().lower().replace(" ", "")
+    normalized = _normalize_drug_name(name)
     mask = (
         df["itemName"]
         .astype(str)
