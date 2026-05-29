@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { fetchDocument, fetchJobStatus, patchDocument, reanalyzeDocument } from "@/api/ocr";
+import { fetchDocument, fetchJobStatus, patchDocument } from "@/api/ocr";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,12 +52,9 @@ export default function UploadReview() {
   const reclassifyMutation = useMutation({
     mutationFn: async (newDocType: DocType) => {
       await patchDocument(recordId as number, { doc_type: newDocType });
-      return reanalyzeDocument(recordId as number, true);
     },
-    onSuccess: (job) => {
-      navigate(`/upload/processing/${job.job_id}`, {
-        state: { recordId, skipReview: true },
-      });
+    onSuccess: () => {
+      navigate(`/upload/result/${recordId}`);
     },
   });
 
