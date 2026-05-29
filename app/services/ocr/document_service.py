@@ -136,7 +136,7 @@ class OcrDocumentService:
             doc.valid_until = body.valid_until
         if body.hospital_name is not None:
             doc.hospital_name = body.hospital_name
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(doc)
         return doc
 
@@ -162,7 +162,7 @@ class OcrDocumentService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
         for field, value in body.model_dump(exclude_unset=True).items():
             setattr(med, field, value)
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(med)
         return med
 
