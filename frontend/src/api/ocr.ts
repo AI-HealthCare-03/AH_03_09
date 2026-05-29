@@ -123,8 +123,11 @@ export function deleteMedication(recordId: number, medicationId: number): Promis
   return request<void>(`/ocr/records/${recordId}/medications/${medicationId}`, { method: "DELETE" });
 }
 
-export function reanalyzeDocument(recordId: number): Promise<OcrJobStatusResponse> {
-  return request<OcrJobStatusResponse>(`/ocr/records/${recordId}/reanalyze`, { method: "POST" });
+export function reanalyzeDocument(recordId: number, isReclassify?: boolean): Promise<OcrJobStatusResponse> {
+  const url = isReclassify
+    ? `/ocr/records/${recordId}/reanalyze?is_reclassify=true`
+    : `/ocr/records/${recordId}/reanalyze`;
+  return request<OcrJobStatusResponse>(url, { method: "POST" });
 }
 
 export function confirmOcr(

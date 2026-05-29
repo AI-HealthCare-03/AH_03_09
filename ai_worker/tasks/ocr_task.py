@@ -105,6 +105,23 @@ async def _call_clova_ocr(content: bytes, mime_type: str) -> dict:
     }
 
 
+async def _resolve_ocr(conn: asyncpg.Connection, payload: OcrTaskPayload) -> dict:
+    """doc_type_hint가 있으면 DB의 기존 raw_text를 재사용하고, 없거나 row가 없으면 Clova를 호출합니다."""
+    if payload.doc_type_hint:
+        row = await conn.fetchrow(
+            "SELECT raw_text, confidence_score, clova_request_id FROM ocr_results WHERE document_id = $1",
+            payload.record_id,
+        )
+        if row and row["raw_text"]:
+            return {
+                "raw_text": row["raw_text"],
+                "confidence": row["confidence_score"] or 0.0,
+                "request_id": row["clova_request_id"] or "",
+            }
+    content = await _read_file(payload.s3_key, payload.s3_bucket)
+    return await _call_clova_ocr(content, payload.mime_type)
+
+
 async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
     """OCR 작업 처리: PENDING → PROCESSING → DONE/FAILED. (REQ-OCR-024/025)"""
     conn: asyncpg.Connection | None = None
@@ -118,9 +135,9 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
             payload.job_id,
         )
 
-        content = await _read_file(payload.s3_key, payload.s3_bucket)
-        ocr = await _call_clova_ocr(content, payload.mime_type)
-        doc_type = await classify_document(ocr["raw_text"])
+        ocr = await _resolve_ocr(conn, payload)
+
+        doc_type = payload.doc_type_hint or await classify_document(ocr["raw_text"])
         elapsed_ms = int(time.monotonic() * 1000) - start_ms
         processed_text = _mask_pii(ocr["raw_text"])
 

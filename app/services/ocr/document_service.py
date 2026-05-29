@@ -171,21 +171,18 @@ class OcrDocumentService:
         med.is_active = False
         await self.session.flush()
 
-    async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
+    async def reanalyze_document(self, record_id: int, user_id: int, is_reclassify: bool = False) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
-        if doc.ocr_status == OcrStatus.DONE:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="이미 처리 완료된 문서는 재추출할 수 없습니다."
-            )
         if doc.ocr_status == OcrStatus.PROCESSING:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 재추출할 수 없습니다.")
-        if doc.reanalyze_count >= 5:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
-            )
+        if not is_reclassify:
+            if doc.reanalyze_count >= 5:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
+                )
+            doc.reanalyze_count += 1
         doc.ocr_status = OcrStatus.PENDING
-        doc.reanalyze_count += 1
         await self.session.commit()
         await self.session.refresh(doc)
         await self._publish_ocr_job(doc)
@@ -210,14 +207,29 @@ class OcrDocumentService:
 
         guide_job_id: str | None = None
         if trigger_guide:
-            from app.dtos.guides import GenerateGuideRequest, GuideType
+            from app.dtos.guides import GenerateGuideRequest, GuideType, MedicationDetail
             from app.services.guides import GuideService
 
-            medication_names = [m.medication_name for m in (doc.medications or []) if m.medication_name]
+            active_meds = [m for m in (doc.medications or []) if m.is_active and m.medication_name]
+            active_codes = [c for c in (doc.disease_codes or []) if c.is_active and c.icd10_code]
             guide_req = GenerateGuideRequest(
                 patient_id=str(user_id),
                 guide_types=list(GuideType),
-                medication_names=medication_names,
+                medication_names=[m.medication_name for m in active_meds],
+                medications=[
+                    MedicationDetail(
+                        medication_name=m.medication_name,
+                        generic_name=m.generic_name,
+                        dosage=m.dosage,
+                        frequency=m.frequency,
+                        timing=m.timing,
+                        duration_days=m.duration_days,
+                        time_of_day=m.time_of_day,
+                        warnings=m.warnings,
+                    )
+                    for m in active_meds
+                ],
+                disease_codes=[c.icd10_code for c in active_codes],
             )
             guide_resp = await GuideService().create_guide_job(guide_req)
             guide_job_id = guide_resp.job_id
@@ -239,6 +251,7 @@ class OcrDocumentService:
             "user_id": doc.user_id,
             "mime_type": doc.mime_type,
             "original_filename": doc.original_filename,
+            "doc_type_hint": doc.doc_type,
         }
         try:
             redis = self._redis or await get_redis()

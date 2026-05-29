@@ -1,3 +1,4 @@
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -63,9 +64,13 @@ def auth_headers(sample_user_payload):
 
 @pytest.fixture(scope="session")
 def postgres_url():
-    """세션당 1회만 Postgres 컨테이너를 띄우고 asyncpg URL을 yield."""
-    with PostgresContainer("postgres:16-alpine", driver="asyncpg") as pg:
-        yield pg.get_connection_url()
+    """CI 환경(TEST_DATABASE_URL 설정 시) 기존 서비스 DB 사용, 로컬은 testcontainers로 자동 실행."""
+    url = os.environ.get("TEST_DATABASE_URL")
+    if url:
+        yield url
+    else:
+        with PostgresContainer("postgres:16-alpine", driver="asyncpg") as pg:
+            yield pg.get_connection_url()
 
 
 @pytest.fixture
