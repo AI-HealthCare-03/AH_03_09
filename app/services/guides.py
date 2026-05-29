@@ -30,6 +30,7 @@ from app.dtos.guides import (
     GuideType,
     JobStatus,
     LifestyleGuide,
+    MedicationDetail,
     MedicationGuide,
     MedicationItem,
     MedicationMatchStatus,
@@ -406,6 +407,20 @@ def _search_medication(name: str) -> MedicationItem:
     return _row_to_medication_item(matches.iloc[0])
 
 
+def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
+    schedule: dict[str, list[str]] = {}
+    for med in medications:
+        name = med.medication_name
+        if med.time_of_day:
+            for slot in med.time_of_day:
+                schedule.setdefault(str(slot), []).append(name)
+        elif med.timing:
+            schedule.setdefault(med.timing, []).append(name)
+        else:
+            schedule.setdefault("복용 시간 확인 필요", []).append(name)
+    return [{"time": t, "medications": names} for t, names in schedule.items()]
+
+
 async def _make_medication_guide_from_csv(medication_names: list[str]) -> MedicationGuide:
     items = [_search_medication(n) for n in medication_names]
     enriched_summaries = await asyncio.gather(*[_enrich_easy_summary(item) for item in items])
@@ -494,7 +509,12 @@ async def _make_lifestyle_guide_with_llm(medication_names: list[str]):
 
 
 async def _run_mock_worker(
-    job_id: str, guide_id: str, guide_types: list[GuideType], medication_names: list[str]
+    job_id: str,
+    guide_id: str,
+    guide_types: list[GuideType],
+    medication_names: list[str],
+    medications: list[MedicationDetail],
+    disease_codes: list[str],
 ) -> None:
     await asyncio.sleep(1)
     _jobs[job_id]["status"] = JobStatus.PROCESSING
@@ -521,16 +541,7 @@ async def _run_mock_worker(
         medication_guide=(
             await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
         ),
-        schedule_table=[
-            {
-                "time": "아침 식후",
-                "medications": ["아모잘탄"],
-            },
-            {
-                "time": "필요 시",
-                "medications": ["어린이타이레놀산160밀리그램(아세트아미노펜)"],
-            },
-        ],
+        schedule_table=_build_schedule_table(medications) or None,
         lifestyle_guide=lifestyle_guide,
         diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
@@ -538,6 +549,7 @@ async def _run_mock_worker(
     )
 
     _guides[guide_id] = guide.model_dump()
+    _guides[guide_id]["disease_codes"] = disease_codes
     _jobs[job_id]["status"] = JobStatus.DONE
     _jobs[job_id]["guide_id"] = guide_id
 
@@ -550,7 +562,11 @@ class GuideService:
         job_id = str(uuid.uuid4())
         guide_id = str(uuid.uuid4())
         _jobs[job_id] = {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id}
-        asyncio.create_task(_run_mock_worker(job_id, guide_id, req.guide_types, req.medication_names))
+        asyncio.create_task(
+            _run_mock_worker(
+                job_id, guide_id, req.guide_types, req.medication_names, req.medications, req.disease_codes
+            )
+        )
         return GenerateGuideResponse(job_id=job_id)
 
     async def get_job_status(self, job_id: str) -> GuideStatusResponse:
@@ -604,7 +620,7 @@ class GuideService:
         return GuideContextResponse(
             guide_id=guide_id,
             medications=medications,
-            disease_codes=["J06.9", "M79.3"],
+            disease_codes=guide.get("disease_codes", []),
             key_instructions=[
                 "식후 복용을 반드시 지켜주세요.",
                 "음주 중 복용을 삼가세요.",
