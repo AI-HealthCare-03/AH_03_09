@@ -137,6 +137,7 @@ class OcrDocumentService:
         if body.hospital_name is not None:
             doc.hospital_name = body.hospital_name
         await self.session.flush()
+        await self.session.refresh(doc)
         return doc
 
     async def add_medication(self, record_id: int, user_id: int, body: MedicationCreateRequest) -> Medication:
@@ -162,6 +163,7 @@ class OcrDocumentService:
         for field, value in body.model_dump(exclude_unset=True).items():
             setattr(med, field, value)
         await self.session.flush()
+        await self.session.refresh(med)
         return med
 
     async def delete_medication(self, record_id: int, medication_id: int, user_id: int) -> None:
