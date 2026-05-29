@@ -451,3 +451,58 @@ class TestOcrConfirm:
         job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
         response = client.post(f"/api/v1/ocr/jobs/{job_id}/confirm", json={})
         assert response.status_code in (401, 403)
+
+
+class TestUpdateDiseaseCode:
+    def test_update_disease_code_success(self, client, mock_db, auth_headers):
+        """ICD-10 코드 수정 성공 → 200 + 갱신된 disease_name 반환"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        mock_code = MagicMock()
+        mock_code.id = 1
+        mock_code.icd10_code = "J30.1"
+        mock_code.disease_name = "알레르기비염"
+        mock_code.confidence_score = None
+        mock_code.is_confirmed = False
+        mock_code.is_active = True
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.update_disease_code = AsyncMock(return_value=mock_code)
+            response = client.patch(
+                "/api/v1/ocr/records/1/disease-codes/1",
+                json={"icd10_code": "J30.1"},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 200
+        assert response.json()["icd10_code"] == "J30.1"
+        assert response.json()["disease_name"] == "알레르기비염"
+
+    def test_update_disease_code_not_found(self, client, mock_db, auth_headers):
+        """존재하지 않는 질병코드 수정 → 404"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.update_disease_code = AsyncMock(
+                side_effect=HTTPException(status_code=404, detail="질병분류기호를 찾을 수 없습니다.")
+            )
+            response = client.patch(
+                "/api/v1/ocr/records/1/disease-codes/999",
+                json={"icd10_code": "J30.1"},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 404
+
+    def test_update_disease_code_missing_code(self, client, mock_db, auth_headers):
+        """icd10_code 없이 요청 → 422"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.update_disease_code = AsyncMock()
+            response = client.patch(
+                "/api/v1/ocr/records/1/disease-codes/1",
+                json={},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 422

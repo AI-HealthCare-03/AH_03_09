@@ -438,8 +438,12 @@ async def update_disease_code(
     current_user: _AUTH,
     session: _SESSION,
 ) -> DiseaseCodeResponse:
-    """질병 분류기호를 수정합니다. (REQ-OCR-014)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    """ICD-10 코드를 수정합니다. 질병명은 코드 기반으로 자동 갱신됩니다. (REQ-OCR-014)"""
+    if not body.icd10_code:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="icd10_code는 필수입니다.")
+    svc = OcrDocumentService(session)
+    code = await svc.update_disease_code(record_id, disease_code_id, current_user.id, body.icd10_code)
+    return DiseaseCodeResponse.model_validate(code)
 
 
 @ocr_router.post("/records/{record_id}/disease-codes/confirm", status_code=status.HTTP_200_OK)

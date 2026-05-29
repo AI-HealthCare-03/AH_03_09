@@ -96,7 +96,7 @@ async def parse_medications_and_diseases(raw_text: str, doc_type: str) -> dict:
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=config.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {
