@@ -1,10 +1,11 @@
 import uuid
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.ocr.ocr_document import OcrDocument
+from app.models.ocr.ocr_document import Medication, OcrDocument
 
 
 class OcrDocumentRepository:
@@ -44,6 +45,21 @@ class OcrDocumentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_job_id_with_medications(self, job_id: uuid.UUID, user_id: int) -> OcrDocument | None:
+        result = await self.session.execute(
+            select(OcrDocument)
+            .options(
+                selectinload(OcrDocument.result),
+                selectinload(OcrDocument.medications),
+                selectinload(OcrDocument.disease_codes),
+            )
+            .where(
+                OcrDocument.job_id == job_id,
+                OcrDocument.user_id == user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_file_hash(self, user_id: int, file_hash: str) -> OcrDocument | None:
         result = await self.session.execute(
             select(OcrDocument).where(
@@ -68,6 +84,50 @@ class OcrDocumentRepository:
             await self.session.flush()
         return doc
 
+    async def count_today_uploads(self, user_id: int) -> int:
+        today_start = datetime.combine(date.today(), datetime.min.time()).replace(tzinfo=UTC)
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(OcrDocument)
+            .where(
+                OcrDocument.user_id == user_id,
+                OcrDocument.created_at >= today_start,
+            )
+        )
+        return result.scalar_one()
+
+    async def add_medication(
+        self,
+        document_id: int,
+        medication_name: str,
+        frequency: str | None,
+        duration_days: int | None,
+    ) -> Medication:
+        med = Medication(
+            document_id=document_id,
+            medication_name=medication_name,
+            frequency=frequency,
+            duration_days=duration_days,
+        )
+        self.session.add(med)
+        await self.session.flush()
+        await self.session.refresh(med)
+        return med
+
+    async def get_medication(self, record_id: int, medication_id: int, user_id: int) -> Medication | None:
+        result = await self.session.execute(
+            select(Medication)
+            .join(OcrDocument, Medication.document_id == OcrDocument.record_id)
+            .where(
+                Medication.id == medication_id,
+                Medication.document_id == record_id,
+                Medication.is_active.is_(True),
+                OcrDocument.user_id == user_id,
+                OcrDocument.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def list_by_user(
         self,
         user_id: int,
@@ -89,6 +149,11 @@ class OcrDocumentRepository:
         total = total_result.scalar_one()
 
         result = await self.session.execute(
-            select(OcrDocument).where(*conditions).order_by(order).limit(limit).offset(offset)
+            select(OcrDocument)
+            .options(selectinload(OcrDocument.result))
+            .where(*conditions)
+            .order_by(order)
+            .limit(limit)
+            .offset(offset)
         )
         return list(result.scalars().all()), total

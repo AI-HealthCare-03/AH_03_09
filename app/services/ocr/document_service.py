@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config
 from app.core.redis_client import get_redis
-from app.dtos.ocr.document_dtos import OcrDocumentUpdateRequest
-from app.models.ocr.ocr_document import OcrDocument, OcrStatus
+from app.dtos.ocr.document_dtos import MedicationCreateRequest, MedicationUpdateRequest, OcrDocumentUpdateRequest
+from app.models.ocr.ocr_document import Medication, OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
 
@@ -137,27 +137,112 @@ class OcrDocumentService:
         if body.hospital_name is not None:
             doc.hospital_name = body.hospital_name
         await self.session.flush()
+        await self.session.refresh(doc)
         return doc
 
-    async def reanalyze_document(self, record_id: int, user_id: int) -> OcrDocument:
+    async def add_medication(self, record_id: int, user_id: int, body: MedicationCreateRequest) -> Medication:
         doc = await self.get_document(record_id, user_id)
-        if doc.ocr_status == OcrStatus.DONE:
+        if doc.ocr_status != OcrStatus.DONE:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="이미 처리 완료된 문서는 재추출할 수 없습니다."
+                status_code=status.HTTP_409_CONFLICT,
+                detail="OCR 처리가 완료된 문서에만 약물을 추가할 수 있습니다.",
             )
+        return await self.repo.add_medication(
+            document_id=record_id,
+            medication_name=body.medication_name,
+            frequency=body.frequency,
+            duration_days=body.duration_days,
+        )
+
+    async def update_medication(
+        self, record_id: int, medication_id: int, user_id: int, body: MedicationUpdateRequest
+    ) -> Medication:
+        med = await self.repo.get_medication(record_id, medication_id, user_id)
+        if med is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
+        for field, value in body.model_dump(exclude_unset=True).items():
+            setattr(med, field, value)
+        await self.session.flush()
+        await self.session.refresh(med)
+        return med
+
+    async def delete_medication(self, record_id: int, medication_id: int, user_id: int) -> None:
+        med = await self.repo.get_medication(record_id, medication_id, user_id)
+        if med is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
+        med.is_active = False
+        await self.session.flush()
+
+    async def reanalyze_document(self, record_id: int, user_id: int, is_reclassify: bool = False) -> OcrDocument:
+        doc = await self.get_document(record_id, user_id)
         if doc.ocr_status == OcrStatus.PROCESSING:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="처리 중인 문서는 재추출할 수 없습니다.")
-        if doc.reanalyze_count >= 5:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
-            )
+        if not is_reclassify:
+            if doc.reanalyze_count >= 5:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="재추출 횟수를 초과했습니다. 파일에 문제가 있을 수 있으니 새로운 파일로 재업로드해 주세요.",
+                )
+            doc.reanalyze_count += 1
         doc.ocr_status = OcrStatus.PENDING
-        doc.reanalyze_count += 1
         await self.session.commit()
         await self.session.refresh(doc)
         await self._publish_ocr_job(doc)
         return doc
+
+    async def confirm_document(
+        self,
+        job_id: uuid.UUID,
+        user_id: int,
+        trigger_guide: bool,
+        trigger_chatbot_context: bool,
+    ) -> tuple[int, uuid.UUID, str | None]:
+        """OCR 결과를 확인하고 가이드 생성·챗봇 컨텍스트 등록을 트리거합니다."""
+        doc = await self.repo.get_by_job_id_with_medications(job_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="작업을 찾을 수 없습니다.")
+        if doc.ocr_status != OcrStatus.DONE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="OCR 처리가 완료된 문서만 확인할 수 있습니다.",
+            )
+
+        guide_job_id: str | None = None
+        if trigger_guide:
+            from app.dtos.guides import GenerateGuideRequest, GuideType, MedicationDetail
+            from app.services.guides import GuideService
+
+            active_meds = [m for m in (doc.medications or []) if m.is_active and m.medication_name]
+            active_codes = [c for c in (doc.disease_codes or []) if c.is_active and c.icd10_code]
+            guide_req = GenerateGuideRequest(
+                patient_id=str(user_id),
+                guide_types=list(GuideType),
+                medication_names=[m.medication_name for m in active_meds],
+                medications=[
+                    MedicationDetail(
+                        medication_name=m.medication_name,
+                        generic_name=m.generic_name,
+                        dosage=m.dosage,
+                        frequency=m.frequency,
+                        timing=m.timing,
+                        duration_days=m.duration_days,
+                        time_of_day=m.time_of_day,
+                        warnings=m.warnings,
+                    )
+                    for m in active_meds
+                ],
+                disease_codes=[c.icd10_code for c in active_codes],
+            )
+            guide_resp = await GuideService().create_guide_job(guide_req)
+            guide_job_id = guide_resp.job_id
+
+        if trigger_chatbot_context:
+            logger.info(
+                "trigger_chatbot_context: REQ-OCR-018 pgvector 임베딩 미구현, 건너뜀 (record_id=%s)",
+                doc.record_id,
+            )
+
+        return doc.record_id, doc.job_id, guide_job_id
 
     async def _publish_ocr_job(self, doc: OcrDocument) -> None:
         payload = {
@@ -168,6 +253,7 @@ class OcrDocumentService:
             "user_id": doc.user_id,
             "mime_type": doc.mime_type,
             "original_filename": doc.original_filename,
+            "doc_type_hint": doc.doc_type,
         }
         try:
             redis = self._redis or await get_redis()

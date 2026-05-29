@@ -1,12 +1,30 @@
-import { useQuery } from "@tanstack/react-query";
-import { Maximize2Icon } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchDocument, fetchDocumentFile, fetchOcrResult } from "@/api/ocr";
+import { toast } from "sonner";
+import {
+  type MedicationCreateBody,
+  type MedicationUpdateBody,
+  addMedication,
+  confirmOcr,
+  deleteMedication,
+  fetchDocument,
+  fetchDocumentFile,
+  fetchOcrResult,
+  searchDrugs,
+  updateMedication,
+} from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DocType } from "@/types/api";
 
@@ -34,9 +52,93 @@ export default function UploadResult() {
   const { recordId: recordIdStr } = useParams<{ recordId: string }>();
   const recordId = Number(recordIdStr);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<MedicationUpdateBody>({});
+
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [drugSearch, setDrugSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [addForm, setAddForm] = useState<MedicationCreateBody>({
+    medication_name: "",
+    frequency: null,
+    duration_days: null,
+  });
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
+
+  const resetAddForm = () => {
+    setDrugSearch("");
+    setAddForm({ medication_name: "", frequency: null, duration_days: null });
+    setShowSuggestions(false);
+    setDupWarning(null);
+  };
+
+  const updateMedMutation = useMutation({
+    mutationFn: ({ medId, body }: { medId: number; body: MedicationUpdateBody }) =>
+      updateMedication(recordId, medId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      setEditingId(null);
+      toast.success("약물 정보가 수정되었습니다.");
+    },
+    onError: () => toast.error("수정에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const deleteMedMutation = useMutation({
+    mutationFn: (medId: number) => deleteMedication(recordId, medId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      toast.success("약물이 삭제되었습니다.");
+    },
+    onError: () => toast.error("삭제에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const addMedMutation = useMutation({
+    mutationFn: (body: MedicationCreateBody) => addMedication(recordId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      setAddModalOpen(false);
+      resetAddForm();
+      toast.success("약물이 추가되었습니다.");
+    },
+    onError: () => toast.error("추가에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const { data: drugSuggestions } = useQuery({
+    queryKey: ["drug-search", drugSearch],
+    queryFn: () => searchDrugs(drugSearch),
+    enabled: drugSearch.length >= 2,
+    staleTime: 30_000,
+  });
+
+  const findDuplicate = (name: string): string | null => {
+    const n = name.toLowerCase().replace(/\s/g, "");
+    for (const m of medications) {
+      const e = m.medication_name.toLowerCase().replace(/\s/g, "");
+      if (e.includes(n) || n.includes(e)) return m.medication_name;
+    }
+    return null;
+  };
+
+  const handleAddSubmit = (force = false) => {
+    if (!force) {
+      const dup = findDuplicate(addForm.medication_name);
+      if (dup) {
+        setDupWarning(dup);
+        return;
+      }
+    }
+    addMedMutation.mutate(addForm);
+  };
+
+  const confirmMutation = useMutation({
+    mutationFn: (jobId: string) =>
+      confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
+    onSuccess: () => navigate("/health-guide"),
+  });
 
   useEffect(() => {
     if (!recordId) return;
@@ -74,7 +176,7 @@ export default function UploadResult() {
     );
   }
 
-  const medications = doc.medications.filter((m) => m.is_active);
+  const medications = doc.medications.filter((m) => m.is_active).sort((a, b) => a.id - b.id);
   const diseaseCodes = doc.disease_codes.filter((c) => c.is_active);
   const ocrText = result?.processed_text ?? result?.raw_text;
 
@@ -89,6 +191,15 @@ export default function UploadResult() {
           <Button variant="outline" size="sm" onClick={() => navigate("/documents")}>
             목록으로
           </Button>
+          {doc?.job_id && (
+            <Button
+              size="sm"
+              onClick={() => confirmMutation.mutate(doc.job_id)}
+              disabled={confirmMutation.isPending}
+            >
+              {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -143,14 +254,25 @@ export default function UploadResult() {
       {/* Medications */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            약물 목록
-            {medications.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {medications.length}개
-              </span>
-            )}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">
+              약물 목록
+              {medications.length > 0 && (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  {medications.length}개
+                </span>
+              )}
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddModalOpen(true)}
+              disabled={editingId !== null}
+            >
+              <PlusIcon className="mr-1 size-3.5" />
+              약물 추가
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {medications.length === 0 ? (
@@ -162,66 +284,130 @@ export default function UploadResult() {
               <table className="w-full text-sm">
                 <thead className="border-b">
                   <tr>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      약물명
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      EDI 코드
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      성분명
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      용량
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      복약 횟수
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      기간
-                    </th>
-                    <th
-                      scope="col"
-                      className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                    >
-                      신뢰도
-                    </th>
+                    {["약물명", "EDI 코드", "성분명", "용량", "복약 횟수", "기간", ""].map((h) => (
+                      <th
+                        key={h}
+                        scope="col"
+                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {medications.map((m) => (
-                    <tr key={m.id}>
-                      <td className="py-2.5 font-medium">{m.medication_name}</td>
-                      <td className="py-2.5 font-mono text-muted-foreground">{m.edi_code ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
-                      <td className="py-2.5 text-muted-foreground">
-                        {m.duration_days != null ? `${m.duration_days}일` : "-"}
-                      </td>
-                      <td className="py-2.5">
-                        <ConfidenceBadge score={m.confidence_score} />
-                      </td>
-                    </tr>
-                  ))}
+                  {medications.map((m) => {
+                    const isEditing = editingId === m.id;
+                    const isBusy =
+                      (updateMedMutation.isPending && updateMedMutation.variables?.medId === m.id) ||
+                      (deleteMedMutation.isPending && deleteMedMutation.variables === m.id);
+
+                    if (isEditing) {
+                      return (
+                        <tr key={m.id} className="bg-muted/20">
+                          <td className="py-2.5 font-medium">{m.medication_name}</td>
+                          <td className="py-2.5 font-mono text-muted-foreground">
+                            {m.edi_code ?? "-"}
+                          </td>
+                          <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
+                          <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-24 rounded border px-2 py-1 text-sm"
+                              value={editForm.frequency ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, frequency: e.target.value || null }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="number"
+                              min={1}
+                              className="w-16 rounded border px-2 py-1 text-sm"
+                              value={editForm.duration_days ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({
+                                  ...f,
+                                  duration_days: e.target.value ? Number(e.target.value) : null,
+                                }))
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5">
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  updateMedMutation.mutate({
+                                    medId: m.id,
+                                    body: {
+                                      frequency: editForm.frequency,
+                                      duration_days: editForm.duration_days,
+                                    },
+                                  })
+                                }
+                              >
+                                저장
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={isBusy}
+                                onClick={() => setEditingId(null)}
+                              >
+                                <XIcon className="size-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={m.id} className="transition-colors hover:bg-muted/20">
+                        <td className="py-2.5 font-medium">{m.medication_name}</td>
+                        <td className="py-2.5 font-mono text-muted-foreground">
+                          {m.edi_code ?? "-"}
+                        </td>
+                        <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
+                        <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
+                        <td className="py-2.5 text-muted-foreground">{m.frequency ?? "-"}</td>
+                        <td className="py-2.5 text-muted-foreground">
+                          {m.duration_days != null ? `${m.duration_days}일` : "-"}
+                        </td>
+                        <td className="py-2.5">
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2"
+                              disabled={isBusy || editingId !== null}
+                              onClick={() => {
+                                setEditForm({
+                                  frequency: m.frequency,
+                                  duration_days: m.duration_days,
+                                });
+                                setEditingId(m.id);
+                              }}
+                            >
+                              <PencilIcon className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-destructive hover:text-destructive"
+                              disabled={isBusy || editingId !== null}
+                              onClick={() => deleteMedMutation.mutate(m.id)}
+                            >
+                              <Trash2Icon className="size-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -339,6 +525,120 @@ export default function UploadResult() {
           </CardContent>
         </Card>
       )}
+
+      {/* Add medication modal */}
+      <Dialog
+        open={addModalOpen}
+        onOpenChange={(open) => {
+          setAddModalOpen(open);
+          if (!open) resetAddForm();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>약물 추가</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Drug name autocomplete */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                약물명 <span className="text-destructive">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="약물명 검색 또는 직접 입력"
+                  value={drugSearch}
+                  onChange={(e) => {
+                    setDrugSearch(e.target.value);
+                    setAddForm((f) => ({ ...f, medication_name: e.target.value }));
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                />
+                {showSuggestions && drugSuggestions && drugSuggestions.length > 0 && (
+                  <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-background shadow-md">
+                    {drugSuggestions.map((s) => (
+                      <li
+                        key={s.item_name}
+                        className="cursor-pointer px-3 py-2 text-sm hover:bg-muted"
+                        onMouseDown={() => {
+                          setDrugSearch(s.item_name);
+                          setAddForm((f) => ({ ...f, medication_name: s.item_name }));
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        {s.item_name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {/* Frequency */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">복약 횟수</label>
+              <input
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="예: 1일 3회"
+                value={addForm.frequency ?? ""}
+                onChange={(e) =>
+                  setAddForm((f) => ({ ...f, frequency: e.target.value || null }))
+                }
+              />
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="mb-1 block text-sm font-medium">기간 (일)</label>
+              <input
+                type="number"
+                min={1}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="예: 30"
+                value={addForm.duration_days ?? ""}
+                onChange={(e) =>
+                  setAddForm((f) => ({
+                    ...f,
+                    duration_days: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {dupWarning && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span className="font-medium">"{dupWarning}"</span>이(가) 이미 목록에 있습니다.
+              그래도 추가하시겠습니까?
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddModalOpen(false)}>
+              취소
+            </Button>
+            {dupWarning ? (
+              <Button
+                disabled={addMedMutation.isPending}
+                onClick={() => handleAddSubmit(true)}
+              >
+                {addMedMutation.isPending ? "추가 중..." : "그래도 추가"}
+              </Button>
+            ) : (
+              <Button
+                disabled={!addForm.medication_name.trim() || addMedMutation.isPending}
+                onClick={() => handleAddSubmit()}
+              >
+                {addMedMutation.isPending ? "추가 중..." : "추가"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,10 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { fetchDocument, fetchJobStatus, patchDocument } from "@/api/ocr";
+import { fetchDocument, fetchJobStatus, patchDocument, reanalyzeDocument } from "@/api/ocr";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DocType } from "@/types/api";
 
@@ -26,8 +29,8 @@ export default function UploadReview() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const queryClient = useQueryClient();
   const stateRecordId = location.state?.recordId as number | undefined;
+  const retakeRecommended = location.state?.retakeRecommended as boolean | undefined;
 
   const { data: jobStatus } = useQuery({
     queryKey: ["ocr-status", jobId],
@@ -44,21 +47,26 @@ export default function UploadReview() {
   });
 
   const [selected, setSelected] = useState<DocType | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const patchMutation = useMutation({
-    mutationFn: (docType: DocType) => patchDocument(recordId as number, { doc_type: docType }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
-      navigate(`/upload/result/${recordId}`);
+  const reclassifyMutation = useMutation({
+    mutationFn: async (newDocType: DocType) => {
+      await patchDocument(recordId as number, { doc_type: newDocType });
+      return reanalyzeDocument(recordId as number, true);
+    },
+    onSuccess: (job) => {
+      navigate(`/upload/processing/${job.job_id}`, {
+        state: { recordId, skipReview: true },
+      });
     },
   });
 
   const handleConfirm = () => {
-    if (selected && selected !== doc?.doc_type) {
-      patchMutation.mutate(selected);
-    } else {
+    if (!selected || selected === doc?.doc_type) {
       navigate(`/upload/result/${recordId}`);
+      return;
     }
+    setConfirmOpen(true);
   };
 
   if (isLoading || !doc) {
@@ -84,6 +92,14 @@ export default function UploadReview() {
         <CardTitle>문서 유형 확인</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        {retakeRecommended && (
+          <Alert variant="destructive">
+            <AlertTriangleIcon className="size-4" />
+            <AlertDescription>
+              이미지 품질이 낮아 인식 정확도가 떨어질 수 있습니다. 더 선명하게 재촬영하시면 정확도가 높아집니다.
+            </AlertDescription>
+          </Alert>
+        )}
         <div>
           <p className="text-sm text-muted-foreground mb-1">파일명</p>
           <p className="font-medium">{doc.original_filename}</p>
@@ -129,10 +145,33 @@ export default function UploadReview() {
         <Button variant="outline" onClick={() => navigate("/home")} className="flex-1">
           취소
         </Button>
-        <Button onClick={handleConfirm} disabled={patchMutation.isPending} className="flex-1">
-          {patchMutation.isPending ? "저장 중..." : "결과 확인"}
+        <Button onClick={handleConfirm} disabled={reclassifyMutation.isPending} className="flex-1">
+          {reclassifyMutation.isPending ? "처리 중..." : "결과 확인"}
         </Button>
       </CardFooter>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>문서 유형 변경</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            자동 분류 결과(<strong>{doc.doc_type ? DOC_TYPE_LABEL[doc.doc_type] : "분류 불가"}</strong>)와 다릅니다.{" "}
+            <strong>{selected ? DOC_TYPE_LABEL[selected] : ""}</strong>으로 재분류하면 OCR이 다시 실행됩니다. 계속하시겠습니까?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              취소
+            </Button>
+            <Button
+              onClick={() => { setConfirmOpen(false); reclassifyMutation.mutate(selected!); }}
+              disabled={reclassifyMutation.isPending}
+            >
+              재분류
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
