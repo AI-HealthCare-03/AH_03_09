@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import time
 import uuid as uuid_lib
 
@@ -104,6 +105,23 @@ async def _call_clova_ocr(content: bytes, mime_type: str) -> dict:
     }
 
 
+async def _resolve_ocr(conn: asyncpg.Connection, payload: OcrTaskPayload) -> dict:
+    """doc_type_hint가 있으면 DB의 기존 raw_text를 재사용하고, 없거나 row가 없으면 Clova를 호출합니다."""
+    if payload.doc_type_hint:
+        row = await conn.fetchrow(
+            "SELECT raw_text, confidence_score, clova_request_id FROM ocr_results WHERE document_id = $1",
+            payload.record_id,
+        )
+        if row and row["raw_text"]:
+            return {
+                "raw_text": row["raw_text"],
+                "confidence": row["confidence_score"] or 0.0,
+                "request_id": row["clova_request_id"] or "",
+            }
+    content = await _read_file(payload.s3_key, payload.s3_bucket)
+    return await _call_clova_ocr(content, payload.mime_type)
+
+
 async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
     """OCR 작업 처리: PENDING → PROCESSING → DONE/FAILED. (REQ-OCR-024/025)"""
     conn: asyncpg.Connection | None = None
@@ -117,19 +135,21 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
             payload.job_id,
         )
 
-        content = await _read_file(payload.s3_key, payload.s3_bucket)
-        ocr = await _call_clova_ocr(content, payload.mime_type)
-        doc_type = await classify_document(ocr["raw_text"])
+        ocr = await _resolve_ocr(conn, payload)
+
+        doc_type = payload.doc_type_hint or await classify_document(ocr["raw_text"])
         elapsed_ms = int(time.monotonic() * 1000) - start_ms
+        processed_text = _mask_pii(ocr["raw_text"])
 
         await conn.execute(
             """
             INSERT INTO ocr_results
                 (document_id, raw_text, processed_text, clova_request_id, confidence_score, processing_time_ms, is_user_edited)
-            VALUES ($1, $2, $2, $3, $4, $5, FALSE)
+            VALUES ($1, $2, $3, $4, $5, $6, FALSE)
             """,
             payload.record_id,
             ocr["raw_text"],
+            processed_text,
             ocr["request_id"],
             ocr["confidence"],
             elapsed_ms,
@@ -137,10 +157,12 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
 
         await conn.execute("DELETE FROM medications WHERE document_id = $1", payload.record_id)
         await conn.execute("DELETE FROM disease_codes WHERE document_id = $1", payload.record_id)
-        parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
-        await _insert_medications(conn, payload.record_id, parsed["medications"])
-        if doc_type == "PRESCRIPTION":
-            await _insert_disease_codes(conn, payload.record_id, parsed["disease_codes"])
+        if doc_type != "OTHER":
+            parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
+            medications = await _normalize_medication_names(conn, parsed["medications"])
+            await _insert_medications(conn, payload.record_id, medications)
+            if doc_type == "PRESCRIPTION":
+                await _insert_disease_codes(conn, payload.record_id, parsed["disease_codes"])
 
         await conn.execute(
             "UPDATE ocr_documents SET ocr_status = 'DONE', doc_type = $2, updated_at = NOW() WHERE job_id = $1",
@@ -191,6 +213,51 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
     finally:
         if conn is not None:
             await conn.close()
+
+
+_PII_PATTERNS = [
+    (re.compile(r"\d{6}-[1-8]\d{6}"), "******-*******"),  # 주민등록번호 + 외국인등록번호
+    (re.compile(r"[A-Z]{1,2}\d{7,9}"), "***-*****"),  # 여권번호
+    (re.compile(r"0\d{1,2}-\d{3,4}-\d{4}"), "***-****-****"),  # 전화번호
+]
+
+
+def _mask_pii(text: str) -> str:
+    """processed_text의 주민번호·외국인등록번호·여권번호·전화번호를 마스킹합니다. (REQ-OCR-022)"""
+    for pattern, replacement in _PII_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+_DOSAGE_PATTERN = re.compile(
+    r"\s*\(.*?\)\s*|\s*[0-9]+(?:\.[0-9]+)?\s*(?:mg|mL|g|밀리그람|밀리리터|마이크로그람|mcg|IU|%)\s*",
+    re.IGNORECASE,
+)
+
+
+def _strip_dosage(name: str) -> str:
+    return _DOSAGE_PATTERN.sub("", name).strip()
+
+
+async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
+    """OCR 약물명을 drug_master 테이블과 pg_trgm으로 매칭해 정규화합니다.
+    word_similarity > 0.7이면 DB 약물명으로 교체, 미달이면 원문 유지.
+    """
+    result = []
+    for m in medications:
+        name = (m.get("medication_name") or "").strip()
+        if not name:
+            result.append(m)
+            continue
+        stripped = _strip_dosage(name)
+        row = await conn.fetchrow(
+            "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.7 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
+            stripped,
+        )
+        if row:
+            m = {**m, "medication_name": row["item_name"]}
+        result.append(m)
+    return result
 
 
 async def _insert_medications(conn: asyncpg.Connection, record_id: int, medications: list[dict]) -> None:

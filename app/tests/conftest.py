@@ -1,6 +1,8 @@
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from testcontainers.postgres import PostgresContainer
@@ -62,9 +64,13 @@ def auth_headers(sample_user_payload):
 
 @pytest.fixture(scope="session")
 def postgres_url():
-    """세션당 1회만 Postgres 컨테이너를 띄우고 asyncpg URL을 yield."""
-    with PostgresContainer("postgres:16-alpine", driver="asyncpg") as pg:
-        yield pg.get_connection_url()
+    """CI 환경(TEST_DATABASE_URL 설정 시) 기존 서비스 DB 사용, 로컬은 testcontainers로 자동 실행."""
+    url = os.environ.get("TEST_DATABASE_URL")
+    if url:
+        yield url
+    else:
+        with PostgresContainer("postgres:16-alpine", driver="asyncpg") as pg:
+            yield pg.get_connection_url()
 
 
 @pytest.fixture
@@ -72,6 +78,7 @@ async def db_session(postgres_url):
     """테스트마다 모든 SQLAlchemy 테이블을 생성/삭제해 격리."""
     engine = create_async_engine(postgres_url)
     async with engine.begin() as conn:
+        await conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as s:

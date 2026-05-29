@@ -1,6 +1,8 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from fastapi import HTTPException
+
 _USER_ROW = {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "kakao_id": "123456789",
@@ -66,6 +68,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(return_value=_mock_doc())
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -86,6 +89,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(side_effect=[_mock_doc(i) for i in range(1, 4)])
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -118,6 +122,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(return_value=_mock_doc())
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -132,6 +137,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(return_value=_mock_doc())
             response = client.post(
                 "/api/v1/ocr/upload",
@@ -197,6 +203,7 @@ class TestOcrUpload:
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
             mock_svc.return_value.upload_document = AsyncMock(
                 side_effect=HTTPException(
                     status_code=409,
@@ -347,3 +354,100 @@ class TestOcrJobStatus:
             response = client.get(f"/api/v1/ocr/jobs/{job_id}/status", headers=auth_headers)
 
         assert response.status_code == 404
+
+    def test_get_job_status_low_confidence_sets_retake_recommended(self, client, mock_db, auth_headers):
+        """DONE + confidence < 0.7 → retake_recommended=True (REQ-OCR-020)"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+
+        doc = _mock_doc()
+        doc.ocr_status = "DONE"
+        doc.result = MagicMock()
+        doc.result.confidence_score = 0.55
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.get_job_status = AsyncMock(return_value=doc)
+            response = client.get(f"/api/v1/ocr/jobs/{job_id}/status", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retake_recommended"] is True
+        assert "재촬영" in data["message"]
+
+    def test_get_job_status_high_confidence_no_retake(self, client, mock_db, auth_headers):
+        """DONE + confidence >= 0.7 → retake_recommended=False (REQ-OCR-020)"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+
+        doc = _mock_doc()
+        doc.ocr_status = "DONE"
+        doc.result = MagicMock()
+        doc.result.confidence_score = 0.92
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.get_job_status = AsyncMock(return_value=doc)
+            response = client.get(f"/api/v1/ocr/jobs/{job_id}/status", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retake_recommended"] is False
+
+
+class TestOcrConfirm:
+    def test_confirm_without_triggers_returns_200(self, client, mock_db, auth_headers):
+        """trigger 없이 confirm → 200, guide_job_id=None"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.confirm_document = AsyncMock(return_value=(1, job_id, None))
+            response = client.post(
+                f"/api/v1/ocr/jobs/{job_id}/confirm",
+                json={"trigger_guide": False, "trigger_chatbot_context": False},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["record_id"] == 1
+        assert data["guide_job_id"] is None
+
+    def test_confirm_with_trigger_guide_returns_guide_job_id(self, client, mock_db, auth_headers):
+        """trigger_guide=True → guide_job_id 반환"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.confirm_document = AsyncMock(return_value=(1, job_id, "guide-job-abc123"))
+            response = client.post(
+                f"/api/v1/ocr/jobs/{job_id}/confirm",
+                json={"trigger_guide": True, "trigger_chatbot_context": False},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["guide_job_id"] == "guide-job-abc123"
+
+    def test_confirm_not_done_returns_409(self, client, mock_db, auth_headers):
+        """DONE 아닌 문서 confirm → 409"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.confirm_document = AsyncMock(
+                side_effect=HTTPException(status_code=409, detail="OCR 처리가 완료된 문서만 확인할 수 있습니다.")
+            )
+            response = client.post(
+                f"/api/v1/ocr/jobs/{job_id}/confirm",
+                json={"trigger_guide": False, "trigger_chatbot_context": False},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 409
+
+    def test_confirm_unauthenticated_returns_401(self, client):
+        """인증 없이 confirm → 401/403"""
+        job_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440001")
+        response = client.post(f"/api/v1/ocr/jobs/{job_id}/confirm", json={})
+        assert response.status_code in (401, 403)
