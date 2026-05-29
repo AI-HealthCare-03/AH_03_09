@@ -2,7 +2,7 @@
 
 대상:
   ai_worker.tasks.ocr_parser  — _clean_ocr_text, parse_medications_and_diseases
-  ai_worker.tasks.ocr_task    — _strip_dosage, _normalize_medication_names
+  ai_worker.tasks.ocr_task    — _normalize_drug_name, _normalize_medication_names
 """
 
 import json
@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from ai_worker.tasks.ocr_parser import _clean_ocr_text, parse_medications_and_diseases
-from ai_worker.tasks.ocr_task import _mask_pii, _normalize_medication_names, _strip_dosage
+from ai_worker.tasks.ocr_task import _mask_pii, _normalize_drug_name, _normalize_medication_names
 
 # ── _clean_ocr_text ────────────────────────────────────────────────────────────
 
@@ -38,14 +38,13 @@ class TestCleanOcrText:
         assert "분홍색" not in result
         assert "흰색" not in result
 
-    def test_removes_amount_only_lines(self):
-        """금액만 있는 줄(숫자+쉼표)은 제거."""
-        raw = "타이레놀정 1정\n12,500\n세티리진정 1정\n3,000"
+    def test_preserves_numeric_lines(self):
+        """숫자만 있는 줄은 EDI 코드일 수 있으므로 제거하지 않는다."""
+        raw = "타이레놀정 1정\n642105020\n세티리진정 1정"
         result = _clean_ocr_text(raw)
         assert "타이레놀정" in result
         assert "세티리진정" in result
-        assert "12,500" not in result
-        assert "3,000" not in result
+        assert "642105020" in result
 
     def test_removes_special_char_only_lines(self):
         raw = "타이레놀정\n■■■\n---\n암로디핀정"
@@ -65,7 +64,7 @@ class TestCleanOcrText:
         assert _clean_ocr_text("") == ""
 
     def test_all_noise_returns_empty_lines(self):
-        raw = "영수증\n약제비\n본인부담"
+        raw = "영수증\n약제비\n공단부담"
         result = _clean_ocr_text(raw)
         assert result.strip() == ""
 
@@ -76,36 +75,39 @@ class TestCleanOcrText:
         assert "넥시움정" in result
 
 
-# ── _strip_dosage ──────────────────────────────────────────────────────────────
+# ── _normalize_drug_name ──────────────────────────────────────────────────────
 
 
-class TestStripDosage:
-    def test_strips_mg_unit(self):
-        assert _strip_dosage("타이레놀정 500mg") == "타이레놀정"
+class TestNormalizeDrugName:
+    def test_converts_mg_to_korean(self):
+        assert _normalize_drug_name("타이레놀정 500mg") == "타이레놀정500밀리그램"
 
-    def test_strips_parenthetical_generic(self):
-        assert _strip_dosage("타이레놀정 (아세트아미노펜)") == "타이레놀정"
+    def test_converts_ml_to_korean(self):
+        assert _normalize_drug_name("아목시실린시럽 250mL") == "아목시실린시럽250밀리리터"
 
-    def test_strips_both_mg_and_generic(self):
-        assert _strip_dosage("타이레놀정 500mg (아세트아미노펜)") == "타이레놀정"
+    def test_converts_mcg_to_korean(self):
+        assert _normalize_drug_name("레보티록신정 50mcg") == "레보티록신정50마이크로그램"
 
-    def test_strips_ml_unit(self):
-        assert _strip_dosage("아목시실린시럽 250mL") == "아목시실린시럽"
+    def test_converts_g_to_korean(self):
+        assert _normalize_drug_name("무코다정 200g") == "무코다정200그램"
 
-    def test_strips_mcg_unit(self):
-        assert _strip_dosage("레보티록신정 50mcg") == "레보티록신정"
+    def test_removes_parenthetical_generic(self):
+        assert _normalize_drug_name("타이레놀정 (아세트아미노펜)") == "타이레놀정"
 
-    def test_strips_iu_unit(self):
-        assert _strip_dosage("비타민D정 1000IU") == "비타민D정"
+    def test_converts_mg_and_removes_generic(self):
+        assert _normalize_drug_name("타이레놀정 500mg (아세트아미노펜)") == "타이레놀정500밀리그램"
 
-    def test_no_dosage_unchanged(self):
-        assert _strip_dosage("타이레놀정") == "타이레놀정"
+    def test_no_unit_unchanged(self):
+        assert _normalize_drug_name("타이레놀정") == "타이레놀정"
 
     def test_empty_string(self):
-        assert _strip_dosage("") == ""
+        assert _normalize_drug_name("") == ""
 
-    def test_strips_decimal_dosage(self):
-        assert _strip_dosage("암로디핀정 2.5mg") == "암로디핀정"
+    def test_converts_decimal_mg(self):
+        assert _normalize_drug_name("암로디핀정 2.5mg") == "암로디핀정2.5밀리그램"
+
+    def test_removes_spaces(self):
+        assert _normalize_drug_name("씨 잘 정") == "씨잘정"
 
 
 # ── _normalize_medication_names ────────────────────────────────────────────────

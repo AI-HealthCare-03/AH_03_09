@@ -12,6 +12,7 @@ import {
   fetchDocument,
   fetchDocumentFile,
   fetchOcrResult,
+  reanalyzeDocument,
   searchDrugs,
   updateMedication,
 } from "@/api/ocr";
@@ -140,6 +141,12 @@ export default function UploadResult() {
     onSuccess: () => navigate("/health-guide"),
   });
 
+  const reanalyzeMutation = useMutation({
+    mutationFn: () => reanalyzeDocument(recordId),
+    onSuccess: (data) => navigate(`/upload/processing/${data.job_id}`, { state: { recordId } }),
+    onError: () => toast.error("재추출에 실패했습니다. 다시 시도해주세요."),
+  });
+
   useEffect(() => {
     if (!recordId) return;
     let url: string | null = null;
@@ -185,6 +192,14 @@ export default function UploadResult() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">분석 결과</h1>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => reanalyzeMutation.mutate()}
+            disabled={reanalyzeMutation.isPending}
+          >
+            {reanalyzeMutation.isPending ? "요청 중..." : "재추출"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/upload")}>
             새 업로드
           </Button>
@@ -496,6 +511,7 @@ export default function UploadResult() {
 
           <Dialog open={modalOpen} onOpenChange={setModalOpen}>
             <DialogContent className="top-0 left-0 w-screen h-screen max-w-none sm:max-w-none translate-x-0 translate-y-0 rounded-none flex flex-col p-4">
+              <DialogTitle className="sr-only">원본 문서 보기</DialogTitle>
               {doc.original_filename.toLowerCase().endsWith(".pdf") ? (
                 <embed src={fileUrl} type="application/pdf" className="flex-1 rounded" />
               ) : (

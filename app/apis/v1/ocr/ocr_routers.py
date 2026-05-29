@@ -282,7 +282,10 @@ async def get_record(
     """특정 OCR 처리 결과의 상세 정보를 조회합니다. (REQ-OCR-008)"""
     svc = OcrDocumentService(session)
     doc = await svc.get_document(record_id, current_user.id)
-    return OcrDocumentDetailResponse.model_validate(doc)
+    detail = OcrDocumentDetailResponse.model_validate(doc)
+    if doc.doc_type != "PRESCRIPTION":
+        detail.disease_codes = []
+    return detail
 
 
 @ocr_router.get("/records/{record_id}/file")
@@ -422,6 +425,8 @@ async def list_disease_codes(
     """처방전의 질병 분류기호 목록을 조회합니다. (REQ-OCR-011)"""
     svc = OcrDocumentService(session)
     doc = await svc.get_document(record_id, current_user.id)
+    if doc.doc_type != "PRESCRIPTION":
+        return []
     return [DiseaseCodeResponse.model_validate(c) for c in doc.disease_codes if c.is_active]
 
 
