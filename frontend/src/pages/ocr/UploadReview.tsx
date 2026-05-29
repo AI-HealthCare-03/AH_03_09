@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -28,6 +28,7 @@ const ALL_DOC_TYPES: DocType[] = ["PRESCRIPTION", "DRUG_BAG", "OTHER"];
 export default function UploadReview() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const stateRecordId = location.state?.recordId as number | undefined;
   const retakeRecommended = location.state?.retakeRecommended as boolean | undefined;
@@ -54,6 +55,7 @@ export default function UploadReview() {
       await patchDocument(recordId as number, { doc_type: newDocType });
     },
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ["ocr-document", recordId] });
       navigate(`/upload/result/${recordId}`);
     },
   });
@@ -150,11 +152,11 @@ export default function UploadReview() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>문서 유형 변경</DialogTitle>
+            <DialogTitle>문서 유형 변경 확인</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             자동 분류 결과(<strong>{doc.doc_type ? DOC_TYPE_LABEL[doc.doc_type] : "분류 불가"}</strong>)와 다릅니다.{" "}
-            <strong>{selected ? DOC_TYPE_LABEL[selected] : ""}</strong>으로 재분류하면 OCR이 다시 실행됩니다. 계속하시겠습니까?
+            <strong>{selected ? DOC_TYPE_LABEL[selected] : ""}</strong>으로 변경하시겠습니까?
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>
