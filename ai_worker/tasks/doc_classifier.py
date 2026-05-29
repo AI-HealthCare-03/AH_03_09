@@ -1,4 +1,5 @@
 import logging
+import re
 
 from openai import AsyncOpenAI
 
@@ -41,8 +42,9 @@ _MIN_SCORE = 1  # 규칙 분류 인정 최소 점수
 
 def _rule_classify(text: str) -> str | None:
     """키워드 점수 기반 분류. 명확하지 않으면 None 반환."""
-    p_score = sum(1 for kw in _PRESCRIPTION_KW if kw in text)
-    m_score = sum(1 for kw in _MEDICATION_BAG_KW if kw in text)
+    normalized = re.sub(r"\s+", "", text)
+    p_score = sum(1 for kw in _PRESCRIPTION_KW if kw in normalized)
+    m_score = sum(1 for kw in _MEDICATION_BAG_KW if kw in normalized)
 
     if p_score == m_score:
         return None  # 동점 → AI로 넘김
