@@ -30,6 +30,34 @@ const iconMap: Record<string, string> = {
   weight: "⚖️",
 };
 
+function StarRating({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(star)}
+          className={`text-2xl leading-none disabled:cursor-not-allowed ${
+            star <= value ? "text-amber-400" : "text-gray-300"
+          }`}
+        >
+          {star <= value ? "★" : "☆"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function HealthGuide() {
   const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
@@ -47,7 +75,7 @@ export default function HealthGuide() {
 
   const [ratingComprehension, setRatingComprehension] = useState(5);
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
-  const [ratingSafety, setRatingSafety] = useState(5);
+  const [ratingSafety] = useState(5);
   const [comment, setComment] = useState("");
   const location = useLocation();
   const initialJobIdRef = useRef(
@@ -504,63 +532,36 @@ export default function HealthGuide() {
           {guideId && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">가이드 피드백</CardTitle>
+                <CardTitle className="text-lg">읽어보신 가이드는 어땠나요?</CardTitle>
               </CardHeader>
 
               <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label className="space-y-1 text-sm">
-                    <span className="font-medium">이해도</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium">이해하기 쉬웠나요?</p>
+                    <StarRating
                       value={ratingComprehension}
-                      onChange={(event) =>
-                        setRatingComprehension(Number(event.target.value))
-                      }
-                      className="w-full rounded-md border px-3 py-2"
+                      onChange={setRatingComprehension}
                       disabled={feedbackSubmitted}
                     />
-                  </label>
+                  </div>
 
-                  <label className="space-y-1 text-sm">
-                    <span className="font-medium">유용성</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium">도움이 되었나요?</p>
+                    <StarRating
                       value={ratingUsefulness}
-                      onChange={(event) =>
-                        setRatingUsefulness(Number(event.target.value))
-                      }
-                      className="w-full rounded-md border px-3 py-2"
+                      onChange={setRatingUsefulness}
                       disabled={feedbackSubmitted}
                     />
-                  </label>
-
-                  <label className="space-y-1 text-sm">
-                    <span className="font-medium">안전성</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={ratingSafety}
-                      onChange={(event) =>
-                        setRatingSafety(Number(event.target.value))
-                      }
-                      className="w-full rounded-md border px-3 py-2"
-                      disabled={feedbackSubmitted}
-                    />
-                  </label>
+                  </div>
                 </div>
 
                 <label className="space-y-1 text-sm">
-                  <span className="font-medium">의견</span>
+                  <span className="font-medium">추가 의견 (선택)</span>
                   <textarea
                     value={comment}
                     onChange={(event) => setComment(event.target.value)}
-                    placeholder="가이드에 대한 의견을 입력해주세요."
+                    placeholder="더 나은 가이드 제공을 위해 의견을 남겨주세요."
                     className="min-h-24 w-full rounded-md border px-3 py-2"
                     disabled={feedbackSubmitted}
                   />
@@ -575,7 +576,7 @@ export default function HealthGuide() {
                     ? "제출 중..."
                     : feedbackSubmitted
                       ? "피드백 제출 완료"
-                      : "피드백 제출"}
+                      : "의견 보내기"}
                 </Button>
 
                 {feedbackStatus && (
