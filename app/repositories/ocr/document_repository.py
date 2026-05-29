@@ -51,6 +51,7 @@ class OcrDocumentRepository:
             .options(
                 selectinload(OcrDocument.result),
                 selectinload(OcrDocument.medications),
+                selectinload(OcrDocument.disease_codes),
             )
             .where(
                 OcrDocument.job_id == job_id,
