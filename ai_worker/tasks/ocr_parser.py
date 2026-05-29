@@ -16,6 +16,11 @@ _NOISE_PATTERNS = [
     re.compile(r"^\s*[\d,]+\s*$"),  # 금액 숫자만 있는 줄
     re.compile(r"RECEIPT|PATIENT-\d+|RX-\d+|MEDICAL-MOCK"),  # 테스트 태그
     re.compile(r"^\s*[.。·■●◆▶▷※\-\*]+\s*$"),  # 특수문자만 있는 줄
+    # 모든 약봉투에 인쇄되는 법정 공통 안내문 (약물별 경고 아님)
+    re.compile(r"임산부.{0,15}수유부"),
+    re.compile(r"어린이.{0,10}손.{0,10}닿지"),
+    re.compile(r"의약품\s*부작용\s*신고"),
+    re.compile(r"약을?\s*먹기\s*전|이\s*약을?\s*사용하기\s*전"),
 ]
 
 
@@ -42,15 +47,13 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
       "usage_time": "복약 방법 자유 텍스트 (null)",
       "duration_days": 30,
       "time_of_day": ["아침", "점심", "저녁"],
-      "warnings": ["음주 주의", "졸음 유발 - 운전 주의"],
-      "confidence_score": 0.85
+      "warnings": ["음주 주의", "졸음 유발 - 운전 주의"]
     }
   ],
   "disease_codes": [
     {
       "icd10_code": "J45.0",
-      "disease_name": "기관지천식",
-      "confidence_score": 0.95
+      "disease_name": "기관지천식"
     }
   ]
 }
@@ -61,7 +64,6 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
 - disease_codes: 처방전에 있는 모든 상병코드를 추출. 여러 개면 모두 포함. 없거나 약봉투면 빈 배열.
 - duration_days: 정수만. "30일" → 30. 없으면 null.
 - time_of_day: 추론 가능한 경우만 배열 (예: ["아침", "저녁"]), 불명확하면 null.
-- confidence_score: 약물별로 개별 산정. 약명·용량·복약법·기간이 모두 명확하면 0.90 이상, 일부 필드(dosage, timing, duration_days 등)가 누락되거나 불명확하면 0.70~0.89, 약명만 있고 나머지 대부분 누락이면 0.70 미만. 같은 문서 내 모든 약에 동일한 점수를 부여하지 말 것.
 - warnings: 약봉투·처방전에 인쇄된 해당 약물 전용 주의 문구만 추출 (예: "음주 주의", "졸음 유발 - 운전 주의"). 문서 하단의 약국 공통 안내문(예: "임산부/수유부는 약사에게 알리세요")은 제외. 해당 약물의 주의 문구가 없으면 빈 배열 [].
 - 텍스트에 없는 정보는 null로 반환 (추측 금지)."""
 
