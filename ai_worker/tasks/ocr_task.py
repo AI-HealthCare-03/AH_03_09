@@ -141,6 +141,7 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
         elapsed_ms = int(time.monotonic() * 1000) - start_ms
         processed_text = _mask_pii(ocr["raw_text"])
 
+        await conn.execute("DELETE FROM ocr_results WHERE document_id = $1", payload.record_id)
         await conn.execute(
             """
             INSERT INTO ocr_results
