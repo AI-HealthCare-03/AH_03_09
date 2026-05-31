@@ -3,7 +3,7 @@ import json
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -190,76 +190,3 @@ class ChatService:
         assistant_msg = await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
         await self.repo.touch_session(session_id)
         return user_msg, assistant_msg
-
-    async def handle_websocket(self, websocket: WebSocket, session_id: str, user_id: int) -> None:
-        await websocket.accept()
-        redis = await get_redis()
-
-        try:
-            while True:
-                user_text = await websocket.receive_text()
-                if not user_text.strip():
-                    continue
-
-                # 유저 메시지 저장
-                await self.repo.create_message(session_id, MessageRole.USER, user_text)
-
-                # 히스토리 조회 (최근 20개)
-                history = await self.repo.get_messages(session_id, limit=20)
-                history_payload = [{"role": msg.role, "content": msg.content} for msg in history[:-1]]
-
-                health_profile = await HealthProfile.get_or_none(user_id=user_id)
-                health_context = (
-                    {
-                        "primary_conditions": health_profile.primary_conditions,
-                        "allergies": health_profile.allergies,
-                        "current_medications": health_profile.current_medications,
-                        "lifestyle_exercise": health_profile.lifestyle_exercise,
-                        "lifestyle_smoking": health_profile.lifestyle_smoking,
-                        "lifestyle_alcohol": health_profile.lifestyle_alcohol,
-                    }
-                    if health_profile
-                    else None
-                )
-
-                # AI Worker에 task 발행
-                task_payload = json.dumps(
-                    {
-                        "session_id": session_id,
-                        "user_message": user_text,
-                        "history": history_payload,
-                        "health_profile": health_context,
-                    }
-                )
-                await redis.publish(f"chat:request:{session_id}", task_payload)
-
-                # 스트리밍 응답 수신
-                pubsub = redis.pubsub()
-                await pubsub.subscribe(f"chat:stream:{session_id}")
-
-                full_response: list[str] = []
-                async for redis_msg in pubsub.listen():
-                    if redis_msg["type"] != "message":
-                        continue
-                    data: str = redis_msg["data"]
-                    if data.startswith("[ERROR]"):
-                        await websocket.send_text(json.dumps({"type": "error", "content": data[7:]}))
-                        break
-                    if data == "[DONE]":
-                        break
-                    full_response.append(data)
-                    await websocket.send_text(json.dumps({"type": "stream", "content": data}))
-
-                await pubsub.unsubscribe(f"chat:stream:{session_id}")
-                await pubsub.aclose()
-
-                # 완성된 응답 저장
-                complete_text = "".join(full_response)
-                if complete_text:
-                    await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete_text)
-                    await self.repo.touch_session(session_id)
-
-                await websocket.send_text(json.dumps({"type": "done", "content": complete_text}))
-
-        except WebSocketDisconnect:
-            pass

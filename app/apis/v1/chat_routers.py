@@ -1,11 +1,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db.sqlalchemy_client import get_async_session
 from app.dependencies.security import get_request_user
 from app.dtos.chat import (
     ChatMessageListResponse,
@@ -18,9 +16,7 @@ from app.dtos.chat import (
     MessageFeedbackRequest,
 )
 from app.models.users import User
-from app.repositories.chat_repository import ChatRepository
 from app.services.chat import ChatService
-from app.services.jwt import JwtService
 
 chat_router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -143,27 +139,3 @@ async def update_message_feedback(
         feedback=body.feedback,
     )
     return ChatMessageResponse.model_validate(msg)
-
-
-@chat_router.websocket("/ws/{session_id}")
-async def websocket_chat(
-    websocket: WebSocket,
-    session_id: str,
-    token: str,
-    db_session: Annotated[AsyncSession, Depends(get_async_session)],
-) -> None:
-    # JWT 검증 (WebSocket은 헤더 인증 대신 query param 사용)
-    try:
-        verified = JwtService().verify_jwt(token=token, token_type="access")
-        user_id: int = verified.payload["user_id"]
-    except HTTPException:
-        await websocket.close(code=1008)
-        return
-
-    # 세션 소유권 확인
-    session = await ChatRepository(db_session).get_session(session_id, user_id)
-    if not session:
-        await websocket.close(code=1008)
-        return
-
-    await ChatService(db_session).handle_websocket(websocket, session_id, user_id)
