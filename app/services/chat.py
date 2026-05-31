@@ -30,6 +30,86 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="메시지를 찾을 수 없습니다.")
         return msg
 
+    async def get_session_detail(self, session_id: UUID | str, user_id: int) -> tuple[ChatSession, list] | None:
+        session = await self.repo.get_session(session_id, user_id)
+        if not session:
+            return None
+        messages = await self.repo.get_messages(session_id)
+        return session, messages
+
+    async def delete_session(self, session_id: UUID | str, user_id: int) -> None:
+        session = await self.repo.get_session(session_id, user_id)
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
+        await self.repo.delete_session(session_id)
+
+    async def stream_message(self, session_id: UUID | str, user_id: int, content: str):
+        session = await self.repo.get_session(session_id, user_id)
+        if not session:
+            yield f"event: error\ndata: {json.dumps({'detail': '세션을 찾을 수 없습니다.'})}\n\n"
+            return
+
+        await self.repo.create_message(session_id, MessageRole.USER, content)
+
+        history = await self.repo.get_messages(session_id, limit=20)
+        history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
+
+        health_profile = await HealthProfile.get_or_none(user_id=user_id)
+        health_context = (
+            {
+                "primary_conditions": health_profile.primary_conditions,
+                "allergies": health_profile.allergies,
+                "current_medications": health_profile.current_medications,
+                "lifestyle_exercise": health_profile.lifestyle_exercise,
+                "lifestyle_smoking": health_profile.lifestyle_smoking,
+                "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+            }
+            if health_profile
+            else None
+        )
+
+        redis = await get_redis()
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(f"chat:stream:{session_id}")
+
+        task_payload = json.dumps(
+            {
+                "session_id": str(session_id),
+                "user_message": content,
+                "history": history_payload,
+                "health_profile": health_context,
+            }
+        )
+        await redis.publish(f"chat:request:{session_id}", task_payload)
+
+        full_response: list[str] = []
+        try:
+            async with asyncio.timeout(RESPONSE_TIMEOUT_SECONDS):
+                async for redis_msg in pubsub.listen():
+                    if redis_msg["type"] != "message":
+                        continue
+                    data: str = redis_msg["data"]
+                    if data.startswith("[ERROR]"):
+                        yield f"event: error\ndata: {json.dumps({'detail': data[7:]})}\n\n"
+                        return
+                    if data == "[DONE]":
+                        break
+                    full_response.append(data)
+                    yield f"data: {json.dumps({'chunk': data})}\n\n"
+        except TimeoutError:
+            yield f"event: error\ndata: {json.dumps({'detail': 'AI 응답 시간 초과'})}\n\n"
+            return
+        finally:
+            await pubsub.unsubscribe(f"chat:stream:{session_id}")
+            await pubsub.aclose()
+
+        complete = "".join(full_response)
+        if complete:
+            await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
+            await self.repo.touch_session(session_id)
+
+        yield f"event: done\ndata: {json.dumps({'content': complete})}\n\n"
+
     async def create_session(self, user_id: int, title: str = "새 대화") -> ChatSession:
         return await self.repo.create_session(user_id, title)
 

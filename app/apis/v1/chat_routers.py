@@ -2,6 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -12,6 +13,7 @@ from app.dtos.chat import (
     ChatMessageSendRequest,
     ChatSendMessageResponse,
     ChatSessionCreateRequest,
+    ChatSessionDetailResponse,
     ChatSessionResponse,
     MessageFeedbackRequest,
 )
@@ -40,6 +42,34 @@ async def list_sessions(
 ) -> list[ChatSessionResponse]:
     sessions = await chat_svc.get_user_sessions(user_id=current_user.id)
     return [ChatSessionResponse.model_validate(s) for s in sessions]
+
+
+@chat_router.get("/sessions/{session_id}", response_model=ChatSessionDetailResponse)
+async def get_session_detail(
+    session_id: UUID,
+    current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
+) -> ChatSessionDetailResponse:
+    result = await chat_svc.get_session_detail(session_id=session_id, user_id=current_user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
+    session, messages = result
+    return ChatSessionDetailResponse(
+        id=session.id,
+        title=session.title,
+        messages=[ChatMessageResponse.model_validate(m) for m in messages],
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+    )
+
+
+@chat_router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: UUID,
+    current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
+) -> None:
+    await chat_svc.delete_session(session_id=session_id, user_id=current_user.id)
 
 
 @chat_router.get("/sessions/{session_id}/messages", response_model=ChatMessageListResponse)
@@ -74,6 +104,23 @@ async def send_message(
     return ChatSendMessageResponse(
         user_message=ChatMessageResponse.model_validate(user_msg),
         assistant_message=ChatMessageResponse.model_validate(assistant_msg),
+    )
+
+
+@chat_router.post(
+    "/sessions/{session_id}/messages/stream",
+    summary="메시지 전송 (SSE 스트리밍)",
+    description="AI 응답을 SSE(Server-Sent Events)로 실시간 스트리밍합니다.",
+)
+async def stream_message(
+    session_id: UUID,
+    body: ChatMessageSendRequest,
+    current_user: Annotated[User, Depends(get_request_user)],
+    chat_svc: Annotated[ChatService, Depends(ChatService)],
+) -> StreamingResponse:
+    return StreamingResponse(
+        chat_svc.stream_message(session_id=session_id, user_id=current_user.id, content=body.content),
+        media_type="text/event-stream",
     )
 
 

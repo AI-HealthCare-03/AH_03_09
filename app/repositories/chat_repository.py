@@ -64,3 +64,16 @@ class ChatRepository:
             await self.session.commit()
             await self.session.refresh(msg)
         return msg
+
+    async def delete_session(self, session_id: UUID | str) -> None:
+        stmt = select(ChatSession).where(ChatSession.id == session_id)
+        result = await self.session.execute(stmt)
+        session = result.scalar_one_or_none()
+        if session:
+            await self.session.delete(session)
+            await self.session.commit()
+
+    async def update_title(self, session_id: UUID | str, title: str) -> None:
+        stmt = update(ChatSession).where(ChatSession.id == session_id).values(title=title)
+        await self.session.execute(stmt)
+        await self.session.commit()

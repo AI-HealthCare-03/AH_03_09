@@ -43,6 +43,14 @@ class ChatSendMessageResponse(BaseModel):
     assistant_message: ChatMessageResponse
 
 
+class ChatSessionDetailResponse(BaseModel):
+    id: UUID
+    title: str
+    messages: list[ChatMessageResponse]
+    created_at: datetime
+    updated_at: datetime
+
+
 class WebSocketOutMessage(BaseModel):
     type: str  # "stream" | "done" | "error"
     content: str
