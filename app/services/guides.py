@@ -475,16 +475,21 @@ class GuideService:
         guide = _guides.get(guide_id)
         if not guide:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
+
         medications: list[str] = []
         if guide.get("medication_guide"):
             medications = [m["name"] for m in guide["medication_guide"].get("medications", [])]
+
+        schedule: list[dict] = guide.get("schedule_table") or []
+
+        key_instructions: list[str] = []
+        if guide.get("lifestyle_guide"):
+            key_instructions = guide["lifestyle_guide"].get("tips", [])
+
         return GuideContextResponse(
             guide_id=guide_id,
             medications=medications,
-            disease_codes=["J06.9", "M79.3"],
-            key_instructions=[
-                "식후 복용을 반드시 지켜주세요.",
-                "음주 중 복용을 삼가세요.",
-                "증상 악화 시 즉시 의사와 상담하세요.",
-            ],
+            schedule=schedule,
+            key_instructions=key_instructions,
+            disease_codes=[],
         )

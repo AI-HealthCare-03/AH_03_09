@@ -98,12 +98,30 @@ def detect_skill(user_message: str) -> ChatSkill:
     return ChatSkill.GENERAL
 
 
-def _build_system_prompt(health_profile: dict | None, skill: ChatSkill = ChatSkill.GENERAL) -> str:
-    base = _SKILL_SYSTEM_PROMPTS[skill]
+def _build_guide_section(guide_context: dict) -> str:
+    lines: list[str] = []
 
-    if not health_profile:
-        return base
+    medications = guide_context.get("medications") or []
+    if medications:
+        lines.append(f"- 처방 약물: {', '.join(medications)}")
 
+    schedule = guide_context.get("schedule") or []
+    if schedule:
+        schedule_lines = [f"  · {s.get('time', '')}: {', '.join(s.get('medications', []))}" for s in schedule]
+        lines.append("- 복약 스케줄:\n" + "\n".join(schedule_lines))
+
+    instructions = guide_context.get("key_instructions") or []
+    if instructions:
+        instruction_lines = [f"  · {i}" for i in instructions]
+        lines.append("- 주요 지시사항:\n" + "\n".join(instruction_lines))
+
+    if not lines:
+        return ""
+
+    return "\n\n[처방 가이드 — 이 내용을 기반으로 정확히 답변하세요]\n" + "\n".join(lines)
+
+
+def _build_profile_section(health_profile: dict) -> str:
     lines: list[str] = []
 
     conditions = health_profile.get("primary_conditions") or []
@@ -131,10 +149,21 @@ def _build_system_prompt(health_profile: dict | None, skill: ChatSkill = ChatSki
         lines.append(f"- 생활습관: {', '.join(lifestyle)}")
 
     if not lines:
-        return base
+        return ""
+    return "\n\n[사용자 건강 프로필 — 답변 시 반드시 반영하세요]\n" + "\n".join(lines)
 
-    profile_section = "\n\n[사용자 건강 프로필 — 답변 시 반드시 반영하세요]\n" + "\n".join(lines)
-    return base + profile_section
+
+def _build_system_prompt(
+    health_profile: dict | None,
+    skill: ChatSkill = ChatSkill.GENERAL,
+    guide_context: dict | None = None,
+) -> str:
+    result = _SKILL_SYSTEM_PROMPTS[skill]
+    if health_profile:
+        result += _build_profile_section(health_profile)
+    if guide_context:
+        result += _build_guide_section(guide_context)
+    return result
 
 
 def get_openai_client() -> AsyncOpenAI:
@@ -165,9 +194,14 @@ async def _compress_history(old_messages: list[dict], client: AsyncOpenAI) -> st
     return resp.choices[0].message.content or ""
 
 
-async def stream_chat(user_message: str, history: list[dict], health_profile: dict | None = None):
+async def stream_chat(
+    user_message: str,
+    history: list[dict],
+    health_profile: dict | None = None,
+    guide_context: dict | None = None,
+):
     skill = detect_skill(user_message)
-    system_prompt = _build_system_prompt(health_profile, skill)
+    system_prompt = _build_system_prompt(health_profile, skill, guide_context)
     client = get_openai_client()
 
     if len(history) > _SUMMARY_THRESHOLD:

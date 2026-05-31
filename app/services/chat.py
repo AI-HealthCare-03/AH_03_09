@@ -11,6 +11,7 @@ from app.core.redis_client import get_redis
 from app.models.chat import ChatMessage, ChatSession, MessageRole
 from app.models.health_profiles import HealthProfile
 from app.repositories.chat_repository import ChatRepository
+from app.services.guides import GuideService
 
 RESPONSE_TIMEOUT_SECONDS = 60
 
@@ -43,7 +44,20 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
         await self.repo.delete_session(session_id)
 
-    async def stream_message(self, session_id: UUID | str, user_id: int, content: str):
+    async def _get_guide_context(self, guide_id: str | None) -> dict | None:
+        if not guide_id:
+            return None
+        try:
+            ctx = await GuideService().get_guide_context(guide_id)
+            return {
+                "medications": ctx.medications,
+                "schedule": ctx.schedule,
+                "key_instructions": ctx.key_instructions,
+            }
+        except HTTPException:
+            return None
+
+    async def stream_message(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):
         session = await self.repo.get_session(session_id, user_id)
         if not session:
             yield f"event: error\ndata: {json.dumps({'detail': '세션을 찾을 수 없습니다.'})}\n\n"
@@ -68,6 +82,8 @@ class ChatService:
             else None
         )
 
+        guide_context = await self._get_guide_context(guide_id)
+
         redis = await get_redis()
         pubsub = redis.pubsub()
         await pubsub.subscribe(f"chat:stream:{session_id}")
@@ -78,6 +94,7 @@ class ChatService:
                 "user_message": content,
                 "history": history_payload,
                 "health_profile": health_context,
+                "guide_context": guide_context,
             }
         )
         await redis.publish(f"chat:request:{session_id}", task_payload)
@@ -123,7 +140,7 @@ class ChatService:
         return await self.repo.get_messages(session_id)
 
     async def send_message_sync(
-        self, session_id: UUID | str, user_id: int, content: str
+        self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None
     ) -> tuple[ChatMessage, ChatMessage]:
         """Swagger 테스트용 REST 래퍼: WebSocket과 동일한 흐름이지만 모든 스트림을 모아 한 번에 반환."""
         session = await self.repo.get_session(session_id, user_id)
@@ -149,6 +166,8 @@ class ChatService:
             else None
         )
 
+        guide_context = await self._get_guide_context(guide_id)
+
         redis = await get_redis()
         pubsub = redis.pubsub()
         await pubsub.subscribe(f"chat:stream:{session_id}")
@@ -159,6 +178,7 @@ class ChatService:
                 "user_message": content,
                 "history": history_payload,
                 "health_profile": health_context,
+                "guide_context": guide_context,
             }
         )
         await redis.publish(f"chat:request:{session_id}", task_payload)

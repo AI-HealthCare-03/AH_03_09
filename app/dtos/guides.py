@@ -162,5 +162,6 @@ class FeedbackStatusResponse(BaseModel):
 class GuideContextResponse(BaseModel):
     guide_id: str
     medications: list[str]
-    disease_codes: list[str]
+    schedule: list[dict]
     key_instructions: list[str]
+    disease_codes: list[str]

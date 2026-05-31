@@ -95,7 +95,7 @@ async def send_message(
     chat_svc: Annotated[ChatService, Depends(ChatService)],
 ) -> ChatSendMessageResponse:
     user_msg, assistant_msg = await chat_svc.send_message_sync(
-        session_id=session_id, user_id=current_user.id, content=body.content
+        session_id=session_id, user_id=current_user.id, content=body.content, guide_id=body.guide_id
     )
     return ChatSendMessageResponse(
         user_message=ChatMessageResponse.model_validate(user_msg),
@@ -115,7 +115,9 @@ async def stream_message(
     chat_svc: Annotated[ChatService, Depends(ChatService)],
 ) -> StreamingResponse:
     return StreamingResponse(
-        chat_svc.stream_message(session_id=session_id, user_id=current_user.id, content=body.content),
+        chat_svc.stream_message(
+            session_id=session_id, user_id=current_user.id, content=body.content, guide_id=body.guide_id
+        ),
         media_type="text/event-stream",
     )
 

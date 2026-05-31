@@ -36,6 +36,7 @@ class ChatMessageListResponse(BaseModel):
 
 class ChatMessageSendRequest(BaseModel):
     content: str = Field(..., min_length=1, description="유저가 보낼 메시지")
+    guide_id: str | None = Field(default=None, description="연동할 가이드 ID (OCR→가이드→챗봇 흐름)")
 
 
 class ChatSendMessageResponse(BaseModel):
