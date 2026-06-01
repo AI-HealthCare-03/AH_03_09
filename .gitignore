@@ -25,3 +25,4 @@ htmlcov/
 기획문서/
 node_modules/
 frontend/dist/
+app/data/*.csv
