@@ -494,8 +494,7 @@ async def _make_lifestyle_guide_with_llm(
     # disease_names와 disease_codes를 같은 순서로 결합: "M75.3 - 어깨의 관절염" 또는 "M75.3"
     if disease_names:
         disease_entries = [
-            f"{code} - {name}" if name else code
-            for code, name in zip(disease_codes, disease_names, strict=False)
+            f"{code} - {name}" if name else code for code, name in zip(disease_codes, disease_names, strict=False)
         ]
     else:
         disease_entries = disease_codes
@@ -603,8 +602,13 @@ class GuideService:
         _jobs[job_id] = {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id}
         asyncio.create_task(
             _run_mock_worker(
-                job_id, guide_id, req.guide_types, req.medication_names, req.medications,
-                req.disease_codes, req.disease_names,
+                job_id,
+                guide_id,
+                req.guide_types,
+                req.medication_names,
+                req.medications,
+                req.disease_codes,
+                req.disease_names,
             )
         )
         return GenerateGuideResponse(job_id=job_id)
