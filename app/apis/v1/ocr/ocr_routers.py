@@ -375,6 +375,32 @@ async def list_medications(
     return [MedicationResponse.model_validate(m) for m in doc.medications if m.is_active]
 
 
+@ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
+async def confirm_medications(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, int]:
+    """약물 목록 전체를 확인 처리합니다. (REQ-OCR-017)"""
+    svc = OcrDocumentService(session)
+    confirmed_count = await svc.confirm_medications(record_id, current_user.id)
+    await session.commit()
+    return {"confirmed_count": confirmed_count}
+
+
+@ocr_router.delete("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
+async def unconfirm_medications(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, int]:
+    """약물 목록 전체 확인을 해제합니다."""
+    svc = OcrDocumentService(session)
+    unconfirmed_count = await svc.unconfirm_medications(record_id, current_user.id)
+    await session.commit()
+    return {"unconfirmed_count": unconfirmed_count}
+
+
 @ocr_router.patch("/records/{record_id}/medications/{medication_id}", response_model=MedicationResponse)
 async def update_medication(
     record_id: int,
@@ -401,32 +427,6 @@ async def delete_medication(
     svc = OcrDocumentService(session)
     await svc.delete_medication(record_id, medication_id, current_user.id)
     await session.commit()
-
-
-@ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
-async def confirm_medications(
-    record_id: int,
-    current_user: _AUTH,
-    session: _SESSION,
-) -> dict[str, int]:
-    """약물 목록 전체를 확인 처리합니다. (REQ-OCR-017)"""
-    svc = OcrDocumentService(session)
-    confirmed_count = await svc.confirm_medications(record_id, current_user.id)
-    await session.commit()
-    return {"confirmed_count": confirmed_count}
-
-
-@ocr_router.delete("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
-async def unconfirm_medications(
-    record_id: int,
-    current_user: _AUTH,
-    session: _SESSION,
-) -> dict[str, int]:
-    """약물 목록 전체 확인을 해제합니다."""
-    svc = OcrDocumentService(session)
-    unconfirmed_count = await svc.unconfirm_medications(record_id, current_user.id)
-    await session.commit()
-    return {"unconfirmed_count": unconfirmed_count}
 
 
 # ── Disease Codes ─────────────────────────────────────────────────────────────
