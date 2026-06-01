@@ -211,6 +211,20 @@ class OcrDocumentService:
         med.is_active = False
         await self.session.flush()
 
+    async def confirm_medications(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 약물 전체를 is_confirmed=True로 처리합니다."""
+        doc = await self.repo.get_by_record_id(record_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+        return await self.repo.confirm_all_medications(record_id, user_id)
+
+    async def confirm_disease_codes(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 질병코드 전체를 is_confirmed=True로 처리합니다."""
+        doc = await self.repo.get_by_record_id(record_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+        return await self.repo.confirm_all_disease_codes(record_id, user_id)
+
     async def reanalyze_document(self, record_id: int, user_id: int, is_reclassify: bool = False) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
         if doc.ocr_status == OcrStatus.PROCESSING:

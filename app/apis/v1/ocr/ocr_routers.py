@@ -408,9 +408,12 @@ async def confirm_medications(
     record_id: int,
     current_user: _AUTH,
     session: _SESSION,
-) -> dict[str, str]:
+) -> dict[str, int]:
     """약물 목록 전체를 확인 처리합니다. (REQ-OCR-017)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    svc = OcrDocumentService(session)
+    confirmed_count = await svc.confirm_medications(record_id, current_user.id)
+    await session.commit()
+    return {"confirmed_count": confirmed_count}
 
 
 # ── Disease Codes ─────────────────────────────────────────────────────────────
@@ -451,9 +454,12 @@ async def confirm_disease_codes(
     record_id: int,
     current_user: _AUTH,
     session: _SESSION,
-) -> dict[str, str]:
+) -> dict[str, int]:
     """질병 분류기호 전체를 확인 처리합니다. (REQ-OCR-017)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    svc = OcrDocumentService(session)
+    confirmed_count = await svc.confirm_disease_codes(record_id, current_user.id)
+    await session.commit()
+    return {"confirmed_count": confirmed_count}
 
 
 # ── OCR Result ────────────────────────────────────────────────────────────────

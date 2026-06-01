@@ -506,3 +506,58 @@ class TestUpdateDiseaseCode:
             )
 
         assert response.status_code == 422
+
+
+class TestConfirmMedications:
+    def test_confirm_medications_success(self, client, mock_db, auth_headers):
+        """약물 전체 확인 처리 → 200 + confirmed_count"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.confirm_medications = AsyncMock(return_value=3)
+            response = client.post("/api/v1/ocr/records/1/medications/confirm", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json()["confirmed_count"] == 3
+
+    def test_confirm_medications_not_found(self, client, mock_db, auth_headers):
+        """존재하지 않는 문서 → 404"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.confirm_medications = AsyncMock(
+                side_effect=HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+            )
+            response = client.post("/api/v1/ocr/records/999/medications/confirm", headers=auth_headers)
+
+        assert response.status_code == 404
+
+    def test_confirm_medications_unauthenticated(self, client):
+        """인증 없이 요청 → 401/403"""
+        response = client.post("/api/v1/ocr/records/1/medications/confirm")
+        assert response.status_code in (401, 403)
+
+
+class TestConfirmDiseaseCodes:
+    def test_confirm_disease_codes_success(self, client, mock_db, auth_headers):
+        """질병코드 전체 확인 처리 → 200 + confirmed_count"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.confirm_disease_codes = AsyncMock(return_value=2)
+            response = client.post("/api/v1/ocr/records/1/disease-codes/confirm", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json()["confirmed_count"] == 2
+
+    def test_confirm_disease_codes_not_found(self, client, mock_db, auth_headers):
+        """존재하지 않는 문서 → 404"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
+            mock_svc.return_value.confirm_disease_codes = AsyncMock(
+                side_effect=HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+            )
+            response = client.post("/api/v1/ocr/records/999/disease-codes/confirm", headers=auth_headers)
+
+        assert response.status_code == 404
