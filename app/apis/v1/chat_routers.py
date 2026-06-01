@@ -122,25 +122,6 @@ async def stream_message(
     )
 
 
-@chat_router.post(
-    "/sessions/{session_id}/messages/stream/sse",
-    summary="메시지 전송 (SSE 스트리밍)",
-    description="AI 응답을 SSE(Server-Sent Events)로 실시간 스트리밍합니다. EventSource로 수신하며 자동 재연결이 지원됩니다.",
-)
-async def stream_message_sse(
-    session_id: UUID,
-    body: ChatMessageSendRequest,
-    current_user: Annotated[User, Depends(get_request_user)],
-    chat_svc: Annotated[ChatService, Depends(ChatService)],
-) -> StreamingResponse:
-    return StreamingResponse(
-        chat_svc.stream_message_sse(
-            session_id=session_id, user_id=current_user.id, content=body.content, guide_id=body.guide_id
-        ),
-        media_type="text/event-stream",
-    )
-
-
 @chat_router.patch(
     "/sessions/{session_id}/messages/{message_id}/feedback",
     response_model=ChatMessageResponse,
