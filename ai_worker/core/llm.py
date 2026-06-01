@@ -87,6 +87,9 @@ _ALCOHOL_LABEL = {"NONE": "", "MODERATE": "가끔 (주 1~2회)", "HEAVY": "자�
 
 _SUMMARY_THRESHOLD = 12
 _RECENT_KEEP = 8
+_MEDICAL_DISCLAIMER = (
+    "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다."
+)
 
 
 def detect_skill(user_message: str) -> ChatSkill:
@@ -225,3 +228,4 @@ async def stream_chat(
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta
+    yield _MEDICAL_DISCLAIMER

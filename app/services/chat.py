@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from typing import Annotated
 from uuid import UUID
 
@@ -14,6 +15,46 @@ from app.repositories.chat_repository import ChatRepository
 from app.services.guides import GuideService
 
 RESPONSE_TIMEOUT_SECONDS = 60
+DELAY_WARNING_SECONDS = 10
+
+_DANGER_KEYWORDS = [
+    "자살",
+    "자해",
+    "죽고 싶",
+    "죽고싶",
+    "죽을 것 같",
+    "극단적 선택",
+    "과다복용",
+    "약 다 먹",
+    "전부 먹으면",
+    "목을 매",
+    "뛰어내려",
+]
+_INAPPROPRIATE_KEYWORDS = ["씨발", "개새끼", "병신", "ㅅㅂ", "ㅂㅅ", "좆"]
+
+_DANGER_RESPONSE = (
+    "지금 많이 힘드신 것 같아요. 혼자 감당하기 어려운 순간이라면 전문가의 도움을 받으시길 권합니다.\n\n"
+    "📞 자살예방상담전화 1393 (24시간)\n"
+    "📞 정신건강위기상담전화 1577-0199 (24시간)\n\n"
+    "약물과 관련된 응급 상황이라면 즉시 119에 연락하거나 가까운 응급실을 방문해 주세요.\n\n"
+    "⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다."
+)
+_INAPPROPRIATE_RESPONSE = "죄송합니다. 해당 질문에는 답변하기 어렵습니다. 약물 복용 및 건강 관련 질문을 부탁드립니다."
+
+
+def _check_content(content: str) -> str:
+    """위험/부적절 키워드 여부를 반환한다. 정상이면 'ok'."""
+    if any(kw in content for kw in _DANGER_KEYWORDS):
+        return "danger"
+    if any(kw in content for kw in _INAPPROPRIATE_KEYWORDS):
+        return "inappropriate"
+    return "ok"
+
+
+_PRESET_RESPONSES = {
+    "danger": _DANGER_RESPONSE,
+    "inappropriate": _INAPPROPRIATE_RESPONSE,
+}
 
 
 class ChatService:
@@ -63,6 +104,14 @@ class ChatService:
             yield f"event: error\ndata: {json.dumps({'detail': '세션을 찾을 수 없습니다.'})}\n\n"
             return
 
+        preset = _PRESET_RESPONSES.get(_check_content(content))
+        if preset:
+            await self.repo.create_message(session_id, MessageRole.USER, content)
+            await self.repo.create_message(session_id, MessageRole.ASSISTANT, preset)
+            yield f"data: {json.dumps({'chunk': preset})}\n\n"
+            yield f"event: done\ndata: {json.dumps({'content': preset})}\n\n"
+            return
+
         await self.repo.create_message(session_id, MessageRole.USER, content)
 
         history = await self.repo.get_messages(session_id, limit=20)
@@ -100,9 +149,14 @@ class ChatService:
         await redis.publish(f"chat:request:{session_id}", task_payload)
 
         full_response: list[str] = []
+        start_time = time.monotonic()
+        delay_sent = False
         try:
             async with asyncio.timeout(RESPONSE_TIMEOUT_SECONDS):
                 async for redis_msg in pubsub.listen():
+                    if not delay_sent and not full_response and (time.monotonic() - start_time) > DELAY_WARNING_SECONDS:
+                        yield f"event: delay\ndata: {json.dumps({'detail': 'AI 응답이 지연되고 있습니다. 잠시만 기다려주세요.'})}\n\n"
+                        delay_sent = True
                     if redis_msg["type"] != "message":
                         continue
                     data: str = redis_msg["data"]
@@ -114,7 +168,7 @@ class ChatService:
                     full_response.append(data)
                     yield f"data: {json.dumps({'chunk': data})}\n\n"
         except TimeoutError:
-            yield f"event: error\ndata: {json.dumps({'detail': 'AI 응답 시간 초과'})}\n\n"
+            yield f"event: error\ndata: {json.dumps({'detail': 'AI 응답 시간 초과. 다시 시도해 주세요.'})}\n\n"
             return
         finally:
             await pubsub.unsubscribe(f"chat:stream:{session_id}")

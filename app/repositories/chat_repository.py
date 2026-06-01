@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -19,7 +19,12 @@ class ChatRepository:
         return chat
 
     async def get_sessions(self, user_id: int) -> list[ChatSession]:
-        stmt = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.updated_at.desc())
+        six_months_ago = datetime.now(UTC) - timedelta(days=180)
+        stmt = (
+            select(ChatSession)
+            .where(ChatSession.user_id == user_id, ChatSession.created_at >= six_months_ago)
+            .order_by(ChatSession.updated_at.desc())
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
