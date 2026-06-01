@@ -16,6 +16,8 @@ import {
   fetchOcrResult,
   reanalyzeDocument,
   searchDrugs,
+  unconfirmDiseaseCodes,
+  unconfirmMedications,
   updateDiseaseCode,
   updateMedication,
 } from "@/api/ocr";
@@ -165,20 +167,26 @@ export default function UploadResult() {
 
   const confirmMedMutation = useMutation({
     mutationFn: () => confirmMedications(recordId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
-      toast.success("약물 목록 확인 완료");
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
     onError: () => toast.error("확인 처리에 실패했습니다."),
+  });
+
+  const unconfirmMedMutation = useMutation({
+    mutationFn: () => unconfirmMedications(recordId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
+    onError: () => toast.error("확인 취소에 실패했습니다."),
   });
 
   const confirmDiseaseCodeMutation = useMutation({
     mutationFn: () => confirmDiseaseCodes(recordId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
-      toast.success("질병분류기호 확인 완료");
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
     onError: () => toast.error("확인 처리에 실패했습니다."),
+  });
+
+  const unconfirmDiseaseCodeMutation = useMutation({
+    mutationFn: () => unconfirmDiseaseCodes(recordId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
+    onError: () => toast.error("확인 취소에 실패했습니다."),
   });
 
   useEffect(() => {
@@ -221,6 +229,10 @@ export default function UploadResult() {
   const diseaseCodes = doc.disease_codes.filter((c) => c.is_active);
   const ocrText = result?.processed_text ?? result?.raw_text;
 
+  const allMedsConfirmed = medications.length > 0 && medications.every((m) => m.is_confirmed);
+  const allDiseasesConfirmed = diseaseCodes.length === 0 || diseaseCodes.every((c) => c.is_confirmed);
+  const isLocked = allMedsConfirmed; // 약물 전체 확인 완료 시 편집 잠금
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -244,7 +256,8 @@ export default function UploadResult() {
             <Button
               size="sm"
               onClick={() => confirmMutation.mutate(doc.job_id)}
-              disabled={confirmMutation.isPending}
+              disabled={confirmMutation.isPending || !allMedsConfirmed}
+              title={!allMedsConfirmed ? "약물 목록을 먼저 전체 확인해주세요" : undefined}
             >
               {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
             </Button>
@@ -313,22 +326,33 @@ export default function UploadResult() {
               )}
             </CardTitle>
             <div className="flex gap-2">
-              {medications.length > 0 && medications.some((m) => !m.is_confirmed) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => confirmMedMutation.mutate()}
-                  disabled={confirmMedMutation.isPending || editingId !== null}
-                >
-                  <CheckCircle2Icon className="mr-1 size-3.5" />
-                  {confirmMedMutation.isPending ? "처리 중..." : "전체 확인"}
-                </Button>
+              {medications.length > 0 && (
+                allMedsConfirmed ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => unconfirmMedMutation.mutate()}
+                    disabled={unconfirmMedMutation.isPending}
+                  >
+                    {unconfirmMedMutation.isPending ? "처리 중..." : "확인 취소"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => confirmMedMutation.mutate()}
+                    disabled={confirmMedMutation.isPending || editingId !== null}
+                  >
+                    <CheckCircle2Icon className="mr-1 size-3.5" />
+                    {confirmMedMutation.isPending ? "처리 중..." : "전체 확인"}
+                  </Button>
+                )
               )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setAddModalOpen(true)}
-                disabled={editingId !== null}
+                disabled={isLocked || editingId !== null}
               >
                 <PlusIcon className="mr-1 size-3.5" />
                 약물 추가
@@ -363,6 +387,7 @@ export default function UploadResult() {
                     const isBusy =
                       (updateMedMutation.isPending && updateMedMutation.variables?.medId === m.id) ||
                       (deleteMedMutation.isPending && deleteMedMutation.variables === m.id);
+                    const isRowLocked = isLocked;
 
                     if (isEditing) {
                       return (
@@ -452,7 +477,7 @@ export default function UploadResult() {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2"
-                              disabled={isBusy || editingId !== null}
+                              disabled={isBusy || editingId !== null || isRowLocked}
                               onClick={() => {
                                 setEditForm({
                                   frequency: m.frequency,
@@ -467,7 +492,7 @@ export default function UploadResult() {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2 text-destructive hover:text-destructive"
-                              disabled={isBusy || editingId !== null}
+                              disabled={isBusy || editingId !== null || isRowLocked}
                               onClick={() => deleteMedMutation.mutate(m.id)}
                             >
                               <Trash2Icon className="size-3.5" />
@@ -497,16 +522,27 @@ export default function UploadResult() {
                   </span>
                 )}
               </CardTitle>
-              {diseaseCodes.length > 0 && diseaseCodes.some((c) => !c.is_confirmed) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => confirmDiseaseCodeMutation.mutate()}
-                  disabled={confirmDiseaseCodeMutation.isPending || editingDiseaseId !== null}
-                >
-                  <CheckCircle2Icon className="mr-1 size-3.5" />
-                  {confirmDiseaseCodeMutation.isPending ? "처리 중..." : "전체 확인"}
-                </Button>
+              {diseaseCodes.length > 0 && (
+                allDiseasesConfirmed ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => unconfirmDiseaseCodeMutation.mutate()}
+                    disabled={unconfirmDiseaseCodeMutation.isPending}
+                  >
+                    {unconfirmDiseaseCodeMutation.isPending ? "처리 중..." : "확인 취소"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => confirmDiseaseCodeMutation.mutate()}
+                    disabled={confirmDiseaseCodeMutation.isPending || editingDiseaseId !== null}
+                  >
+                    <CheckCircle2Icon className="mr-1 size-3.5" />
+                    {confirmDiseaseCodeMutation.isPending ? "처리 중..." : "전체 확인"}
+                  </Button>
+                )
               )}
             </div>
           </CardHeader>
@@ -577,7 +613,7 @@ export default function UploadResult() {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2"
-                              disabled={editingDiseaseId !== null || editingId !== null}
+                              disabled={editingDiseaseId !== null || editingId !== null || allDiseasesConfirmed}
                               onClick={() => { setEditDiseaseCode(c.icd10_code); setEditingDiseaseId(c.id); }}
                             >
                               <PencilIcon className="size-3.5" />
