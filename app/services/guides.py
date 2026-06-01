@@ -474,26 +474,44 @@ def _make_exercise_guide() -> ExerciseGuide:
     )
 
 
-async def _make_lifestyle_guide_with_llm(medication_names: list[str]):
+async def _make_lifestyle_guide_with_llm(
+    medication_names: list[str],
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> LifestyleGuide:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set")
 
     client = AsyncOpenAI(api_key=api_key)
 
+    # disease_names와 disease_codes를 같은 순서로 결합: "M75.3 - 어깨의 관절염" 또는 "M75.3"
+    if disease_names:
+        disease_entries = [
+            f"{code} - {name}" if name else code
+            for code, name in zip(disease_codes, disease_names, strict=False)
+        ]
+    else:
+        disease_entries = disease_codes
+
     prompt = f"""
-다음 약물을 복용하는 환자를 위한 생활관리 가이드를 작성해주세요.
+다음 약물과 질병분류기호를 가진 환자를 위한 생활관리 가이드를 작성해주세요.
 
 조건:
 - 한국어로 작성
 - 환자가 이해하기 쉬운 표현 사용
 - 생활관리 팁 4개를 줄바꿈 목록으로 작성
 - 각 항목은 한 문장으로 작성
-- 각 항목은 반드시 "[LLM생성]"으로 시작할 것
-- 진단이나 처방처럼 단정하지 말 것
+- 질병분류기호와 질병명이 제공된 경우 해당 질환과 관련된 생활관리를 일반 건강정보보다 우선하여 작성할 것
+- 질병분류기호는 OCR로 추출된 참고정보이며, 확정 진단으로 표현하지 말 것
+- 질병코드에 근거해 새로운 진단명이나 치료 지시를 생성하지 말 것
+- 약물명과 질병 정보를 함께 고려하되, 환자에게 안전한 생활관리 수준으로만 작성할 것
 
 약물:
-{", ".join(medication_names)}
+{", ".join(medication_names) if medication_names else "정보 없음"}
+
+질병 정보 (OCR 추출 참고정보):
+{", ".join(disease_entries) if disease_entries else "정보 없음"}
 """
 
     response = await client.chat.completions.create(
@@ -525,6 +543,7 @@ async def _run_mock_worker(
     medication_names: list[str],
     medications: list[MedicationDetail],
     disease_codes: list[str],
+    disease_names: list[str],
 ) -> None:
     await asyncio.sleep(1)
     _jobs[job_id]["status"] = JobStatus.PROCESSING
@@ -537,7 +556,7 @@ async def _run_mock_worker(
 
     if GuideType.LIFESTYLE in guide_types:
         try:
-            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names)
+            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, disease_codes, disease_names)
         except Exception as e:
             print(f"LLM guide generation failed: {e}")
             lifestyle_guide = _make_lifestyle_guide()
@@ -578,7 +597,8 @@ class GuideService:
         _jobs[job_id] = {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id}
         asyncio.create_task(
             _run_mock_worker(
-                job_id, guide_id, req.guide_types, req.medication_names, req.medications, req.disease_codes
+                job_id, guide_id, req.guide_types, req.medication_names, req.medications,
+                req.disease_codes, req.disease_names,
             )
         )
         return GenerateGuideResponse(job_id=job_id)

@@ -232,6 +232,7 @@ class OcrDocumentService:
                     for m in active_meds
                 ],
                 disease_codes=[c.icd10_code for c in active_codes],
+                disease_names=[c.disease_name or "" for c in active_codes],
             )
             guide_resp = await GuideService().create_guide_job(guide_req)
             guide_job_id = guide_resp.job_id

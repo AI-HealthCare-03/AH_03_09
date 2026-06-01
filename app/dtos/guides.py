@@ -56,6 +56,7 @@ class GenerateGuideRequest(BaseModel):
     medication_names: list[str] = Field(default_factory=list)
     medications: list[MedicationDetail] = Field(default_factory=list)
     disease_codes: list[str] = Field(default_factory=list)
+    disease_names: list[str] = Field(default_factory=list)
 
 
 class FeedbackRequest(BaseModel):

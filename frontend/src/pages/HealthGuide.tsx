@@ -290,7 +290,7 @@ export default function HealthGuide() {
     </div>
   </>
 )}
-{medication.easy_summary?.length > 0 && (
+{medication.easy_summary?.length > 0 && medication.match_status !== "NOT_FOUND" && (
   <div className="rounded-lg bg-slate-50 p-3 mb-2">
     <p className="font-medium mb-2">쉬운 설명</p>
 
@@ -327,11 +327,44 @@ export default function HealthGuide() {
   </details>
 )}
 
-                    {medication.disclaimer && (
-                      <div className="rounded-md bg-amber-50 p-3 text-amber-800">
-                        {medication.disclaimer}
-                      </div>
-                    )}
+{medication.match_status === "WEB_REFERENCE" && (
+  <details className="mt-4 rounded-lg border p-3">
+    <summary className="cursor-pointer font-medium text-blue-700">
+      제품허가정보 원문 일부 보기
+    </summary>
+
+    <div className="mt-3 space-y-3">
+      <div className="rounded-md bg-amber-50 p-3 text-amber-800 text-xs">
+        아래 내용은 제품허가정보 원문 일부입니다.
+        전문 용어가 포함되어 있어 이해가 어려울 수 있습니다.
+        복용 관련 판단이 필요한 경우 의료진 또는 약사와 상담하세요.
+      </div>
+
+      {medication.dosage && <p>용법: {medication.dosage}</p>}
+
+      {medication.cautions.length > 0 && (
+        <div>
+          <p className="font-medium">주의사항</p>
+
+          <ul className="list-disc pl-5">
+            {medication.cautions.map((caution) => (
+              <li key={caution}>{caution}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  </details>
+)}
+
+{medication.match_status === "NOT_FOUND" && (
+  <div className="rounded-md bg-amber-50 p-3 text-amber-800 text-sm space-y-1">
+    <p className="font-medium">약물 정보를 찾을 수 없습니다.</p>
+    <p>OCR 인식 오류 또는 등록되지 않은 의약품일 수 있습니다.</p>
+    <p>약봉투 또는 처방전을 다시 확인해주세요.</p>
+    {medication.disclaimer && <p>{medication.disclaimer}</p>}
+  </div>
+)}
                   </CardContent>
                 </Card>
               ))}
