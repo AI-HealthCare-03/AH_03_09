@@ -49,9 +49,18 @@ const DOC_TYPE_VARIANT: Record<DocType, "default" | "secondary" | "outline"> = {
 function ConfidenceBadge({ score }: { score: number | null }) {
   if (score === null) return null;
   const pct = Math.round(score * 100);
-  const variant: "default" | "secondary" | "destructive" =
-    pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive";
-  return <Badge variant={variant}>{pct}%</Badge>;
+  const colorClass =
+    pct >= 80
+      ? "bg-green-100 text-green-800 border-green-200"
+      : pct >= 60
+        ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+        : "bg-red-100 text-red-800 border-red-200";
+  return (
+    <>
+      <Badge className={colorClass}>{pct}%</Badge>
+      {score < 0.7 && <p className="mt-1 text-xs text-amber-600">재촬영 권고</p>}
+    </>
+  );
 }
 
 export default function UploadResult() {
