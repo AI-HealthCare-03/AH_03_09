@@ -416,6 +416,19 @@ async def confirm_medications(
     return {"confirmed_count": confirmed_count}
 
 
+@ocr_router.delete("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
+async def unconfirm_medications(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, int]:
+    """약물 목록 전체 확인을 해제합니다."""
+    svc = OcrDocumentService(session)
+    unconfirmed_count = await svc.unconfirm_medications(record_id, current_user.id)
+    await session.commit()
+    return {"unconfirmed_count": unconfirmed_count}
+
+
 # ── Disease Codes ─────────────────────────────────────────────────────────────
 
 
@@ -460,6 +473,19 @@ async def confirm_disease_codes(
     confirmed_count = await svc.confirm_disease_codes(record_id, current_user.id)
     await session.commit()
     return {"confirmed_count": confirmed_count}
+
+
+@ocr_router.delete("/records/{record_id}/disease-codes/confirm", status_code=status.HTTP_200_OK)
+async def unconfirm_disease_codes(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, int]:
+    """질병 분류기호 전체 확인을 해제합니다."""
+    svc = OcrDocumentService(session)
+    unconfirmed_count = await svc.unconfirm_disease_codes(record_id, current_user.id)
+    await session.commit()
+    return {"unconfirmed_count": unconfirmed_count}
 
 
 # ── OCR Result ────────────────────────────────────────────────────────────────

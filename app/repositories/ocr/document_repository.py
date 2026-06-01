@@ -170,6 +170,34 @@ class OcrDocumentRepository:
         )
         return result.rowcount
 
+    async def unconfirm_all_medications(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 약물 전체를 is_confirmed=False로 일괄 해제합니다."""
+        subq = select(OcrDocument.record_id).where(
+            OcrDocument.record_id == record_id,
+            OcrDocument.user_id == user_id,
+            OcrDocument.is_active.is_(True),
+        )
+        result = await self.session.execute(
+            update(Medication)
+            .where(Medication.document_id.in_(subq), Medication.is_active.is_(True))
+            .values(is_confirmed=False)
+        )
+        return result.rowcount
+
+    async def unconfirm_all_disease_codes(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 질병코드 전체를 is_confirmed=False로 일괄 해제합니다."""
+        subq = select(OcrDocument.record_id).where(
+            OcrDocument.record_id == record_id,
+            OcrDocument.user_id == user_id,
+            OcrDocument.is_active.is_(True),
+        )
+        result = await self.session.execute(
+            update(DiseaseCode)
+            .where(DiseaseCode.document_id.in_(subq), DiseaseCode.is_active.is_(True))
+            .values(is_confirmed=False)
+        )
+        return result.rowcount
+
     async def list_by_user(
         self,
         user_id: int,
