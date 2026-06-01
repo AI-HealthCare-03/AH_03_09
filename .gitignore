@@ -25,3 +25,5 @@ htmlcov/
 기획문서/
 node_modules/
 frontend/dist/
+docs/progress.md
+docs/ocr/progress.md
