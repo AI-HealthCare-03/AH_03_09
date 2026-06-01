@@ -101,15 +101,15 @@ class ChatService:
     async def stream_message(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):
         session = await self.repo.get_session(session_id, user_id)
         if not session:
-            yield f"event: error\ndata: {json.dumps({'detail': '세션을 찾을 수 없습니다.'})}\n\n"
+            yield json.dumps({"type": "error", "detail": "세션을 찾을 수 없습니다."}) + "\n"
             return
 
         preset = _PRESET_RESPONSES.get(_check_content(content))
         if preset:
             await self.repo.create_message(session_id, MessageRole.USER, content)
             await self.repo.create_message(session_id, MessageRole.ASSISTANT, preset)
-            yield f"data: {json.dumps({'chunk': preset})}\n\n"
-            yield f"event: done\ndata: {json.dumps({'content': preset})}\n\n"
+            yield json.dumps({"type": "chunk", "chunk": preset}) + "\n"
+            yield json.dumps({"type": "done", "content": preset}) + "\n"
             return
 
         await self.repo.create_message(session_id, MessageRole.USER, content)
@@ -155,20 +155,23 @@ class ChatService:
             async with asyncio.timeout(RESPONSE_TIMEOUT_SECONDS):
                 async for redis_msg in pubsub.listen():
                     if not delay_sent and not full_response and (time.monotonic() - start_time) > DELAY_WARNING_SECONDS:
-                        yield f"event: delay\ndata: {json.dumps({'detail': 'AI 응답이 지연되고 있습니다. 잠시만 기다려주세요.'})}\n\n"
+                        yield (
+                            json.dumps({"type": "delay", "detail": "AI 응답이 지연되고 있습니다. 잠시만 기다려주세요."})
+                            + "\n"
+                        )
                         delay_sent = True
                     if redis_msg["type"] != "message":
                         continue
                     data: str = redis_msg["data"]
                     if data.startswith("[ERROR]"):
-                        yield f"event: error\ndata: {json.dumps({'detail': data[7:]})}\n\n"
+                        yield json.dumps({"type": "error", "detail": data[7:]}) + "\n"
                         return
                     if data == "[DONE]":
                         break
                     full_response.append(data)
-                    yield f"data: {json.dumps({'chunk': data})}\n\n"
+                    yield json.dumps({"type": "chunk", "chunk": data}) + "\n"
         except TimeoutError:
-            yield f"event: error\ndata: {json.dumps({'detail': 'AI 응답 시간 초과. 다시 시도해 주세요.'})}\n\n"
+            yield json.dumps({"type": "error", "detail": "AI 응답 시간 초과. 다시 시도해 주세요."}) + "\n"
             return
         finally:
             await pubsub.unsubscribe(f"chat:stream:{session_id}")
@@ -179,7 +182,7 @@ class ChatService:
             await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
             await self.repo.touch_session(session_id)
 
-        yield f"event: done\ndata: {json.dumps({'content': complete})}\n\n"
+        yield json.dumps({"type": "done", "content": complete}) + "\n"
 
     async def create_session(self, user_id: int, title: str = "새 대화") -> ChatSession:
         return await self.repo.create_session(user_id, title)
