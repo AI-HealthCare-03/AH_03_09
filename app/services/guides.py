@@ -1,7 +1,9 @@
 import asyncio
+import html
 import json
 import os
 import pathlib
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -28,6 +30,7 @@ from app.dtos.guides import (
     GuideType,
     JobStatus,
     LifestyleGuide,
+    MedicationDetail,
     MedicationGuide,
     MedicationItem,
     MedicationMatchStatus,
@@ -51,12 +54,42 @@ def _get_drug_df() -> pd.DataFrame:
     return _drug_df
 
 
+# ── 제품허가정보 CSV 싱글턴 (optional fallback) ────────────────────────────────
+_MASTER_CSV_PATH = pathlib.Path(__file__).parent.parent / "data" / "all_drugs_master.csv"
+_master_drug_df: pd.DataFrame | None = None
+_master_csv_unavailable: bool = False
+
+
+def _get_master_drug_df() -> pd.DataFrame | None:
+    global _master_drug_df, _master_csv_unavailable
+    if _master_csv_unavailable:
+        return None
+    if _master_drug_df is None:
+        if not _MASTER_CSV_PATH.exists():
+            _master_csv_unavailable = True
+            return None
+        try:
+            _master_drug_df = pd.read_csv(_MASTER_CSV_PATH, encoding="utf-8-sig")
+        except Exception:
+            _master_csv_unavailable = True
+            return None
+    return _master_drug_df
+
+
 # ── CSV 매핑 헬퍼 ─────────────────────────────────────────────────────────────
 
 
 def _safe_str(val: object) -> str:
     s = str(val).strip()
     return s if s and s.lower() != "nan" else ""
+
+
+def _strip_html(text: str) -> str:
+    text = html.unescape(text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def _shorten_text(text: str, limit: int = 120) -> str:
@@ -193,11 +226,66 @@ def _make_easy_summary(
     return summaries
 
 
+_DEFAULT_SUMMARY_PROMPT = (
+    "당신은 복약 정보를 환자 친화적인 한국어로 요약하는 도우미입니다.\n"
+    "반드시 아래 규칙을 따르세요:\n"
+    "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
+    "- 환자가 실제로 해야 할 복약 행동 중심으로 짧고 명확하게 설명하세요.\n"
+    "- '의사와 상담' 또는 '전문가와 상담' 문장이 여러 개 나올 경우 하나로 통합하세요.\n"
+    "- '반드시 의사와 상담하세요' 같은 강한 표현 대신 '이상 증상이 있으면 의료진과 상담하세요' 형태를 사용하세요.\n"
+    "- 추상적이거나 막연한 표현보다 구체적인 행동 문장을 우선하세요.\n"
+    "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
+    '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
+)
+
+_PATIENT_SUMMARY_PROMPT = (
+    "당신은 이미 처방받은 환자가 집에서 약을 올바르게 복용하도록 돕는 도우미입니다.\n"
+    "반드시 아래 규칙을 따르세요:\n"
+    "- 이미 처방받은 환자 대상이므로, 처방 여부나 용량을 다시 결정하는 표현은 절대 사용하지 마세요.\n"
+    "- 복용 중 주의사항과 실제 복약 행동 중심으로 설명하세요.\n"
+    "- 복용 횟수·방법, 식사 관계, 임신/수유 주의, 간·신장 주의, 어린이 사용 주의를 우선 포함하세요.\n"
+    "- '복용 전 상담' 표현은 사용하지 마세요.\n"
+    "- 복용 기간 연장, 병용요법, 용량 조절은 환자가 임의로 결정할 수 있는 것처럼 작성하지 마세요.\n"
+    "- 복용 방법·기간에 대해서는 '처방받은 기간과 방법을 지켜 복용하세요' 또는 '의료진 안내를 따르세요' 형태를 우선 사용하세요.\n"
+    "- 다음 내용은 절대 포함하지 마세요:\n"
+    "  * 치료 전환이나 약 변경 관련 표현\n"
+    "  * 임상시험·연구 설명\n"
+    "  * 허가·승인·처방 문체\n"
+    "  * 의사·약사 전용 표현\n"
+    "  * 초기 용량 조절 관련 표현\n"
+    "  * 환자가 임의로 복용 기간을 연장하거나 병용을 결정하는 표현\n"
+    "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
+    "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
+    '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
+)
+
+_BAD_PHRASES_WEB_REFERENCE = [
+    "전환할 수 있",
+    "초기 용량",
+    "임상시험",
+    "복용 전 의료진",
+    "복용 전 상담",
+    "더 복용할 수 있",
+    "병용요법으로",
+]
+
+_FALLBACK_KEY_INSTRUCTIONS = [
+    "식후 복용을 반드시 지켜주세요.",
+    "음주 중 복용을 삼가세요.",
+    "증상 악화 시 즉시 의사와 상담하세요.",
+]
+
+
+def _filter_patient_summary(sentences: list[str]) -> list[str]:
+    return [s for s in sentences if not any(phrase in s for phrase in _BAD_PHRASES_WEB_REFERENCE)]
+
+
 async def _make_easy_summary_llm(
     dosage: str,
     cautions: list[str],
     side_effects: list[str],
     storage: str,
+    system_prompt: str = _DEFAULT_SUMMARY_PROMPT,
 ) -> list[str]:
     parts: list[str] = []
     if dosage:
@@ -217,13 +305,7 @@ async def _make_easy_summary_llm(
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "당신은 복약 정보를 환자 친화적인 한국어로 요약하는 도우미입니다.\n"
-                    "반드시 아래 규칙을 따르세요:\n"
-                    "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
-                    "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
-                    '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
-                ),
+                "content": system_prompt,
             },
             {
                 "role": "user",
@@ -244,20 +326,75 @@ async def _enrich_easy_summary(item: MedicationItem) -> list[str]:
         return item.easy_summary
     if not os.getenv("OPENAI_API_KEY"):
         return item.easy_summary
+    is_web_ref = item.match_status == MedicationMatchStatus.WEB_REFERENCE
+    prompt = _PATIENT_SUMMARY_PROMPT if is_web_ref else _DEFAULT_SUMMARY_PROMPT
     try:
-        return await _make_easy_summary_llm(
+        result = await _make_easy_summary_llm(
             item.dosage,
             item.cautions,
             item.side_effects,
             item.storage,
+            system_prompt=prompt,
         )
+        if is_web_ref:
+            result = _filter_patient_summary(result)
+        return result if result else item.easy_summary
     except Exception:
         return item.easy_summary
 
 
+def _normalize_drug_name(name: str) -> str:
+    n = name.strip().lower().replace(" ", "")
+    # .lower() 이후이므로 이미 소문자이지만 re.IGNORECASE로 명시적 처리 (40mg, 40MG 모두 대응)
+    n = re.sub(r"(\d)mg\b", r"\1밀리그램", n, flags=re.IGNORECASE)
+    n = re.sub(r"(\d)mcg\b", r"\1마이크로그램", n, flags=re.IGNORECASE)
+    n = re.sub(r"(\d)ml\b", r"\1밀리리터", n, flags=re.IGNORECASE)
+    n = re.sub(r"[캡캅]셀", "캡슐", n)
+    return n
+
+
+def _search_medication_master(name: str) -> MedicationItem | None:
+    df = _get_master_drug_df()
+    if df is None:
+        return None
+    normalized = _normalize_drug_name(name)
+    mask = (
+        df["ITEM_NAME"]
+        .astype(str)
+        .str.lower()
+        .str.replace(" ", "", regex=False)
+        .str.contains(normalized, na=False, regex=False)
+    )
+    matches = df[mask]
+    if matches.empty:
+        return None
+    row = matches.iloc[0]
+    dosage = _strip_html(_safe_str(row.get("UD_DOC_DATA")))
+    cautions_str = _strip_html(_safe_str(row.get("NB_DOC_DATA")))
+    if len(cautions_str) > 1500:
+        cautions_str = cautions_str[:1500] + "... (제품허가정보 원문 일부)"
+    cautions = [cautions_str] if cautions_str else []
+    return MedicationItem(
+        name=_safe_str(row.get("ITEM_NAME")),
+        dosage=dosage,
+        timing="",
+        before_after_meal="",
+        side_effects=[],
+        cautions=cautions,
+        missed_dose="",
+        storage="",
+        action_icons=_make_medication_action_icons(cautions, [], ""),
+        usage_icons=_make_medication_usage_icons(dosage),
+        easy_summary=_make_easy_summary(cautions, "", dosage),
+        match_status=MedicationMatchStatus.WEB_REFERENCE,
+        source_name="제품허가정보",
+        disclaimer=None,
+    )
+
+
 def _search_medication(name: str) -> MedicationItem:
     df = _get_drug_df()
-    normalized = name.strip().lower().replace(" ", "")
+    normalized = _normalize_drug_name(name)
     mask = (
         df["itemName"]
         .astype(str)
@@ -267,6 +404,9 @@ def _search_medication(name: str) -> MedicationItem:
     )
     matches = df[mask]
     if matches.empty:
+        master_result = _search_medication_master(name)
+        if master_result:
+            return master_result
         return MedicationItem(
             name=name,
             dosage="",
@@ -281,6 +421,20 @@ def _search_medication(name: str) -> MedicationItem:
             source_name=None,
         )
     return _row_to_medication_item(matches.iloc[0])
+
+
+def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
+    schedule: dict[str, list[str]] = {}
+    for med in medications:
+        name = med.medication_name
+        if med.time_of_day:
+            for slot in med.time_of_day:
+                schedule.setdefault(str(slot), []).append(name)
+        elif med.timing:
+            schedule.setdefault(med.timing, []).append(name)
+        else:
+            schedule.setdefault("복용 시간 확인 필요", []).append(name)
+    return [{"time": t, "medications": names} for t, names in schedule.items()]
 
 
 async def _make_medication_guide_from_csv(medication_names: list[str]) -> MedicationGuide:
@@ -326,26 +480,49 @@ def _make_exercise_guide() -> ExerciseGuide:
     )
 
 
-async def _make_lifestyle_guide_with_llm(medication_names: list[str]):
+async def _make_lifestyle_guide_with_llm(
+    medication_names: list[str],
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> LifestyleGuide:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set")
 
     client = AsyncOpenAI(api_key=api_key)
 
-    prompt = f"""
-다음 약물을 복용하는 환자를 위한 생활관리 가이드를 작성해주세요.
+    # disease_names와 disease_codes를 같은 순서로 결합: "M75.3 - 어깨의 관절염" 또는 "M75.3"
+    if disease_names:
+        disease_entries = [
+            f"{code} - {name}" if name else code for code, name in zip(disease_codes, disease_names, strict=False)
+        ]
+    else:
+        disease_entries = disease_codes
 
-조건:
+    prompt = f"""
+아래 약물과 질병 정보를 참고하여 생활관리 팁 4개를 작성하세요.
+
+출력 형식:
+- 팁 4개를 줄바꿈 목록으로 작성
+- 각 항목은 행동 지침 문장 하나로만 작성
+- 인사말, 제목, 도입문("다음은", "가이드입니다", "환자님" 등) 없이 바로 시작
+- "생활관리 가이드", "다음은", "환자님" 같은 문구 출력 금지
+
+내용 조건:
 - 한국어로 작성
 - 환자가 이해하기 쉬운 표현 사용
-- 생활관리 팁 4개를 줄바꿈 목록으로 작성
-- 각 항목은 한 문장으로 작성
-- 각 항목은 반드시 "[LLM생성]"으로 시작할 것
-- 진단이나 처방처럼 단정하지 말 것
+- 질병 정보가 있으면 해당 질환 관련 생활관리를 일반 건강정보보다 우선하여 작성
+- 질병명 또는 질병코드에 명시되지 않은 신체 부위를 새로 만들지 말 것
+- 부위가 불명확한 관절 질환은 "관절", "통증 부위", "불편한 부위" 같은 일반 표현 사용
+- 질병분류기호는 OCR로 추출된 참고정보이며, 확정 진단으로 표현하지 말 것
+- 질병코드에 근거해 새로운 진단명이나 치료 지시를 생성하지 말 것
+- 약물명과 질병 정보를 함께 고려하되, 환자에게 안전한 생활관리 수준으로만 작성할 것
 
 약물:
-{", ".join(medication_names)}
+{", ".join(medication_names) if medication_names else "정보 없음"}
+
+질병 정보 (OCR 추출 참고정보):
+{", ".join(disease_entries) if disease_entries else "정보 없음"}
 """
 
     response = await client.chat.completions.create(
@@ -371,7 +548,13 @@ async def _make_lifestyle_guide_with_llm(medication_names: list[str]):
 
 
 async def _run_mock_worker(
-    job_id: str, guide_id: str, guide_types: list[GuideType], medication_names: list[str]
+    job_id: str,
+    guide_id: str,
+    guide_types: list[GuideType],
+    medication_names: list[str],
+    medications: list[MedicationDetail],
+    disease_codes: list[str],
+    disease_names: list[str],
 ) -> None:
     await asyncio.sleep(1)
     _jobs[job_id]["status"] = JobStatus.PROCESSING
@@ -384,7 +567,7 @@ async def _run_mock_worker(
 
     if GuideType.LIFESTYLE in guide_types:
         try:
-            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names)
+            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, disease_codes, disease_names)
         except Exception as e:
             print(f"LLM guide generation failed: {e}")
             lifestyle_guide = _make_lifestyle_guide()
@@ -398,16 +581,11 @@ async def _run_mock_worker(
         medication_guide=(
             await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
         ),
-        schedule_table=[
-            {
-                "time": "아침 식후",
-                "medications": ["아모잘탄"],
-            },
-            {
-                "time": "필요 시",
-                "medications": ["어린이타이레놀산160밀리그램(아세트아미노펜)"],
-            },
-        ],
+        schedule_table=(
+            _build_schedule_table(medications)
+            if medications
+            else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
+        ),
         lifestyle_guide=lifestyle_guide,
         diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
@@ -415,6 +593,7 @@ async def _run_mock_worker(
     )
 
     _guides[guide_id] = guide.model_dump()
+    _guides[guide_id]["disease_codes"] = disease_codes
     _jobs[job_id]["status"] = JobStatus.DONE
     _jobs[job_id]["guide_id"] = guide_id
 
@@ -427,7 +606,17 @@ class GuideService:
         job_id = str(uuid.uuid4())
         guide_id = str(uuid.uuid4())
         _jobs[job_id] = {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id}
-        asyncio.create_task(_run_mock_worker(job_id, guide_id, req.guide_types, req.medication_names))
+        asyncio.create_task(
+            _run_mock_worker(
+                job_id,
+                guide_id,
+                req.guide_types,
+                req.medication_names,
+                req.medications,
+                req.disease_codes,
+                req.disease_names,
+            )
+        )
         return GenerateGuideResponse(job_id=job_id)
 
     async def get_job_status(self, job_id: str) -> GuideStatusResponse:
@@ -478,13 +667,12 @@ class GuideService:
         medications: list[str] = []
         if guide.get("medication_guide"):
             medications = [m["name"] for m in guide["medication_guide"].get("medications", [])]
+        lifestyle = guide.get("lifestyle_guide")
+        tips = lifestyle.get("tips", []) if lifestyle else []
+        key_instructions = tips if tips else _FALLBACK_KEY_INSTRUCTIONS
         return GuideContextResponse(
             guide_id=guide_id,
             medications=medications,
-            disease_codes=["J06.9", "M79.3"],
-            key_instructions=[
-                "식후 복용을 반드시 지켜주세요.",
-                "음주 중 복용을 삼가세요.",
-                "증상 악화 시 즉시 의사와 상담하세요.",
-            ],
+            disease_codes=guide.get("disease_codes", []),
+            key_instructions=key_instructions,
         )
