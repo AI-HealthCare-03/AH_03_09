@@ -10,6 +10,8 @@ _client: AsyncOpenAI | None = None
 class ChatSkill(StrEnum):
     MEDICATION_GUIDE = "MEDICATION_GUIDE"
     DRUG_INTERACTION = "DRUG_INTERACTION"
+    SIDE_EFFECT = "SIDE_EFFECT"
+    EMERGENCY = "EMERGENCY"
     GENERAL = "GENERAL"
 
 
@@ -31,6 +33,23 @@ _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
 - 처방전·약봉투 내용을 쉬운 언어로 해석해 드립니다.
 
 답변 형식: 1) 복용 방법 → 2) 주의사항 → 3) 보관/기타""",
+    ChatSkill.SIDE_EFFECT: """당신은 약물 부작용 상담 전문 AI 어시스턴트입니다.
+
+역할: 약물 복용 후 나타날 수 있는 부작용 안내 및 대처법 제공
+- 증상이 해당 약물의 알려진 부작용인지 설명합니다.
+- 경미한 부작용과 즉시 병원 방문이 필요한 심각한 부작용을 구분합니다.
+- 부작용 발생 시 복약 중단 여부를 임의로 결정하지 말고 의사·약사와 상의하도록 안내합니다.
+
+답변 형식: 1) 증상과 해당 약물 연관성 → 2) 심각도 판단 → 3) 권장 행동""",
+    ChatSkill.EMERGENCY: """당신은 응급 증상 판단 전문 AI 어시스턴트입니다.
+
+역할: 약물 복용 후 나타난 응급 증상 여부 판단 및 즉각적인 행동 안내
+- 증상의 긴급도를 신속하게 판단합니다.
+- 즉시 119 신고 또는 응급실 방문이 필요한 경우 명확하게 안내합니다.
+- 과다복용, 알레르기 반응(아나필락시스), 호흡 곤란 등 위험 상황에 최우선으로 대응합니다.
+- AI 판단에 의존하지 말고 반드시 전문 의료진의 도움을 받도록 강조합니다.
+
+답변 형식: 1) 긴급도 판단 (즉시/주의/경과 관찰) → 2) 즉각 행동 지시 → 3) 주의사항""",
     ChatSkill.GENERAL: """당신은 복약 관리 전문 AI 어시스턴트입니다.
 
 역할:
@@ -80,6 +99,42 @@ _SKILL_KEYWORDS: dict[ChatSkill, list[str]] = {
         "놓쳤",
         "빠뜨렸",
     ],
+    ChatSkill.SIDE_EFFECT: [
+        "부작용",
+        "이상반응",
+        "두통",
+        "어지러워",
+        "어지럽",
+        "구역",
+        "구토",
+        "두드러기",
+        "가려워",
+        "졸려",
+        "졸음",
+        "속 쓰려",
+        "복통",
+        "설사",
+        "먹고 나서",
+        "복용 후",
+    ],
+    ChatSkill.EMERGENCY: [
+        "호흡 곤란",
+        "숨 못 쉬",
+        "숨쉬기",
+        "심한 두근",
+        "가슴 통증",
+        "쓰러질 것",
+        "쓰러졌",
+        "의식",
+        "경련",
+        "발작",
+        "혈압",
+        "쇼크",
+        "응급",
+        "119",
+        "많이 먹었",
+        "과다",
+    ],
 }
 
 _EXERCISE_LABEL = {"REGULAR": "규칙적 (주 3회 이상)", "IRREGULAR": "비규칙적", "NONE": ""}
@@ -94,7 +149,7 @@ _MEDICAL_DISCLAIMER = (
 
 def detect_skill(user_message: str) -> ChatSkill:
     """키워드 기반으로 사용자 메시지 의도를 분류해 적절한 스킬을 반환한다."""
-    for skill in (ChatSkill.DRUG_INTERACTION, ChatSkill.MEDICATION_GUIDE):
+    for skill in (ChatSkill.EMERGENCY, ChatSkill.DRUG_INTERACTION, ChatSkill.SIDE_EFFECT, ChatSkill.MEDICATION_GUIDE):
         for keyword in _SKILL_KEYWORDS[skill]:
             if keyword in user_message:
                 return skill
