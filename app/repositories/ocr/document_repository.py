@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -141,6 +141,62 @@ class OcrDocumentRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def confirm_all_medications(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 약물 전체를 is_confirmed=True로 일괄 처리합니다. 변경된 행 수를 반환합니다."""
+        subq = select(OcrDocument.record_id).where(
+            OcrDocument.record_id == record_id,
+            OcrDocument.user_id == user_id,
+            OcrDocument.is_active.is_(True),
+        )
+        result = await self.session.execute(
+            update(Medication)
+            .where(Medication.document_id.in_(subq), Medication.is_active.is_(True))
+            .values(is_confirmed=True)
+        )
+        return result.rowcount
+
+    async def confirm_all_disease_codes(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 질병코드 전체를 is_confirmed=True로 일괄 처리합니다. 변경된 행 수를 반환합니다."""
+        subq = select(OcrDocument.record_id).where(
+            OcrDocument.record_id == record_id,
+            OcrDocument.user_id == user_id,
+            OcrDocument.is_active.is_(True),
+        )
+        result = await self.session.execute(
+            update(DiseaseCode)
+            .where(DiseaseCode.document_id.in_(subq), DiseaseCode.is_active.is_(True))
+            .values(is_confirmed=True)
+        )
+        return result.rowcount
+
+    async def unconfirm_all_medications(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 약물 전체를 is_confirmed=False로 일괄 해제합니다."""
+        subq = select(OcrDocument.record_id).where(
+            OcrDocument.record_id == record_id,
+            OcrDocument.user_id == user_id,
+            OcrDocument.is_active.is_(True),
+        )
+        result = await self.session.execute(
+            update(Medication)
+            .where(Medication.document_id.in_(subq), Medication.is_active.is_(True))
+            .values(is_confirmed=False)
+        )
+        return result.rowcount
+
+    async def unconfirm_all_disease_codes(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 질병코드 전체를 is_confirmed=False로 일괄 해제합니다."""
+        subq = select(OcrDocument.record_id).where(
+            OcrDocument.record_id == record_id,
+            OcrDocument.user_id == user_id,
+            OcrDocument.is_active.is_(True),
+        )
+        result = await self.session.execute(
+            update(DiseaseCode)
+            .where(DiseaseCode.document_id.in_(subq), DiseaseCode.is_active.is_(True))
+            .values(is_confirmed=False)
+        )
+        return result.rowcount
 
     async def list_by_user(
         self,

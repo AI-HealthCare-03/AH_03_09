@@ -114,6 +114,13 @@ export default function Upload() {
         } catch {
           toast.error("이미 업로드된 파일입니다.");
         }
+      } else if (e instanceof ApiError && e.status === 422) {
+        try {
+          const parsed = JSON.parse(e.body) as { detail: string };
+          setError(parsed.detail);
+        } catch {
+          setError("파일 형식 또는 내용이 올바르지 않습니다.");
+        }
       } else if (e instanceof ApiError && e.status === 429) {
         try {
           const parsed = JSON.parse(e.body) as {
@@ -168,7 +175,7 @@ export default function Upload() {
                     선택
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    JPEG · PNG · PDF / 최대 {MAX_FILES}개 / 각 {MAX_SIZE_MB}MB 이하
+                    JPEG · PNG · PDF / 최대 {MAX_FILES}개 / 각 {MAX_SIZE_MB}MB 이하 / PDF 최대 2페이지
                   </p>
                 </div>
               </label>
