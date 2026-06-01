@@ -68,7 +68,7 @@ async def _ai_classify(text: str) -> str:
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=config.OPENAI_MODEL,
             messages=[
                 {
                     "role": "system",

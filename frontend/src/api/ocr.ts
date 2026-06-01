@@ -71,6 +71,17 @@ export function fetchDiseaseCodes(recordId: number): Promise<DiseaseCodeResponse
   return request<DiseaseCodeResponse[]>(`/ocr/records/${recordId}/disease-codes`);
 }
 
+export function updateDiseaseCode(
+  recordId: number,
+  diseaseCodeId: number,
+  icd10Code: string,
+): Promise<DiseaseCodeResponse> {
+  return request<DiseaseCodeResponse>(`/ocr/records/${recordId}/disease-codes/${diseaseCodeId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ icd10_code: icd10Code }),
+  });
+}
+
 export function deleteDocument(recordId: number): Promise<void> {
   return request<void>(`/ocr/records/${recordId}`, { method: "DELETE" });
 }

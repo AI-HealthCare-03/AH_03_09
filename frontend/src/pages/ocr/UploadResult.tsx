@@ -14,6 +14,7 @@ import {
   fetchOcrResult,
   reanalyzeDocument,
   searchDrugs,
+  updateDiseaseCode,
   updateMedication,
 } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,8 @@ export default function UploadResult() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<MedicationUpdateBody>({});
+  const [editingDiseaseId, setEditingDiseaseId] = useState<number | null>(null);
+  const [editDiseaseCode, setEditDiseaseCode] = useState("");
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [drugSearch, setDrugSearch] = useState("");
@@ -95,6 +98,17 @@ export default function UploadResult() {
       toast.success("약물이 삭제되었습니다.");
     },
     onError: () => toast.error("삭제에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const updateDiseaseCodeMutation = useMutation({
+    mutationFn: ({ codeId, icd10Code }: { codeId: number; icd10Code: string }) =>
+      updateDiseaseCode(recordId, codeId, icd10Code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      setEditingDiseaseId(null);
+      toast.success("질병분류기호가 수정되었습니다.");
+    },
+    onError: () => toast.error("수정에 실패했습니다. 다시 시도해주세요."),
   });
 
   const addMedMutation = useMutation({
@@ -454,27 +468,65 @@ export default function UploadResult() {
                 <table className="w-full text-sm">
                   <thead className="border-b">
                     <tr>
-                      <th
-                        scope="col"
-                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                      >
+                      <th scope="col" className="pb-2 text-left text-xs font-medium text-muted-foreground">
                         ICD-10 코드
                       </th>
-                      <th
-                        scope="col"
-                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                      >
+                      <th scope="col" className="pb-2 text-left text-xs font-medium text-muted-foreground">
                         질병명
                       </th>
+                      <th scope="col" className="pb-2" />
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {diseaseCodes.map((c) => (
-                      <tr key={c.id}>
-                        <td className="py-2.5 font-mono font-medium">{c.icd10_code}</td>
-                        <td className="py-2.5 text-muted-foreground">{c.disease_name ?? "-"}</td>
-                      </tr>
-                    ))}
+                    {diseaseCodes.map((c) => {
+                      const isEditing = editingDiseaseId === c.id;
+                      const isBusy = updateDiseaseCodeMutation.isPending && updateDiseaseCodeMutation.variables?.codeId === c.id;
+                      if (isEditing) {
+                        return (
+                          <tr key={c.id} className="bg-muted/20">
+                            <td className="py-1.5 pr-2">
+                              <input
+                                className="w-28 rounded border px-2 py-1 font-mono text-sm"
+                                value={editDiseaseCode}
+                                onChange={(e) => setEditDiseaseCode(e.target.value)}
+                              />
+                            </td>
+                            <td className="py-1.5 text-muted-foreground text-sm italic">자동 갱신</td>
+                            <td className="py-1.5">
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  disabled={isBusy || !editDiseaseCode.trim()}
+                                  onClick={() => updateDiseaseCodeMutation.mutate({ codeId: c.id, icd10Code: editDiseaseCode.trim() })}
+                                >
+                                  저장
+                                </Button>
+                                <Button size="sm" variant="ghost" disabled={isBusy} onClick={() => setEditingDiseaseId(null)}>
+                                  <XIcon className="size-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return (
+                        <tr key={c.id} className="transition-colors hover:bg-muted/20">
+                          <td className="py-2.5 font-mono font-medium">{c.icd10_code}</td>
+                          <td className="py-2.5 text-muted-foreground">{c.disease_name ?? "-"}</td>
+                          <td className="py-2.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2"
+                              disabled={editingDiseaseId !== null || editingId !== null}
+                              onClick={() => { setEditDiseaseCode(c.icd10_code); setEditingDiseaseId(c.id); }}
+                            >
+                              <PencilIcon className="size-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
