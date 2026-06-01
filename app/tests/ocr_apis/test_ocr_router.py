@@ -147,6 +147,21 @@ class TestOcrUpload:
 
         assert response.status_code == 202
 
+    def test_upload_pdf_too_many_pages(self, client, mock_db, auth_headers):
+        """PDF 3페이지 업로드 → 422 (REQ-OCR-026 최대 2페이지)"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        with patch("app.services.ocr.file_validator.PdfReader") as mock_reader:
+            mock_reader.return_value.pages = [MagicMock()] * 3
+            response = client.post(
+                "/api/v1/ocr/upload",
+                headers=auth_headers,
+                files=[("files", ("test.pdf", b"%PDF-1.4 fake", "application/pdf"))],
+            )
+
+        assert response.status_code == 422
+        assert "2페이지" in response.json()["detail"]
+
     def test_upload_invalid_mime_type(self, client, mock_db, auth_headers):
         """허용되지 않는 파일 형식 → 422 (REQ-OCR-002)"""
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
