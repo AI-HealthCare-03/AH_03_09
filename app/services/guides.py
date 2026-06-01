@@ -269,6 +269,12 @@ _BAD_PHRASES_WEB_REFERENCE = [
     "병용요법으로",
 ]
 
+_FALLBACK_KEY_INSTRUCTIONS = [
+    "식후 복용을 반드시 지켜주세요.",
+    "음주 중 복용을 삼가세요.",
+    "증상 악화 시 즉시 의사와 상담하세요.",
+]
+
 
 def _filter_patient_summary(sentences: list[str]) -> list[str]:
     return [s for s in sentences if not any(phrase in s for phrase in _BAD_PHRASES_WEB_REFERENCE)]
@@ -651,13 +657,12 @@ class GuideService:
         medications: list[str] = []
         if guide.get("medication_guide"):
             medications = [m["name"] for m in guide["medication_guide"].get("medications", [])]
+        lifestyle = guide.get("lifestyle_guide")
+        tips = lifestyle.get("tips", []) if lifestyle else []
+        key_instructions = tips if tips else _FALLBACK_KEY_INSTRUCTIONS
         return GuideContextResponse(
             guide_id=guide_id,
             medications=medications,
             disease_codes=guide.get("disease_codes", []),
-            key_instructions=[
-                "식후 복용을 반드시 지켜주세요.",
-                "음주 중 복용을 삼가세요.",
-                "증상 악화 시 즉시 의사와 상담하세요.",
-            ],
+            key_instructions=key_instructions,
         )
