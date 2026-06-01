@@ -105,8 +105,8 @@ async def send_message(
 
 @chat_router.post(
     "/sessions/{session_id}/messages/stream",
-    summary="메시지 전송 (SSE 스트리밍)",
-    description="AI 응답을 SSE(Server-Sent Events)로 실시간 스트리밍합니다.",
+    summary="메시지 전송 (HTTP Streaming)",
+    description="AI 응답을 HTTP Streaming(NDJSON)으로 실시간 전송합니다. 각 줄은 JSON 객체이며 자동 재연결 없이 fetch ReadableStream으로 수신합니다.",
 )
 async def stream_message(
     session_id: UUID,
@@ -118,7 +118,7 @@ async def stream_message(
         chat_svc.stream_message(
             session_id=session_id, user_id=current_user.id, content=body.content, guide_id=body.guide_id
         ),
-        media_type="text/event-stream",
+        media_type="application/x-ndjson",
     )
 
 
