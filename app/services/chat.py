@@ -127,6 +127,19 @@ class ChatService:
 
         yield json.dumps({"type": "done", "content": complete}) + "\n"
 
+    async def stream_message_sse(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):
+        async for line in self.stream_message(session_id, user_id, content, guide_id):
+            data = json.loads(line)
+            msg_type = data.get("type")
+            if msg_type == "chunk":
+                yield f"data: {json.dumps({'chunk': data['chunk']})}\n\n"
+            elif msg_type == "done":
+                yield f"event: done\ndata: {json.dumps({'content': data['content']})}\n\n"
+            elif msg_type == "error":
+                yield f"event: error\ndata: {json.dumps({'detail': data['detail']})}\n\n"
+            elif msg_type == "delay":
+                yield f"event: delay\ndata: {json.dumps({'detail': data['detail']})}\n\n"
+
     async def create_session(self, user_id: int, title: str = "새 대화") -> ChatSession:
         return await self.repo.create_session(user_id, title)
 
