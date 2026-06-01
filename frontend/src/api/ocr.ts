@@ -152,6 +152,18 @@ export function confirmOcr(
   });
 }
 
+export function confirmMedications(recordId: number): Promise<{ confirmed_count: number }> {
+  return request<{ confirmed_count: number }>(`/ocr/records/${recordId}/medications/confirm`, {
+    method: "POST",
+  });
+}
+
+export function confirmDiseaseCodes(recordId: number): Promise<{ confirmed_count: number }> {
+  return request<{ confirmed_count: number }>(`/ocr/records/${recordId}/disease-codes/confirm`, {
+    method: "POST",
+  });
+}
+
 export async function fetchDocumentFile(recordId: number): Promise<string> {
   const path = `/ocr/records/${recordId}/file`;
   const res = await withAuthRetry(path, (token) =>

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -7,6 +7,8 @@ import {
   type MedicationCreateBody,
   type MedicationUpdateBody,
   addMedication,
+  confirmDiseaseCodes,
+  confirmMedications,
   confirmOcr,
   deleteMedication,
   fetchDocument,
@@ -161,6 +163,24 @@ export default function UploadResult() {
     onError: () => toast.error("재추출에 실패했습니다. 다시 시도해주세요."),
   });
 
+  const confirmMedMutation = useMutation({
+    mutationFn: () => confirmMedications(recordId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      toast.success("약물 목록 확인 완료");
+    },
+    onError: () => toast.error("확인 처리에 실패했습니다."),
+  });
+
+  const confirmDiseaseCodeMutation = useMutation({
+    mutationFn: () => confirmDiseaseCodes(recordId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      toast.success("질병분류기호 확인 완료");
+    },
+    onError: () => toast.error("확인 처리에 실패했습니다."),
+  });
+
   useEffect(() => {
     if (!recordId) return;
     let url: string | null = null;
@@ -292,15 +312,28 @@ export default function UploadResult() {
                 </span>
               )}
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddModalOpen(true)}
-              disabled={editingId !== null}
-            >
-              <PlusIcon className="mr-1 size-3.5" />
-              약물 추가
-            </Button>
+            <div className="flex gap-2">
+              {medications.length > 0 && medications.some((m) => !m.is_confirmed) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => confirmMedMutation.mutate()}
+                  disabled={confirmMedMutation.isPending || editingId !== null}
+                >
+                  <CheckCircle2Icon className="mr-1 size-3.5" />
+                  {confirmMedMutation.isPending ? "처리 중..." : "전체 확인"}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddModalOpen(true)}
+                disabled={editingId !== null}
+              >
+                <PlusIcon className="mr-1 size-3.5" />
+                약물 추가
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -396,7 +429,14 @@ export default function UploadResult() {
 
                     return (
                       <tr key={m.id} className="transition-colors hover:bg-muted/20">
-                        <td className="py-2.5 font-medium">{m.medication_name}</td>
+                        <td className="py-2.5 font-medium">
+                          <span className="flex items-center gap-1">
+                            {m.is_confirmed && (
+                              <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
+                            )}
+                            {m.medication_name}
+                          </span>
+                        </td>
                         <td className="py-2.5 font-mono text-muted-foreground">
                           {m.edi_code ?? "-"}
                         </td>
@@ -448,14 +488,27 @@ export default function UploadResult() {
       {(doc.doc_type === "PRESCRIPTION" || diseaseCodes.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              질병분류기호
-              {diseaseCodes.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {diseaseCodes.length}개
-                </span>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                질병분류기호
+                {diseaseCodes.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {diseaseCodes.length}개
+                  </span>
+                )}
+              </CardTitle>
+              {diseaseCodes.length > 0 && diseaseCodes.some((c) => !c.is_confirmed) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => confirmDiseaseCodeMutation.mutate()}
+                  disabled={confirmDiseaseCodeMutation.isPending || editingDiseaseId !== null}
+                >
+                  <CheckCircle2Icon className="mr-1 size-3.5" />
+                  {confirmDiseaseCodeMutation.isPending ? "처리 중..." : "전체 확인"}
+                </Button>
               )}
-            </CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             {diseaseCodes.length === 0 ? (
@@ -510,7 +563,14 @@ export default function UploadResult() {
                       }
                       return (
                         <tr key={c.id} className="transition-colors hover:bg-muted/20">
-                          <td className="py-2.5 font-mono font-medium">{c.icd10_code}</td>
+                          <td className="py-2.5 font-mono font-medium">
+                            <span className="flex items-center gap-1">
+                              {c.is_confirmed && (
+                                <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
+                              )}
+                              {c.icd10_code}
+                            </span>
+                          </td>
                           <td className="py-2.5 text-muted-foreground">{c.disease_name ?? "-"}</td>
                           <td className="py-2.5">
                             <Button
