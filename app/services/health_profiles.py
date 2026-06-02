@@ -45,6 +45,8 @@ class HealthProfileService:
             changed_by=ProfileChangedBy.USER,
         )
         await self.repo.update_instance(profile, update_data)
+        await self.repo.session.commit()
+        await self.repo.session.refresh(profile)
         return profile
 
     async def get_history(self, user: User) -> list[HealthProfileHistory]:

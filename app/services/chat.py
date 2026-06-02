@@ -87,6 +87,20 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
         await self.repo.delete_session(session_id)
 
+    async def _fetch_health_context(self, user_id: int) -> dict | None:
+        result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
+        health_profile = result.scalar_one_or_none()
+        if not health_profile:
+            return None
+        return {
+            "primary_conditions": health_profile.primary_conditions,
+            "allergies": health_profile.allergies,
+            "current_medications": health_profile.current_medications,
+            "lifestyle_exercise": health_profile.lifestyle_exercise,
+            "lifestyle_smoking": health_profile.lifestyle_smoking,
+            "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+        }
+
     async def _get_guide_context(self, guide_id: str | None) -> dict | None:
         if not guide_id:
             return None
@@ -119,21 +133,7 @@ class ChatService:
         history = await self.repo.get_messages(session_id, limit=20)
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
-        result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
-        health_profile = result.scalar_one_or_none()
-        health_context = (
-            {
-                "primary_conditions": health_profile.primary_conditions,
-                "allergies": health_profile.allergies,
-                "current_medications": health_profile.current_medications,
-                "lifestyle_exercise": health_profile.lifestyle_exercise,
-                "lifestyle_smoking": health_profile.lifestyle_smoking,
-                "lifestyle_alcohol": health_profile.lifestyle_alcohol,
-            }
-            if health_profile
-            else None
-        )
-
+        health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
 
         redis = await get_redis()
@@ -207,26 +207,18 @@ class ChatService:
         if not session:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
 
+        preset = _PRESET_RESPONSES.get(_check_content(content))
+        if preset:
+            user_msg = await self.repo.create_message(session_id, MessageRole.USER, content)
+            assistant_msg = await self.repo.create_message(session_id, MessageRole.ASSISTANT, preset)
+            return user_msg, assistant_msg
+
         user_msg = await self.repo.create_message(session_id, MessageRole.USER, content)
 
         history = await self.repo.get_messages(session_id, limit=20)
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
-        result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
-        health_profile = result.scalar_one_or_none()
-        health_context = (
-            {
-                "primary_conditions": health_profile.primary_conditions,
-                "allergies": health_profile.allergies,
-                "current_medications": health_profile.current_medications,
-                "lifestyle_exercise": health_profile.lifestyle_exercise,
-                "lifestyle_smoking": health_profile.lifestyle_smoking,
-                "lifestyle_alcohol": health_profile.lifestyle_alcohol,
-            }
-            if health_profile
-            else None
-        )
-
+        health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
 
         redis = await get_redis()
@@ -268,6 +260,8 @@ class ChatService:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI 응답 실패: {error_detail}")
 
         complete = "".join(full_response)
+        if not complete:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI 응답 실패: 빈 응답")
         assistant_msg = await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
         await self.repo.touch_session(session_id)
         return user_msg, assistant_msg

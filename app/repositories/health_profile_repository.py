@@ -1,4 +1,4 @@
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.health_profiles import HealthProfile, HealthProfileHistory, ProfileChangedBy
@@ -20,9 +20,9 @@ class HealthProfileRepository:
         return profile
 
     async def update_instance(self, profile: HealthProfile, data: dict) -> None:
-        await self.session.execute(update(HealthProfile).where(HealthProfile.id == profile.id).values(**data))
-        await self.session.commit()
-        await self.session.refresh(profile)
+        for key, value in data.items():
+            setattr(profile, key, value)
+        await self.session.flush()
 
     async def create_history(
         self,
@@ -36,8 +36,7 @@ class HealthProfileRepository:
             changed_by=changed_by,
         )
         self.session.add(history)
-        await self.session.commit()
-        await self.session.refresh(history)
+        await self.session.flush()
         return history
 
     async def get_history(self, health_profile_id: int) -> list[HealthProfileHistory]:
