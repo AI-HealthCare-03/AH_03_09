@@ -9,7 +9,7 @@ async def process_chat(payload: ChatTaskPayload, redis: aioredis.Redis) -> None:
     history = [{"role": msg.role, "content": msg.content} for msg in payload.history]
 
     try:
-        async for token in stream_chat(payload.user_message, history):
+        async for token in stream_chat(payload.user_message, history, payload.health_profile, payload.guide_context):
             await redis.publish(stream_channel, token)
         await redis.publish(stream_channel, "[DONE]")
     except Exception as exc:

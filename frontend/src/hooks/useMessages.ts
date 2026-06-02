@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchMessages, sendMessage } from "@/api/chat";
+import { fetchMessages, sendMessage, streamMessage } from "@/api/chat";
 import { SESSIONS_KEY } from "@/hooks/useSessions";
 
 function messagesKey(sessionId: string) {
@@ -27,4 +28,50 @@ export function useSendMessage() {
       qc.invalidateQueries({ queryKey: SESSIONS_KEY });
     },
   });
+}
+
+export function useStreamMessage() {
+  const qc = useQueryClient();
+  const [streamingContent, setStreamingContent] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [delayMessage, setDelayMessage] = useState<string | null>(null);
+  const lastParamsRef = { sessionId: "", content: "" };
+
+  const mutate = async ({ sessionId, content }: { sessionId: string; content: string }) => {
+    lastParamsRef.sessionId = sessionId;
+    lastParamsRef.content = content;
+    setIsPending(true);
+    setStreamingContent("");
+    setError(null);
+    setDelayMessage(null);
+
+    await streamMessage(
+      sessionId,
+      content,
+      (chunk) => setStreamingContent((prev) => prev + chunk),
+      (_messageId, _title) => {
+        qc.invalidateQueries({ queryKey: messagesKey(sessionId) });
+        qc.invalidateQueries({ queryKey: SESSIONS_KEY });
+        setStreamingContent("");
+        setDelayMessage(null);
+        setIsPending(false);
+      },
+      (detail) => {
+        setError(detail);
+        setStreamingContent("");
+        setDelayMessage(null);
+        setIsPending(false);
+      },
+      (detail) => setDelayMessage(detail),
+    );
+  };
+
+  const retry = () => {
+    if (lastParamsRef.sessionId && lastParamsRef.content) {
+      mutate({ sessionId: lastParamsRef.sessionId, content: lastParamsRef.content });
+    }
+  };
+
+  return { mutate, retry, streamingContent, isPending, error, delayMessage };
 }

@@ -60,7 +60,7 @@ class TokenBackend:
     def get_leeway(self) -> timedelta:
         if self.leeway is None:
             return timedelta(seconds=0)
-        elif isinstance(self.leeway, (int, float)):
+        elif isinstance(self.leeway, int | float):
             return timedelta(seconds=self.leeway)
         elif isinstance(self.leeway, timedelta):
             return self.leeway

@@ -1,3 +1,31 @@
+export interface HealthProfileResponse {
+  id: number;
+  height_cm: number | null;
+  weight_kg: number | null;
+  blood_pressure_systolic: number | null;
+  blood_pressure_diastolic: number | null;
+  primary_conditions: string[];
+  allergies: string[];
+  current_medications: string[];
+  lifestyle_exercise: "REGULAR" | "IRREGULAR" | "NONE";
+  lifestyle_smoking: boolean;
+  lifestyle_alcohol: "NONE" | "MODERATE" | "HEAVY";
+  updated_at: string;
+}
+
+export interface HealthProfileUpdateRequest {
+  height_cm?: number;
+  weight_kg?: number;
+  blood_pressure_systolic?: number;
+  blood_pressure_diastolic?: number;
+  primary_conditions?: string[];
+  allergies?: string[];
+  current_medications?: string[];
+  lifestyle_exercise?: "REGULAR" | "IRREGULAR" | "NONE";
+  lifestyle_smoking?: boolean;
+  lifestyle_alcohol?: "NONE" | "MODERATE" | "HEAVY";
+}
+
 export interface ChatSessionResponse {
   id: string;
   title: string;

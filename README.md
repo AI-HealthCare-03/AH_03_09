@@ -1,6 +1,6 @@
 # AI Healthcare Project Template
 
-이 프로젝트는 AI 모델 추론(Inference) 워커와 FastAPI API 서버를 통합한 서비스 템플릿입니다. 
+이 프로젝트는 AI 모델 추론(Inference) 워커와 FastAPI API 서버를 통합한 서비스 템플릿입니다.
 현대적인 Python 패키지 관리 도구인 `uv`와 컨테이너화 도구인 `Docker`를 활용하여 일관된 개발 및 배포 환경을 제공합니다.
 
 ---
@@ -69,11 +69,11 @@ uv sync --group ai   # AI 워커용
 ### 2. 환경 변수 설정
 
 `envs/` 디렉토리에 있는 예시 파일을 복사하여 `.env` 파일을 생성합니다.
-- 로컬용 
+- 로컬용
     ```bash
     cp envs/example.local.env envs/.local.env
     ```
-- 배포용 
+- 배포용
     ```bash
     cp envs/example.prod.env envs/.prod.env
     ```
@@ -155,7 +155,7 @@ chmod +x scripts/deployment.sh
 3. 배포할 서비스 선택 (FastAPI, AI-Worker) 및 버전(Tag)
 4. SSH 키 파일명 및 EC2 IP 주소
 5. https 사용여부
-   - 5-1. https인 경우 도메인 추가 입력  
+   - 5-1. https인 경우 도메인 추가 입력
 
 #### SSL(HTTPS) 설정 (Certbot)
 도메인을 연결하고 HTTPS를 적용하려면 `scripts/certbot.sh`를 사용합니다.

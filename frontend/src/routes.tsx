@@ -2,7 +2,8 @@ import { createBrowserRouter } from "react-router-dom";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import ChatLayout from "@/components/layout/ChatLayout";
-import Chat from "@/pages/Chat";
+import Chat from "@/pages/chatbot/Chat";
+import ChatPage from "@/pages/ChatPage";
 import GuideDemo from "@/pages/GuideDemo";
 import HealthGuide from "@/pages/HealthGuide";
 import HealthProfile from "@/pages/HealthProfile";
@@ -17,6 +18,7 @@ import Upload from "@/pages/ocr/Upload";
 import UploadProcessing from "@/pages/ocr/UploadProcessing";
 import UploadResult from "@/pages/ocr/UploadResult";
 import UploadReview from "@/pages/ocr/UploadReview";
+import Pharmacy from "@/pages/Pharmacy";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 
@@ -39,6 +41,7 @@ export const router = createBrowserRouter([
           { path: "/documents", element: <MyDocuments /> },
           { path: "/health-guide", element: <HealthGuide /> },
           { path: "/health-profile", element: <HealthProfile /> },
+          { path: "/pharmacy", element: <Pharmacy /> },
           { path: "/profile", element: <Profile /> },
           { path: "/settings", element: <Settings /> },
         ],
@@ -48,6 +51,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "/chat", element: <Chat /> },
           { path: "/chat/:sessionId", element: <Chat /> },
+          { path: "/chat-v2", element: <ChatPage /> },
         ],
       },
     ],

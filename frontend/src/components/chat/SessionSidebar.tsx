@@ -40,6 +40,7 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
           <p className="p-4 text-sm text-slate-500">불러오는 중…</p>
         ) : sessions && sessions.length > 0 ? (
           <ul className="divide-y divide-slate-100">
+            {/* TODO: 세션 삭제 버튼 추가 — DELETE /api/v1/chat/sessions/{id} 백엔드 구현 완료 */}
             {sessions.map((s) => (
               <li key={s.id}>
                 <button

@@ -1,9 +1,9 @@
 # MediFind Bot — 프로젝트 문서
 
-> **작성 기준**: 20년차 의료 웹 개발자 관점  
-> **프로젝트**: 카카오 OAuth 기반 의료 정보 AI 챗봇  
-> **스택**: FastAPI · Supabase · Kakao OAuth · GPT-4o-mini · Next.js  
-> **브랜치**: `feature/chatbot` (from `main`)  
+> **작성 기준**: 20년차 의료 웹 개발자 관점
+> **프로젝트**: 카카오 OAuth 기반 의료 정보 AI 챗봇
+> **스택**: FastAPI · Supabase · Kakao OAuth · GPT-4o-mini · Next.js
+> **브랜치**: `feature/chatbot` (from `main`)
 > **최종 업데이트**: 2026-05-14
 
 ---
@@ -647,5 +647,5 @@ AI_WORKER_VERSION=v1.0.0
 
 ---
 
-*이 문서는 `feature/chatbot` 브랜치 기준으로 작성되었습니다.*  
+*이 문서는 `feature/chatbot` 브랜치 기준으로 작성되었습니다.*
 *프로덕션 배포 전 반드시 PDCA > Act 항목의 개선 사항을 적용하세요.*

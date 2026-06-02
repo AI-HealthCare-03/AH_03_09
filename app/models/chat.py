@@ -41,6 +41,7 @@ class ChatMessage(Base):
     )
     role: Mapped[str] = mapped_column(String(10), nullable=False, comment="USER: user\nASSISTANT: assistant")
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    feedback: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")

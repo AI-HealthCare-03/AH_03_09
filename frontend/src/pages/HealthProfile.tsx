@@ -1,13 +1,19 @@
 import {
   ActivityIcon,
+  BeakerIcon,
+  CigaretteIcon,
+  GlassWaterIcon,
   HeartPulseIcon,
   PencilIcon,
+  PillIcon,
   RulerIcon,
   StethoscopeIcon,
   WeightIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { fetchHealthProfile, updateHealthProfile } from "@/api/healthProfile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,20 +26,71 @@ import {
 } from "@/features/health-profile/healthProfileSchema";
 import { type MedicalProfile, useAuthStore } from "@/store/authStore";
 
-// TODO: BE에 MedicalProfile 모델 + GET/PUT /api/v1/users/me/medical 생기면 마이그레이션.
-
 export default function HealthProfile() {
   const medicalProfile = useAuthStore((s) => s.medicalProfile);
   const setMedicalProfile = useAuthStore((s) => s.setMedicalProfile);
   const [editing, setEditing] = useState(false);
+  const queryClient = useQueryClient();
 
-  const handleSubmit = (values: HealthProfileFormValues) => {
+  const { data: serverProfile } = useQuery({
+    queryKey: ["health-profile"],
+    queryFn: fetchHealthProfile,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: updateHealthProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["health-profile"] }),
+  });
+
+  const mergedProfile: MedicalProfile | null = medicalProfile || serverProfile
+    ? {
+        heightCm: serverProfile?.height_cm ?? medicalProfile?.heightCm ?? 0,
+        weightKg: serverProfile?.weight_kg ?? medicalProfile?.weightKg ?? 0,
+        bloodPressure:
+          serverProfile?.blood_pressure_systolic && serverProfile?.blood_pressure_diastolic
+            ? { systolic: serverProfile.blood_pressure_systolic, diastolic: serverProfile.blood_pressure_diastolic }
+            : medicalProfile?.bloodPressure,
+        existingDiagnoses: serverProfile?.primary_conditions?.join(", ") || medicalProfile?.existingDiagnoses,
+        allergies: serverProfile?.allergies ?? medicalProfile?.allergies,
+        currentMedications: serverProfile?.current_medications ?? medicalProfile?.currentMedications,
+        lifestyleExercise: serverProfile?.lifestyle_exercise ?? medicalProfile?.lifestyleExercise,
+        lifestyleSmoking: serverProfile?.lifestyle_smoking ?? medicalProfile?.lifestyleSmoking,
+        lifestyleAlcohol: serverProfile?.lifestyle_alcohol ?? medicalProfile?.lifestyleAlcohol,
+      }
+    : null;
+
+  const handleSubmit = async (values: HealthProfileFormValues) => {
+    const diagnoses = values.existingDiagnoses
+      ? values.existingDiagnoses.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+
+    const hasBp = !!values.systolic && !!values.diastolic;
+
+    try {
+      await syncMutation.mutateAsync({
+        height_cm: Number(values.heightCm) || undefined,
+        weight_kg: Number(values.weightKg) || undefined,
+        blood_pressure_systolic: hasBp ? Number(values.systolic) : undefined,
+        blood_pressure_diastolic: hasBp ? Number(values.diastolic) : undefined,
+        primary_conditions: diagnoses,
+        allergies: values.allergies,
+        current_medications: values.currentMedications,
+        lifestyle_exercise: values.lifestyleExercise,
+        lifestyle_smoking: values.lifestyleSmoking,
+        lifestyle_alcohol: values.lifestyleAlcohol,
+      });
+    } catch {
+      toast.error("서버 저장에 실패했어요. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     setMedicalProfile(toMedicalProfile(values));
     setEditing(false);
     toast.success("내 건강정보를 저장했어요.");
   };
 
-  const showForm = editing || medicalProfile === null;
+  const showForm = editing || mergedProfile === null;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -44,11 +101,11 @@ export default function HealthProfile() {
         </p>
       </header>
 
-      {showForm || medicalProfile === null ? (
+      {showForm ? (
         <Card className="rounded-2xl">
           <CardHeader>
             <CardTitle className="text-lg">
-              {medicalProfile !== null ? "정보 수정" : "정보 입력"}
+              {mergedProfile !== null ? "정보 수정" : "정보 입력"}
             </CardTitle>
             <CardDescription>
               본인의 신체·건강 정보를 입력해 주세요. 모든 항목은 본인 외에는 공개되지 않습니다.
@@ -56,15 +113,16 @@ export default function HealthProfile() {
           </CardHeader>
           <CardContent>
             <HealthProfileForm
-              defaultValues={fromMedicalProfile(medicalProfile)}
+              defaultValues={fromMedicalProfile(mergedProfile)}
               onSubmit={handleSubmit}
-              onCancel={medicalProfile !== null ? () => setEditing(false) : undefined}
-              submitLabel={medicalProfile !== null ? "변경 사항 저장" : "저장하고 시작하기"}
+              onCancel={mergedProfile !== null ? () => setEditing(false) : undefined}
+              submitLabel={mergedProfile !== null ? "변경 사항 저장" : "저장하고 시작하기"}
+              isSaving={syncMutation.isPending}
             />
           </CardContent>
         </Card>
       ) : (
-        <ProfileView profile={medicalProfile} onEdit={() => setEditing(true)} />
+        <ProfileView profile={mergedProfile} onEdit={() => setEditing(true)} />
       )}
     </div>
   );
@@ -95,7 +153,7 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="space-y-1">
             <CardTitle className="text-base">건강 상태</CardTitle>
-            <CardDescription>기저질환과 평소 혈압을 확인해 보세요.</CardDescription>
+            <CardDescription>기저질환, 혈압, 알레르기, 복용 약물을 확인해 보세요.</CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             <PencilIcon className="size-4" />
@@ -127,6 +185,65 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
             ) : (
               <span className="text-muted-foreground/60">입력된 정보 없음</span>
             )}
+          </Row>
+          <Separator />
+          <Row icon={BeakerIcon} label="알레르기">
+            {profile.allergies && profile.allergies.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {profile.allergies.map((a) => (
+                  <Badge key={a} variant="secondary" className="rounded-full">
+                    {a}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground/60">입력된 정보 없음</span>
+            )}
+          </Row>
+          <Separator />
+          <Row icon={PillIcon} label="복용 중인 약물">
+            {profile.currentMedications && profile.currentMedications.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {profile.currentMedications.map((m) => (
+                  <Badge key={m} variant="outline" className="rounded-full">
+                    {m}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground/60">입력된 정보 없음</span>
+            )}
+          </Row>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">생활 습관</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <Row icon={ActivityIcon} label="운동 습관">
+            <span>
+              {profile.lifestyleExercise === "REGULAR"
+                ? "규칙적 (주 3회 이상)"
+                : profile.lifestyleExercise === "IRREGULAR"
+                  ? "비규칙적"
+                  : "운동 안 함"}
+            </span>
+          </Row>
+          <Separator />
+          <Row icon={CigaretteIcon} label="흡연 여부">
+            <span>{profile.lifestyleSmoking ? "흡연" : "비흡연"}</span>
+          </Row>
+          <Separator />
+          <Row icon={GlassWaterIcon} label="음주 습관">
+            <span>
+              {profile.lifestyleAlcohol === "MODERATE"
+                ? "가끔 (주 1~2회)"
+                : profile.lifestyleAlcohol === "HEAVY"
+                  ? "자주 (주 3회 이상)"
+                  : "음주 안 함"}
+            </span>
           </Row>
         </CardContent>
       </Card>

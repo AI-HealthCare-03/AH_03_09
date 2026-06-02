@@ -26,3 +26,78 @@ export function sendMessage(sessionId: string, content: string): Promise<SendMes
     body: JSON.stringify({ content }),
   });
 }
+
+export function deleteSession(sessionId: string): Promise<void> {
+  return request<void>(`/chat/sessions/${sessionId}`, { method: "DELETE" });
+}
+
+export function submitFeedback(
+  sessionId: string,
+  messageId: number,
+  feedback: "good" | "bad",
+): Promise<void> {
+  return request<void>(`/chat/sessions/${sessionId}/messages/${messageId}/feedback`, {
+    method: "PATCH",
+    body: JSON.stringify({ feedback }),
+  });
+}
+
+export const streamMessage = async (
+  sessionId: string,
+  content: string,
+  onChunk: (chunk: string) => void,
+  onDone: (messageId: number, title: string | null) => void,
+  onError: (detail: string) => void,
+  onDelay?: (detail: string) => void,
+): Promise<void> => {
+  const res = await fetch(`/api/v1/chat/sessions/${sessionId}/messages/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ content }),
+  });
+
+  if (!res.ok || !res.body) {
+    onError("서버 연결에 실패했습니다.");
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let streamCompleted = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const data = JSON.parse(line);
+        if (data.type === "chunk") {
+          onChunk(data.chunk);
+        } else if (data.type === "done") {
+          streamCompleted = true;
+          onDone(0, null);
+          return;
+        } else if (data.type === "error") {
+          onError(data.detail ?? "알 수 없는 오류가 발생했습니다.");
+          return;
+        } else if (data.type === "delay") {
+          onDelay?.(data.detail);
+        }
+      } catch {
+        // ignore malformed lines
+      }
+    }
+  }
+
+  if (!streamCompleted) {
+    onError("연결이 끊어졌습니다. 다시 시도해주세요.");
+  }
+};

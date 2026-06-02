@@ -664,15 +664,21 @@ class GuideService:
         guide = _guides.get(guide_id)
         if not guide:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
+
         medications: list[str] = []
         if guide.get("medication_guide"):
             medications = [m["name"] for m in guide["medication_guide"].get("medications", [])]
+
+        schedule: list[dict] = guide.get("schedule_table") or []
+
         lifestyle = guide.get("lifestyle_guide")
         tips = lifestyle.get("tips", []) if lifestyle else []
         key_instructions = tips if tips else _FALLBACK_KEY_INSTRUCTIONS
+
         return GuideContextResponse(
             guide_id=guide_id,
             medications=medications,
-            disease_codes=guide.get("disease_codes", []),
+            schedule=schedule,
             key_instructions=key_instructions,
+            disease_codes=guide.get("disease_codes", []),
         )

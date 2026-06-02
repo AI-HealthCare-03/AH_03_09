@@ -1,0 +1,25 @@
+repos:
+  # 기본 파일 검사
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace        # 줄 끝 공백 제거
+      - id: end-of-file-fixer          # 파일 끝 개행 보장
+      - id: check-yaml                 # YAML 문법 검사
+      - id: check-toml                 # TOML 문법 검사
+      - id: check-merge-conflict       # 머지 충돌 마커 감지
+      - id: debug-statements           # print/breakpoint 감지
+      - id: check-added-large-files    # 5MB 이상 파일 차단
+        args: ["--maxkb=5000"]
+
+  # ruff: 린팅 + 포매팅 (커밋 시마다 실행)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff                       # 린트 검사 + 자동 수정
+        args: [--fix]
+      - id: ruff-format                # 코드 포매팅
+
+  # pytest: Docker 환경(MySQL)이 필요하므로 로컬 pre-push에서는 실행하지 않음
+  # CI(GitHub Actions)에서 docker compose up 후 실행할 것
+  # 로컬 수동 실행: docker compose up -d && uv run --group app pytest app/tests/ -v

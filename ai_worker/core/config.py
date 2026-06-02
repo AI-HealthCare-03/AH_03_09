@@ -20,6 +20,8 @@ class Config(BaseSettings):
     DB_PASSWORD: str = "ai_health_pw"
     DB_NAME: str = "ai_health_db"
 
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+
     CLOVA_OCR_INVOKE_URL: str = ""
     CLOVA_OCR_SECRET_KEY: str = ""
 

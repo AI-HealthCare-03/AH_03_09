@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -19,7 +19,12 @@ class ChatRepository:
         return chat
 
     async def get_sessions(self, user_id: int) -> list[ChatSession]:
-        stmt = select(ChatSession).where(ChatSession.user_id == user_id).order_by(ChatSession.updated_at.desc())
+        six_months_ago = datetime.now(UTC) - timedelta(days=180)
+        stmt = (
+            select(ChatSession)
+            .where(ChatSession.user_id == user_id, ChatSession.created_at >= six_months_ago)
+            .order_by(ChatSession.updated_at.desc())
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -47,5 +52,33 @@ class ChatRepository:
 
     async def touch_session(self, session_id: UUID | str) -> None:
         stmt = update(ChatSession).where(ChatSession.id == session_id).values(updated_at=datetime.now(UTC))
+        await self.session.execute(stmt)
+        await self.session.commit()
+
+    async def update_message_feedback(
+        self, message_id: int, session_id: UUID | str, feedback: str
+    ) -> ChatMessage | None:
+        stmt = select(ChatMessage).where(
+            ChatMessage.id == message_id,
+            ChatMessage.session_id == session_id,
+        )
+        result = await self.session.execute(stmt)
+        msg = result.scalar_one_or_none()
+        if msg:
+            msg.feedback = feedback
+            await self.session.commit()
+            await self.session.refresh(msg)
+        return msg
+
+    async def delete_session(self, session_id: UUID | str) -> None:
+        stmt = select(ChatSession).where(ChatSession.id == session_id)
+        result = await self.session.execute(stmt)
+        session = result.scalar_one_or_none()
+        if session:
+            await self.session.delete(session)
+            await self.session.commit()
+
+    async def update_title(self, session_id: UUID | str, title: str) -> None:
+        stmt = update(ChatSession).where(ChatSession.id == session_id).values(title=title)
         await self.session.execute(stmt)
         await self.session.commit()
