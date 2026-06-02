@@ -481,6 +481,80 @@ def _make_exercise_guide() -> ExerciseGuide:
 
 
 _FALLBACK_DIET = _make_diet_guide()
+_FALLBACK_EXERCISE = _make_exercise_guide()
+
+
+async def _make_exercise_guide_with_llm(
+    medication_names: list[str],
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> ExerciseGuide:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    client = AsyncOpenAI(api_key=api_key)
+
+    if disease_names:
+        disease_entries = [
+            f"{code} - {name}" if name else code
+            for code, name in zip(disease_codes, disease_names, strict=False)
+        ]
+    else:
+        disease_entries = disease_codes
+
+    prompt = f"""
+아래 약물과 질병 정보를 참고하여 환자 운동 가이드를 JSON으로 작성하세요.
+
+출력 형식 (아래 JSON만 출력, 추가 설명 없이):
+{{
+  "intensity": "운동 강도 한 구절 (예: 저강도 걷기·스트레칭 중심)",
+  "frequency": "운동 빈도 한 구절 (예: 주 3~5회)",
+  "duration": "1회 운동 시간 한 구절 (예: 1회 20~30분)",
+  "cautions": ["주의사항 2~4가지"]
+}}
+
+조건:
+- 환자가 이해하기 쉬운 한국어 사용
+- 질병 정보가 불명확하면 저강도 운동 중심으로 작성
+- 무리한 운동이나 고강도 운동을 권장하지 말 것
+- 통증, 어지러움, 흉통, 호흡곤란 발생 시 운동 중단 안내 포함 가능
+- 질병코드에 없는 새로운 질환이나 신체부위를 추가하지 말 것
+- 확정 진단처럼 표현하지 말 것
+- 재활치료, 전문 운동처방 수준의 구체적인 지시는 하지 말 것
+- 일반적인 생활관리 수준의 운동 가이드만 작성할 것
+- 특정 운동 동작(팔 들기, 스쿼트, 계단 오르기 등)을 구체적으로 지시하지 말 것
+
+약물:
+{", ".join(medication_names) if medication_names else "정보 없음"}
+
+질병 정보 (OCR 추출 참고정보):
+{", ".join(disease_entries) if disease_entries else "정보 없음"}
+"""
+
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "당신은 환자 친화적인 운동 가이드를 작성하는 의료 AI입니다."},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.5,
+    )
+
+    data = json.loads(response.choices[0].message.content or "{}")
+
+    intensity = data.get("intensity")
+    frequency = data.get("frequency")
+    duration = data.get("duration")
+    cautions = data.get("cautions")
+
+    return ExerciseGuide(
+        intensity=intensity if isinstance(intensity, str) and intensity.strip() else _FALLBACK_EXERCISE.intensity,
+        frequency=frequency if isinstance(frequency, str) and frequency.strip() else _FALLBACK_EXERCISE.frequency,
+        duration=duration if isinstance(duration, str) and duration.strip() else _FALLBACK_EXERCISE.duration,
+        cautions=cautions if isinstance(cautions, list) and cautions else _FALLBACK_EXERCISE.cautions,
+    )
 
 
 async def _make_diet_guide_with_llm(
@@ -652,6 +726,15 @@ async def _run_mock_worker(
     else:
         diet_guide = None
 
+    if GuideType.EXERCISE in guide_types:
+        try:
+            exercise_guide = await _make_exercise_guide_with_llm(medication_names, disease_codes, disease_names)
+        except Exception as e:
+            print(f"LLM exercise guide generation failed: {e}")
+            exercise_guide = _make_exercise_guide()
+    else:
+        exercise_guide = None
+
     guide = GuideResponse(
         guide_id=guide_id,
         guide_types=guide_types,
@@ -666,7 +749,7 @@ async def _run_mock_worker(
         ),
         lifestyle_guide=lifestyle_guide,
         diet_guide=diet_guide,
-        exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
+        exercise_guide=exercise_guide,
         generation_results=generation_results,
     )
 
