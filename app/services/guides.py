@@ -480,6 +480,75 @@ def _make_exercise_guide() -> ExerciseGuide:
     )
 
 
+_FALLBACK_DIET = _make_diet_guide()
+
+
+async def _make_diet_guide_with_llm(
+    medication_names: list[str],
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> DietGuide:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    client = AsyncOpenAI(api_key=api_key)
+
+    if disease_names:
+        disease_entries = [
+            f"{code} - {name}" if name else code
+            for code, name in zip(disease_codes, disease_names, strict=False)
+        ]
+    else:
+        disease_entries = disease_codes
+
+    prompt = f"""
+아래 약물과 질병 정보를 참고하여 환자 식사 가이드를 JSON으로 작성하세요.
+
+출력 형식 (아래 JSON만 출력, 추가 설명 없이):
+{{
+  "forbidden": ["피해야 할 음식 또는 성분 2~4가지"],
+  "recommended": ["권장 음식 또는 성분 2~4가지"],
+  "hydration": "수분 섭취 안내 한 문장"
+}}
+
+조건:
+- 환자가 이해하기 쉬운 한국어 사용
+- 질병 정보가 있으면 해당 질환에 적합한 식사 안내를 일반 안내보다 우선
+- 질병코드 기반 확정 진단 표현 금지
+- 질병코드에 없는 새로운 질환이나 증상을 추가하지 말 것
+- 안전한 생활관리 수준으로만 작성
+
+약물:
+{", ".join(medication_names) if medication_names else "정보 없음"}
+
+질병 정보 (OCR 추출 참고정보):
+{", ".join(disease_entries) if disease_entries else "정보 없음"}
+"""
+
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "당신은 환자 친화적인 식사 가이드를 작성하는 의료 AI입니다."},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.5,
+    )
+
+    data = json.loads(response.choices[0].message.content or "{}")
+
+    forbidden = data.get("forbidden")
+    recommended = data.get("recommended")
+    hydration = data.get("hydration")
+
+    return DietGuide(
+        forbidden=forbidden if isinstance(forbidden, list) and forbidden else _FALLBACK_DIET.forbidden,
+        recommended=recommended if isinstance(recommended, list) and recommended else _FALLBACK_DIET.recommended,
+        hydration=hydration if isinstance(hydration, str) and hydration.strip() else _FALLBACK_DIET.hydration,
+    )
+
+
 async def _make_lifestyle_guide_with_llm(
     medication_names: list[str],
     disease_codes: list[str],
@@ -574,6 +643,15 @@ async def _run_mock_worker(
     else:
         lifestyle_guide = None
 
+    if GuideType.DIET in guide_types:
+        try:
+            diet_guide = await _make_diet_guide_with_llm(medication_names, disease_codes, disease_names)
+        except Exception as e:
+            print(f"LLM diet guide generation failed: {e}")
+            diet_guide = _make_diet_guide()
+    else:
+        diet_guide = None
+
     guide = GuideResponse(
         guide_id=guide_id,
         guide_types=guide_types,
@@ -587,7 +665,7 @@ async def _run_mock_worker(
             else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
         ),
         lifestyle_guide=lifestyle_guide,
-        diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
+        diet_guide=diet_guide,
         exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
         generation_results=generation_results,
     )
