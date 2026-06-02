@@ -427,11 +427,11 @@ def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
     schedule: dict[str, list[str]] = {}
     for med in medications:
         name = med.medication_name
-        if med.time_of_day:
+        if med.timing:
+            schedule.setdefault(med.timing, []).append(name)
+        elif med.time_of_day:
             for slot in med.time_of_day:
                 schedule.setdefault(str(slot), []).append(name)
-        elif med.timing:
-            schedule.setdefault(med.timing, []).append(name)
         else:
             schedule.setdefault("복용 시간 확인 필요", []).append(name)
     return [{"time": t, "medications": names} for t, names in schedule.items()]
