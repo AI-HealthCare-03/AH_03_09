@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useLocation } from "react-router-dom";
 
 import {
   generateGuide,
@@ -28,6 +30,34 @@ const iconMap: Record<string, string> = {
   weight: "⚖️",
 };
 
+function StarRating({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(star)}
+          className={`text-2xl leading-none disabled:cursor-not-allowed ${
+            star <= value ? "text-amber-400" : "text-gray-300"
+          }`}
+        >
+          {star <= value ? "★" : "☆"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function HealthGuide() {
   const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
@@ -45,8 +75,56 @@ export default function HealthGuide() {
 
   const [ratingComprehension, setRatingComprehension] = useState(5);
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
-  const [ratingSafety, setRatingSafety] = useState(5);
+  const [ratingSafety] = useState(5);
   const [comment, setComment] = useState("");
+  const location = useLocation();
+  const initialJobIdRef = useRef(
+    (location.state as { guide_job_id?: string } | null)?.guide_job_id ?? null,
+  );
+
+  useEffect(() => {
+    const jobId = initialJobIdRef.current;
+    if (!jobId) return;
+
+    let cancelled = false;
+
+    async function pollFromOcr(id: string) {
+      setLoading(true);
+      setStatus("OCR 결과를 바탕으로 가이드 생성 중...");
+
+      while (!cancelled) {
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const statusResult = await getGuideStatus(id);
+          if (cancelled) break;
+          setStatus(`현재 상태: ${statusResult.status}`);
+          if (statusResult.status === "DONE" && statusResult.guide_id) {
+            const guideResult = await getGuide(statusResult.guide_id);
+            if (!cancelled) {
+              setGuide(guideResult);
+              setGuideId(statusResult.guide_id);
+              setStatus("가이드 생성 완료");
+            }
+            break;
+          }
+          if (statusResult.status === "FAILED") {
+            if (!cancelled) setStatus("가이드 생성 실패");
+            break;
+          }
+        } catch {
+          if (!cancelled) setStatus("에러 발생");
+          break;
+        }
+      }
+      if (!cancelled) setLoading(false);
+    }
+
+    pollFromOcr(jobId);
+    return () => {
+      cancelled = true;
+    };
+  }, []); // initialJobIdRef는 마운트 시 한 번만 읽음
+
   async function handleGenerate() {
     try {
       setLoading(true);
@@ -212,7 +290,7 @@ export default function HealthGuide() {
     </div>
   </>
 )}
-{medication.easy_summary?.length > 0 && (
+{medication.easy_summary?.length > 0 && medication.match_status !== "NOT_FOUND" && (
   <div className="rounded-lg bg-slate-50 p-3 mb-2">
     <p className="font-medium mb-2">쉬운 설명</p>
 
@@ -249,11 +327,44 @@ export default function HealthGuide() {
   </details>
 )}
 
-                    {medication.disclaimer && (
-                      <div className="rounded-md bg-amber-50 p-3 text-amber-800">
-                        {medication.disclaimer}
-                      </div>
-                    )}
+{medication.match_status === "WEB_REFERENCE" && (
+  <details className="mt-4 rounded-lg border p-3">
+    <summary className="cursor-pointer font-medium text-blue-700">
+      제품허가정보 원문 일부 보기
+    </summary>
+
+    <div className="mt-3 space-y-3">
+      <div className="rounded-md bg-amber-50 p-3 text-amber-800 text-xs">
+        아래 내용은 제품허가정보 원문 일부입니다.
+        전문 용어가 포함되어 있어 이해가 어려울 수 있습니다.
+        복용 관련 판단이 필요한 경우 의료진 또는 약사와 상담하세요.
+      </div>
+
+      {medication.dosage && <p>용법: {medication.dosage}</p>}
+
+      {medication.cautions.length > 0 && (
+        <div>
+          <p className="font-medium">주의사항</p>
+
+          <ul className="list-disc pl-5">
+            {medication.cautions.map((caution) => (
+              <li key={caution}>{caution}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  </details>
+)}
+
+{medication.match_status === "NOT_FOUND" && (
+  <div className="rounded-md bg-amber-50 p-3 text-amber-800 text-sm space-y-1">
+    <p className="font-medium">약물 정보를 찾을 수 없습니다.</p>
+    <p>OCR 인식 오류 또는 등록되지 않은 의약품일 수 있습니다.</p>
+    <p>약봉투 또는 처방전을 다시 확인해주세요.</p>
+    {medication.disclaimer && <p>{medication.disclaimer}</p>}
+  </div>
+)}
                   </CardContent>
                 </Card>
               ))}
@@ -454,63 +565,36 @@ export default function HealthGuide() {
           {guideId && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">가이드 피드백</CardTitle>
+                <CardTitle className="text-lg">읽어보신 가이드는 어땠나요?</CardTitle>
               </CardHeader>
 
               <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label className="space-y-1 text-sm">
-                    <span className="font-medium">이해도</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium">이해하기 쉬웠나요?</p>
+                    <StarRating
                       value={ratingComprehension}
-                      onChange={(event) =>
-                        setRatingComprehension(Number(event.target.value))
-                      }
-                      className="w-full rounded-md border px-3 py-2"
+                      onChange={setRatingComprehension}
                       disabled={feedbackSubmitted}
                     />
-                  </label>
+                  </div>
 
-                  <label className="space-y-1 text-sm">
-                    <span className="font-medium">유용성</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium">도움이 되었나요?</p>
+                    <StarRating
                       value={ratingUsefulness}
-                      onChange={(event) =>
-                        setRatingUsefulness(Number(event.target.value))
-                      }
-                      className="w-full rounded-md border px-3 py-2"
+                      onChange={setRatingUsefulness}
                       disabled={feedbackSubmitted}
                     />
-                  </label>
-
-                  <label className="space-y-1 text-sm">
-                    <span className="font-medium">안전성</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={ratingSafety}
-                      onChange={(event) =>
-                        setRatingSafety(Number(event.target.value))
-                      }
-                      className="w-full rounded-md border px-3 py-2"
-                      disabled={feedbackSubmitted}
-                    />
-                  </label>
+                  </div>
                 </div>
 
                 <label className="space-y-1 text-sm">
-                  <span className="font-medium">의견</span>
+                  <span className="font-medium">추가 의견 (선택)</span>
                   <textarea
                     value={comment}
                     onChange={(event) => setComment(event.target.value)}
-                    placeholder="가이드에 대한 의견을 입력해주세요."
+                    placeholder="더 나은 가이드 제공을 위해 의견을 남겨주세요."
                     className="min-h-24 w-full rounded-md border px-3 py-2"
                     disabled={feedbackSubmitted}
                   />
@@ -525,7 +609,7 @@ export default function HealthGuide() {
                     ? "제출 중..."
                     : feedbackSubmitted
                       ? "피드백 제출 완료"
-                      : "피드백 제출"}
+                      : "의견 보내기"}
                 </Button>
 
                 {feedbackStatus && (

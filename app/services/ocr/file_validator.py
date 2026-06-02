@@ -1,4 +1,7 @@
+import io
+
 from fastapi import HTTPException, UploadFile, status
+from pypdf import PdfReader
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "application/pdf"}
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -41,6 +44,19 @@ async def validate_upload(file: UploadFile) -> bytes:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="파일 크기가 10MB를 초과합니다.",
         )
+
+    if file.content_type == "application/pdf":
+        try:
+            reader = PdfReader(io.BytesIO(content))
+            if len(reader.pages) > 2:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="PDF는 최대 2페이지까지 업로드할 수 있습니다.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # 파싱 불가 PDF는 OCR 단계에서 처리
 
     return content
 

@@ -33,6 +33,7 @@ class Config(BaseSettings):
 
     REDIS_URL: str = "redis://localhost:6379"
     OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
 
     COOKIE_DOMAIN: str = "localhost"
 

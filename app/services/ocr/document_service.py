@@ -12,11 +12,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import config
 from app.core.redis_client import get_redis
 from app.dtos.ocr.document_dtos import MedicationCreateRequest, MedicationUpdateRequest, OcrDocumentUpdateRequest
-from app.models.ocr.ocr_document import Medication, OcrDocument, OcrStatus
+from app.models.ocr.ocr_document import DiseaseCode, Medication, OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
 
 logger = logging.getLogger(__name__)
+
+
+async def _lookup_disease_name(icd10_code: str) -> str | None:
+    """ICD-10 코드에 해당하는 한국어 질병명을 GPT-mini로 조회합니다."""
+    if not config.OPENAI_API_KEY:
+        return None
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+    try:
+        resp = await client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"ICD-10 코드 {icd10_code}의 한국어 질병명은? 알면 질병명만, 모르면 null만 답하세요.",
+                }
+            ],
+            max_tokens=50,
+            temperature=0,
+        )
+        answer = resp.choices[0].message.content.strip()
+        return None if answer.lower() == "null" else answer
+    except Exception:
+        return None
 
 
 class OcrDocumentService:
@@ -136,7 +161,7 @@ class OcrDocumentService:
             doc.valid_until = body.valid_until
         if body.hospital_name is not None:
             doc.hospital_name = body.hospital_name
-        await self.session.flush()
+        await self.session.commit()
         await self.session.refresh(doc)
         return doc
 
@@ -162,9 +187,23 @@ class OcrDocumentService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
         for field, value in body.model_dump(exclude_unset=True).items():
             setattr(med, field, value)
-        await self.session.flush()
+        med.is_confirmed = False  # 수정 시 재확인 필요
+        await self.session.commit()
         await self.session.refresh(med)
         return med
+
+    async def update_disease_code(
+        self, record_id: int, disease_code_id: int, user_id: int, icd10_code: str
+    ) -> DiseaseCode:
+        code = await self.repo.get_disease_code(record_id, disease_code_id, user_id)
+        if code is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="질병분류기호를 찾을 수 없습니다.")
+        if icd10_code != code.icd10_code:
+            code.icd10_code = icd10_code
+            code.disease_name = await _lookup_disease_name(icd10_code)
+        await self.session.commit()
+        await self.session.refresh(code)
+        return code
 
     async def delete_medication(self, record_id: int, medication_id: int, user_id: int) -> None:
         med = await self.repo.get_medication(record_id, medication_id, user_id)
@@ -172,6 +211,34 @@ class OcrDocumentService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
         med.is_active = False
         await self.session.flush()
+
+    async def confirm_medications(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 약물 전체를 is_confirmed=True로 처리합니다."""
+        doc = await self.repo.get_by_record_id(record_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+        return await self.repo.confirm_all_medications(record_id, user_id)
+
+    async def unconfirm_medications(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 약물 전체를 is_confirmed=False로 해제합니다."""
+        doc = await self.repo.get_by_record_id(record_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+        return await self.repo.unconfirm_all_medications(record_id, user_id)
+
+    async def confirm_disease_codes(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 질병코드 전체를 is_confirmed=True로 처리합니다."""
+        doc = await self.repo.get_by_record_id(record_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+        return await self.repo.confirm_all_disease_codes(record_id, user_id)
+
+    async def unconfirm_disease_codes(self, record_id: int, user_id: int) -> int:
+        """문서의 활성 질병코드 전체를 is_confirmed=False로 해제합니다."""
+        doc = await self.repo.get_by_record_id(record_id, user_id)
+        if doc is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+        return await self.repo.unconfirm_all_disease_codes(record_id, user_id)
 
     async def reanalyze_document(self, record_id: int, user_id: int, is_reclassify: bool = False) -> OcrDocument:
         doc = await self.get_document(record_id, user_id)
@@ -232,6 +299,7 @@ class OcrDocumentService:
                     for m in active_meds
                 ],
                 disease_codes=[c.icd10_code for c in active_codes],
+                disease_names=[c.disease_name or "" for c in active_codes],
             )
             guide_resp = await GuideService().create_guide_job(guide_req)
             guide_job_id = guide_resp.job_id

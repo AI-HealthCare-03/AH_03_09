@@ -282,7 +282,10 @@ async def get_record(
     """특정 OCR 처리 결과의 상세 정보를 조회합니다. (REQ-OCR-008)"""
     svc = OcrDocumentService(session)
     doc = await svc.get_document(record_id, current_user.id)
-    return OcrDocumentDetailResponse.model_validate(doc)
+    detail = OcrDocumentDetailResponse.model_validate(doc)
+    if doc.doc_type != "PRESCRIPTION":
+        detail.disease_codes = []
+    return detail
 
 
 @ocr_router.get("/records/{record_id}/file")
@@ -372,6 +375,32 @@ async def list_medications(
     return [MedicationResponse.model_validate(m) for m in doc.medications if m.is_active]
 
 
+@ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
+async def confirm_medications(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, int]:
+    """약물 목록 전체를 확인 처리합니다. (REQ-OCR-017)"""
+    svc = OcrDocumentService(session)
+    confirmed_count = await svc.confirm_medications(record_id, current_user.id)
+    await session.commit()
+    return {"confirmed_count": confirmed_count}
+
+
+@ocr_router.delete("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
+async def unconfirm_medications(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, int]:
+    """약물 목록 전체 확인을 해제합니다."""
+    svc = OcrDocumentService(session)
+    unconfirmed_count = await svc.unconfirm_medications(record_id, current_user.id)
+    await session.commit()
+    return {"unconfirmed_count": unconfirmed_count}
+
+
 @ocr_router.patch("/records/{record_id}/medications/{medication_id}", response_model=MedicationResponse)
 async def update_medication(
     record_id: int,
@@ -400,16 +429,6 @@ async def delete_medication(
     await session.commit()
 
 
-@ocr_router.post("/records/{record_id}/medications/confirm", status_code=status.HTTP_200_OK)
-async def confirm_medications(
-    record_id: int,
-    current_user: _AUTH,
-    session: _SESSION,
-) -> dict[str, str]:
-    """약물 목록 전체를 확인 처리합니다. (REQ-OCR-017)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
-
-
 # ── Disease Codes ─────────────────────────────────────────────────────────────
 
 
@@ -422,6 +441,8 @@ async def list_disease_codes(
     """처방전의 질병 분류기호 목록을 조회합니다. (REQ-OCR-011)"""
     svc = OcrDocumentService(session)
     doc = await svc.get_document(record_id, current_user.id)
+    if doc.doc_type != "PRESCRIPTION":
+        return []
     return [DiseaseCodeResponse.model_validate(c) for c in doc.disease_codes if c.is_active]
 
 
@@ -433,8 +454,12 @@ async def update_disease_code(
     current_user: _AUTH,
     session: _SESSION,
 ) -> DiseaseCodeResponse:
-    """질병 분류기호를 수정합니다. (REQ-OCR-014)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    """ICD-10 코드를 수정합니다. 질병명은 코드 기반으로 자동 갱신됩니다. (REQ-OCR-014)"""
+    if not body.icd10_code:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="icd10_code는 필수입니다.")
+    svc = OcrDocumentService(session)
+    code = await svc.update_disease_code(record_id, disease_code_id, current_user.id, body.icd10_code)
+    return DiseaseCodeResponse.model_validate(code)
 
 
 @ocr_router.post("/records/{record_id}/disease-codes/confirm", status_code=status.HTTP_200_OK)
@@ -442,9 +467,25 @@ async def confirm_disease_codes(
     record_id: int,
     current_user: _AUTH,
     session: _SESSION,
-) -> dict[str, str]:
+) -> dict[str, int]:
     """질병 분류기호 전체를 확인 처리합니다. (REQ-OCR-017)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    svc = OcrDocumentService(session)
+    confirmed_count = await svc.confirm_disease_codes(record_id, current_user.id)
+    await session.commit()
+    return {"confirmed_count": confirmed_count}
+
+
+@ocr_router.delete("/records/{record_id}/disease-codes/confirm", status_code=status.HTTP_200_OK)
+async def unconfirm_disease_codes(
+    record_id: int,
+    current_user: _AUTH,
+    session: _SESSION,
+) -> dict[str, int]:
+    """질병 분류기호 전체 확인을 해제합니다."""
+    svc = OcrDocumentService(session)
+    unconfirmed_count = await svc.unconfirm_disease_codes(record_id, current_user.id)
+    await session.commit()
+    return {"unconfirmed_count": unconfirmed_count}
 
 
 # ── OCR Result ────────────────────────────────────────────────────────────────

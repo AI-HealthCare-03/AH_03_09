@@ -71,6 +71,17 @@ export function fetchDiseaseCodes(recordId: number): Promise<DiseaseCodeResponse
   return request<DiseaseCodeResponse[]>(`/ocr/records/${recordId}/disease-codes`);
 }
 
+export function updateDiseaseCode(
+  recordId: number,
+  diseaseCodeId: number,
+  icd10Code: string,
+): Promise<DiseaseCodeResponse> {
+  return request<DiseaseCodeResponse>(`/ocr/records/${recordId}/disease-codes/${diseaseCodeId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ icd10_code: icd10Code }),
+  });
+}
+
 export function deleteDocument(recordId: number): Promise<void> {
   return request<void>(`/ocr/records/${recordId}`, { method: "DELETE" });
 }
@@ -138,6 +149,30 @@ export function confirmOcr(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+export function confirmMedications(recordId: number): Promise<{ confirmed_count: number }> {
+  return request<{ confirmed_count: number }>(`/ocr/records/${recordId}/medications/confirm`, {
+    method: "POST",
+  });
+}
+
+export function unconfirmMedications(recordId: number): Promise<{ unconfirmed_count: number }> {
+  return request<{ unconfirmed_count: number }>(`/ocr/records/${recordId}/medications/confirm`, {
+    method: "DELETE",
+  });
+}
+
+export function confirmDiseaseCodes(recordId: number): Promise<{ confirmed_count: number }> {
+  return request<{ confirmed_count: number }>(`/ocr/records/${recordId}/disease-codes/confirm`, {
+    method: "POST",
+  });
+}
+
+export function unconfirmDiseaseCodes(recordId: number): Promise<{ unconfirmed_count: number }> {
+  return request<{ unconfirmed_count: number }>(`/ocr/records/${recordId}/disease-codes/confirm`, {
+    method: "DELETE",
   });
 }
 
