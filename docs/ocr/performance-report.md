@@ -1,7 +1,7 @@
 # OCR 성능 보고서
 
-**작성일:** 2026-06-01  
-**대상 REQ:** REQ-OCR-024, REQ-OCR-030  
+**작성일:** 2026-06-01
+**대상 REQ:** REQ-OCR-024, REQ-OCR-030
 **관련 평가 항목:** 3-1 (모델 품질 개선), 3-2 (비동기 처리), 3-3 (결과 일관성), 5-1 (P95 Latency), 5-5 (비동기 리소스 효율)
 
 ---
@@ -17,7 +17,7 @@
 | OCR 신뢰도 — 약봉투 평균 | **85.86%** | ≥ 80% | ✅ |
 | 총 측정 문서 수 | **20건** | — | |
 
-> **중요:** P95 Latency 평가 기준(5-1)은 **FastAPI 엔드포인트 응답 시간**을 기준으로 합니다.  
+> **중요:** P95 Latency 평가 기준(5-1)은 **FastAPI 엔드포인트 응답 시간**을 기준으로 합니다.
 > OCR 파이프라인 처리 시간(1,601ms avg)은 비동기 백그라운드 작업(ai_worker)에서 수행되며 API 응답에 포함되지 않습니다.
 
 ---
@@ -26,7 +26,7 @@
 
 ### 2.1 아키텍처 설계 의도
 
-OCR 처리는 Clova OCR API 호출(~1-3s) + GPT 파싱(~0.5-1.5s)을 포함하므로  
+OCR 처리는 Clova OCR API 호출(~1-3s) + GPT 파싱(~0.5-1.5s)을 포함하므로
 동기 방식으로 설계하면 단일 업로드 요청에 3–5초 이상이 소요됩니다.
 
 이를 해결하기 위해 **업로드 즉시 202 반환 + Redis pub/sub 비동기 처리** 구조를 채택했습니다.
@@ -56,7 +56,7 @@ POST /upload → Redis PUBLISH → 즉시 202 반환 (<300ms)
 | `POST /ocr/records/{id}/reanalyze` | Redis PUBLISH | **< 300ms** |
 | `POST /ocr/jobs/{id}/confirm` | DB SELECT + HTTP (가이드) | **< 500ms** |
 
-> 모든 FastAPI 엔드포인트의 P95 Latency는 500ms 이내로, **3,000ms 기준을 충족합니다.**  
+> 모든 FastAPI 엔드포인트의 P95 Latency는 500ms 이내로, **3,000ms 기준을 충족합니다.**
 > (외부 API 호출 없이 DB I/O만 수행하는 구조)
 
 ### 2.3 비동기 처리 효과 (정량)
@@ -68,7 +68,7 @@ POST /upload → Redis PUBLISH → 즉시 202 반환 (<300ms)
 | 서버 스레드 점유 시간 | OCR 처리 전체 | Redis PUBLISH까지만 |
 | 사용자 대기 경험 | OCR 완료까지 대기 | 즉시 job_id 수신 후 폴링 |
 
-Redis pub/sub 도입으로 **API 응답 시간을 ~95% 단축**하였으며,  
+Redis pub/sub 도입으로 **API 응답 시간을 ~95% 단축**하였으며,
 단일 FastAPI 서버가 OCR I/O 대기 없이 다수의 요청을 처리할 수 있습니다.
 
 ---
@@ -87,14 +87,14 @@ Redis pub/sub 도입으로 **API 응답 시간을 ~95% 단축**하였으며,
 | 평균 (avg) | 1,601ms |
 | 최댓값 (max) | 3,742ms |
 
-> **처리 시간이 비동기 백그라운드에서 소요되는 이유:**  
-> - Clova OCR API 네트워크 왕복: 500–2,500ms (이미지 크기, 서버 부하 의존)  
-> - GPT-4o-mini 파싱 API: 300–1,200ms  
-> - 규칙 기반 분류(정규식)로 GPT 호출을 최소화하여 비용 및 지연 절감  
+> **처리 시간이 비동기 백그라운드에서 소요되는 이유:**
+> - Clova OCR API 네트워크 왕복: 500–2,500ms (이미지 크기, 서버 부하 의존)
+> - GPT-4o-mini 파싱 API: 300–1,200ms
+> - 규칙 기반 분류(정규식)로 GPT 호출을 최소화하여 비용 및 지연 절감
 
 ### 3.1 최솟값 47ms의 의미
 
-`doc_type_hint`가 설정된 재분석(reanalyze) 요청에서 기존 raw_text를 재사용하고  
+`doc_type_hint`가 설정된 재분석(reanalyze) 요청에서 기존 raw_text를 재사용하고
 Clova API를 재호출하지 않는 경우 47ms까지 단축됩니다 (`_resolve_ocr` 최적화).
 
 ---
@@ -122,7 +122,7 @@ Clova API를 재호출하지 않는 경우 47ms까지 단축됩니다 (`_resolve
 
 ### 5.1 검증 방법론
 
-동일한 이미지를 1회 업로드 + 4회 reanalyze하여 총 5회 OCR을 수행하고,  
+동일한 이미지를 1회 업로드 + 4회 reanalyze하여 총 5회 OCR을 수행하고,
 신뢰도 점수(confidence_score)의 표준편차가 **±2% 이내**인지 검증합니다.
 
 **검증 스크립트:** `scripts/verify_ocr_consistency.py`
@@ -134,7 +134,7 @@ BEARER_TOKEN=<your_jwt_token> uv run python scripts/verify_ocr_consistency.py <i
 
 ### 5.2 일관성 보장 메커니즘
 
-Clova OCR은 결정론적(deterministic) API로, 동일 이미지에 대해 동일 결과를 반환합니다.  
+Clova OCR은 결정론적(deterministic) API로, 동일 이미지에 대해 동일 결과를 반환합니다.
 GPT 파싱은 `temperature=0`으로 설정되어 있어 동일 입력에 대해 일관된 결과를 보장합니다.
 
 ```python
@@ -156,7 +156,7 @@ resp = await client.chat.completions.create(
 | 1회 reanalyze | 1건 |
 | 3회 reanalyze | 2건 |
 
-재분석 시 동일 raw_text 재사용(`doc_type_hint` 경로)으로 OCR 결과 편차 없음.  
+재분석 시 동일 raw_text 재사용(`doc_type_hint` 경로)으로 OCR 결과 편차 없음.
 GPT 파싱의 `temperature=0` 설정으로 파싱 결과도 일관성 유지.
 
 ---
@@ -192,7 +192,7 @@ raw_text
 
 ### 6.4 약물명 정규화 (pg_trgm 매칭)
 
-OCR된 약물명을 식약처 drug_master DB와 pg_trgm word_similarity > 0.6 기준으로 매칭하여  
+OCR된 약물명을 식약처 drug_master DB와 pg_trgm word_similarity > 0.6 기준으로 매칭하여
 오타·단위 표기 차이(mg → 밀리그램)를 자동 정규화합니다.
 
 ---
@@ -203,7 +203,7 @@ OCR된 약물명을 식약처 drug_master DB와 pg_trgm word_similarity > 0.6 �
 
 ```sql
 -- ai_performance_metrics 테이블에서 직접 계산
-SELECT 
+SELECT
   COUNT(*) as total_records,
   ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY metric_value)::numeric, 2) as p50_ms,
   ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY metric_value)::numeric, 2) as p95_ms,
@@ -227,7 +227,7 @@ BEARER_TOKEN=<jwt_token> uv run python scripts/verify_ocr_consistency.py tests/f
 
 ### 8.1 검토 배경
 
-OCR 신뢰도 향상을 위해 Clova OCR API 호출 전 이미지 전처리(OpenCV) 도입을 검토했습니다.  
+OCR 신뢰도 향상을 위해 Clova OCR API 호출 전 이미지 전처리(OpenCV) 도입을 검토했습니다.
 검토 대상 기법: 회전 보정(deskew), 노이즈 제거(fastNlMeansDenoising), 이진화(Otsu's thresholding), 대비 향상(CLAHE)
 
 ### 8.2 불채택 근거
@@ -241,7 +241,7 @@ OCR 신뢰도 향상을 위해 Clova OCR API 호출 전 이미지 전처리(Open
 
 ### 8.3 채택한 대안: 텍스트 레벨 전처리
 
-이미지 조작 대신 **Clova가 반환한 텍스트**를 GPT로 보내기 전에 전처리하는 방식을 채택했습니다.  
+이미지 조작 대신 **Clova가 반환한 텍스트**를 GPT로 보내기 전에 전처리하는 방식을 채택했습니다.
 이 방식은 Clova의 내부 전처리를 방해하지 않으면서 파싱 품질을 향상시킵니다.
 
 | 전처리 단계 | 구현 위치 | 효과 |
