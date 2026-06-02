@@ -279,12 +279,13 @@ class OcrDocumentService:
             from app.dtos.guides import GenerateGuideRequest, GuideType, MedicationDetail
             from app.services.guides import GuideService
 
-            active_meds = [m for m in (doc.medications or []) if m.is_active and m.medication_name]
-            active_codes = [c for c in (doc.disease_codes or []) if c.is_active and c.icd10_code]
+            other_docs = await self.repo.get_recent_done_by_user(user_id, exclude_record_id=doc.record_id, limit=9)
+            merged_meds, merged_codes = self._merge_multi_doc_data([doc] + other_docs)
+
             guide_req = GenerateGuideRequest(
                 patient_id=str(user_id),
                 guide_types=list(GuideType),
-                medication_names=[m.medication_name for m in active_meds],
+                medication_names=[m.medication_name for m in merged_meds],
                 medications=[
                     MedicationDetail(
                         medication_name=m.medication_name,
@@ -296,10 +297,10 @@ class OcrDocumentService:
                         time_of_day=m.time_of_day,
                         warnings=m.warnings,
                     )
-                    for m in active_meds
+                    for m in merged_meds
                 ],
-                disease_codes=[c.icd10_code for c in active_codes],
-                disease_names=[c.disease_name or "" for c in active_codes],
+                disease_codes=[c.icd10_code for c in merged_codes],
+                disease_names=[c.disease_name or "" for c in merged_codes],
             )
             guide_resp = await GuideService().create_guide_job(guide_req)
             guide_job_id = guide_resp.job_id
@@ -311,6 +312,25 @@ class OcrDocumentService:
             )
 
         return doc.record_id, doc.job_id, guide_job_id
+
+    def _merge_multi_doc_data(self, docs: list[OcrDocument]) -> tuple[list[Medication], list[DiseaseCode]]:
+        """여러 문서의 약물·질병코드를 중복 제거하여 합산합니다. 앞 문서 우선."""
+        seen_meds: set[str] = set()
+        merged_meds: list[Medication] = []
+        seen_codes: set[str] = set()
+        merged_codes: list[DiseaseCode] = []
+        for doc in docs:
+            for m in doc.medications or []:
+                if m.is_active and m.medication_name:
+                    key = m.medication_name.strip().lower()
+                    if key not in seen_meds:
+                        seen_meds.add(key)
+                        merged_meds.append(m)
+            for c in doc.disease_codes or []:
+                if c.is_active and c.icd10_code and c.icd10_code not in seen_codes:
+                    seen_codes.add(c.icd10_code)
+                    merged_codes.append(c)
+        return merged_meds, merged_codes
 
     async def _publish_ocr_job(self, doc: OcrDocument) -> None:
         payload = {
