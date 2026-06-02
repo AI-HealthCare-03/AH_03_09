@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import get_async_session
@@ -59,6 +60,7 @@ _PRESET_RESPONSES = {
 
 class ChatService:
     def __init__(self, session: Annotated[AsyncSession, Depends(get_async_session)]) -> None:
+        self.session = session
         self.repo = ChatRepository(session)
 
     async def update_message_feedback(
@@ -117,7 +119,8 @@ class ChatService:
         history = await self.repo.get_messages(session_id, limit=20)
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
-        health_profile = await HealthProfile.get_or_none(user_id=user_id)
+        result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
+        health_profile = result.scalar_one_or_none()
         health_context = (
             {
                 "primary_conditions": health_profile.primary_conditions,
@@ -209,7 +212,8 @@ class ChatService:
         history = await self.repo.get_messages(session_id, limit=20)
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
-        health_profile = await HealthProfile.get_or_none(user_id=user_id)
+        result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
+        health_profile = result.scalar_one_or_none()
         health_context = (
             {
                 "primary_conditions": health_profile.primary_conditions,

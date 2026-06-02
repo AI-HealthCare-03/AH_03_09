@@ -1,6 +1,12 @@
+from datetime import datetime
 from enum import StrEnum
 
-from tortoise import fields, models
+from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
+from sqlalchemy.types import TIMESTAMP
+
+from app.models.base import Base
 
 
 class GuidanceType(StrEnum):
@@ -15,25 +21,20 @@ class VerificationStatus(StrEnum):
     FLAGGED = "FLAGGED"
 
 
-class HealthGuidance(models.Model):
-    id = fields.BigIntField(primary_key=True)
-    user_id = fields.BigIntField()
-    health_profile = fields.ForeignKeyField(
-        "models.HealthProfile",
-        related_name="guidances",
-        on_delete=fields.SET_NULL,
-        null=True,
-    )
-    guidance_type = fields.CharEnumField(enum_type=GuidanceType)
-    content = fields.TextField()
-    ai_confidence = fields.FloatField(null=True)
-    requires_expert_review = fields.BooleanField(default=False)
-    verification_status = fields.CharEnumField(
-        enum_type=VerificationStatus,
-        default=VerificationStatus.PENDING,
-    )
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
+class HealthGuidance(Base):
+    __tablename__ = "health_guidances"
 
-    class Meta:
-        table = "health_guidances"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    health_profile_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("health_profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    guidance_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    requires_expert_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    verification_status: Mapped[str] = mapped_column(String(20), nullable=False, default=VerificationStatus.PENDING)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

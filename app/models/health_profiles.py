@@ -1,6 +1,13 @@
+from datetime import datetime
 from enum import StrEnum
 
-from tortoise import fields, models
+from sqlalchemy import BigInteger, Boolean, ForeignKey, SmallInteger, String
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
+from sqlalchemy.types import TIMESTAMP
+
+from app.models.base import Base
 
 
 class ExerciseHabit(StrEnum):
@@ -21,36 +28,34 @@ class ProfileChangedBy(StrEnum):
     ADMIN = "ADMIN"
 
 
-class HealthProfile(models.Model):
-    id = fields.BigIntField(primary_key=True)
-    user_id = fields.BigIntField(unique=True)
-    height_cm = fields.SmallIntField(null=True)
-    weight_kg = fields.SmallIntField(null=True)
-    blood_pressure_systolic = fields.SmallIntField(null=True)
-    blood_pressure_diastolic = fields.SmallIntField(null=True)
-    primary_conditions = fields.JSONField(default=list)
-    allergies = fields.JSONField(default=list)
-    current_medications = fields.JSONField(default=list)
-    lifestyle_exercise = fields.CharEnumField(enum_type=ExerciseHabit, default=ExerciseHabit.NONE)
-    lifestyle_smoking = fields.BooleanField(default=False)
-    lifestyle_alcohol = fields.CharEnumField(enum_type=AlcoholHabit, default=AlcoholHabit.NONE)
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
+class HealthProfile(Base):
+    __tablename__ = "health_profiles"
 
-    class Meta:
-        table = "health_profiles"
-
-
-class HealthProfileHistory(models.Model):
-    id = fields.BigIntField(primary_key=True)
-    health_profile = fields.ForeignKeyField(
-        "models.HealthProfile",
-        related_name="history",
-        on_delete=fields.CASCADE,
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
+    height_cm: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    weight_kg: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    blood_pressure_systolic: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    blood_pressure_diastolic: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    primary_conditions: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    allergies: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    current_medications: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    lifestyle_exercise: Mapped[str] = mapped_column(String(20), nullable=False, default=ExerciseHabit.NONE)
+    lifestyle_smoking: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    lifestyle_alcohol: Mapped[str] = mapped_column(String(20), nullable=False, default=AlcoholHabit.NONE)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
-    snapshot = fields.JSONField()
-    changed_by = fields.CharEnumField(enum_type=ProfileChangedBy)
-    created_at = fields.DatetimeField(auto_now_add=True)
 
-    class Meta:
-        table = "health_profile_histories"
+
+class HealthProfileHistory(Base):
+    __tablename__ = "health_profile_histories"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    health_profile_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("health_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    changed_by: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
