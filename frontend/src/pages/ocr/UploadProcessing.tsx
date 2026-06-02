@@ -130,6 +130,7 @@ export default function UploadProcessing() {
 
   const isDone = data?.status === "DONE" && displayPct === 100;
   const isDelayed = displayPct >= 60 && !isDone;
+  const isStuck = displayPct >= 92 && !isDone;
   const message = isDone
     ? "OCR 처리가 완료되었습니다."
     : (data?.message ?? "OCR 처리 대기 중입니다.");
@@ -141,7 +142,12 @@ export default function UploadProcessing() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Progress value={displayPct} />
-        <p className="text-sm text-muted-foreground text-center">{message}</p>
+        <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          {isStuck && (
+            <span className="size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+          )}
+          {message}
+        </p>
         {isDelayed && (
           <Alert>
             <AlertDescription>
