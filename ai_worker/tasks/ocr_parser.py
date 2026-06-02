@@ -30,12 +30,41 @@ def _clean_ocr_text(raw_text: str) -> str:
     return "\n".join(cleaned)
 
 
+# 표 셀 분리로 공백이 삽입된 ICD-10 코드 붙이기: "H 1 6 1 8" → "H1618"
+_ICD10_SPACED_RE = re.compile(r"\b([A-Z])((?:\s+\d){3,5})\b")
+
+
+def _collapse_spaced_icd10(text: str) -> str:
+    return _ICD10_SPACED_RE.sub(lambda m: m.group(1) + m.group(2).replace(" ", ""), text)
+
+
 # 표 셀 분리로 점(.)이 빠진 ICD-10 코드 복원: H0411 → H04.11
 _ICD10_RESTORE_RE = re.compile(r"\b([A-Z])(\d{2})(\d{1,3})\b")
 
 
 def _restore_icd10_periods(text: str) -> str:
     return _ICD10_RESTORE_RE.sub(r"\1\2.\3", text)
+
+
+# ICD-10 형식 검증: 영문 1자 + 숫자 2자 + 선택적 점+숫자
+_ICD10_VALID_RE = re.compile(r"^[A-Z]\d{2}(\.\d{1,2})?$")
+
+
+def _validate_parsed_result(result: dict) -> dict:
+    """GPT 응답에서 ICD-10 형식 오류·프롬프트 설명 문자열 혼입을 필터링합니다."""
+    valid_codes = []
+    for c in result.get("disease_codes") or []:
+        code = (c.get("icd10_code") or "").strip()
+        if not _ICD10_VALID_RE.match(code):
+            continue
+        name = c.get("disease_name")
+        if isinstance(name, str) and ("알고 있으면" in name or "모르면" in name):
+            name = None
+        valid_codes.append({**c, "icd10_code": code, "disease_name": name})
+
+    valid_meds = [m for m in (result.get("medications") or []) if (m.get("medication_name") or "").strip()]
+
+    return {"medications": valid_meds, "disease_codes": valid_codes}
 
 
 _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 구조화된 정보를 추출하는 전문가입니다.
@@ -92,7 +121,7 @@ async def parse_medications_and_diseases(raw_text: str, doc_type: str) -> dict:
         logger.warning("OPENAI_API_KEY 미설정 — OCR 파싱 건너뜀")
         return {"medications": [], "disease_codes": []}
 
-    cleaned_text = _restore_icd10_periods(_clean_ocr_text(raw_text))
+    cleaned_text = _restore_icd10_periods(_collapse_spaced_icd10(_clean_ocr_text(raw_text)))
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = await client.chat.completions.create(
@@ -108,10 +137,12 @@ async def parse_medications_and_diseases(raw_text: str, doc_type: str) -> dict:
             temperature=0,
         )
         result = json.loads(resp.choices[0].message.content)
-        return {
-            "medications": result.get("medications") or [],
-            "disease_codes": result.get("disease_codes") or [],
-        }
+        return _validate_parsed_result(
+            {
+                "medications": result.get("medications") or [],
+                "disease_codes": result.get("disease_codes") or [],
+            }
+        )
     except Exception as exc:
         logger.error("OCR 파싱 실패 (doc_type=%s): %s", doc_type, exc)
         return {"medications": [], "disease_codes": []}

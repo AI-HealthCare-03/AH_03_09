@@ -10,7 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ai_worker.tasks.ocr_parser import _clean_ocr_text, parse_medications_and_diseases
+from ai_worker.tasks.ocr_parser import (
+    _clean_ocr_text,
+    _collapse_spaced_icd10,
+    _validate_parsed_result,
+    parse_medications_and_diseases,
+)
 from ai_worker.tasks.ocr_task import _mask_pii, _normalize_drug_name, _normalize_medication_names
 
 # ── _clean_ocr_text ────────────────────────────────────────────────────────────
@@ -429,6 +434,100 @@ class TestParseMedicationsAndDiseases:
                 result = await parse_medications_and_diseases("약봉투", "DRUG_BAG")
 
         assert result["medications"][0]["warnings"] == []
+
+
+# ── _collapse_spaced_icd10 ────────────────────────────────────────────────────
+
+
+class TestCollapseSpacedIcd10:
+    def test_spaced_digits_collapsed(self):
+        """'H 1 6 1 8' → 'H1618' (이후 _restore_icd10_periods가 'H16.18'로 복원)."""
+        assert _collapse_spaced_icd10("H 1 6 1 8") == "H1618"
+
+    def test_three_digit_spaced_code(self):
+        assert _collapse_spaced_icd10("J 4 5 0") == "J450"
+
+    def test_compact_code_unchanged(self):
+        assert _collapse_spaced_icd10("J45.0") == "J45.0"
+
+    def test_regular_text_unchanged(self):
+        assert _collapse_spaced_icd10("환자 1 2 처방") == "환자 1 2 처방"
+
+    def test_spaced_code_in_sentence(self):
+        text = "상병분류기호: H 1 6 1 8 처방전"
+        result = _collapse_spaced_icd10(text)
+        assert "H1618" in result
+        assert "H 1 6 1 8" not in result
+
+
+# ── _validate_parsed_result ───────────────────────────────────────────────────
+
+
+class TestValidateParsedResult:
+    def test_invalid_icd10_format_filtered(self):
+        result = _validate_parsed_result({"medications": [], "disease_codes": [{"icd10_code": "not-a-code"}]})
+        assert result["disease_codes"] == []
+
+    def test_description_string_in_disease_name_cleared(self):
+        """프롬프트 설명 문자열이 disease_name에 그대로 들어온 경우 null 처리."""
+        result = _validate_parsed_result(
+            {
+                "medications": [],
+                "disease_codes": [
+                    {
+                        "icd10_code": "J45.0",
+                        "disease_name": "ICD-10 코드에 해당하는 한국어 질병명 (알고 있으면 채움, 모르면 null)",
+                    }
+                ],
+            }
+        )
+        assert result["disease_codes"][0]["icd10_code"] == "J45.0"
+        assert result["disease_codes"][0]["disease_name"] is None
+
+    def test_valid_disease_name_preserved(self):
+        result = _validate_parsed_result(
+            {
+                "medications": [],
+                "disease_codes": [{"icd10_code": "I10", "disease_name": "본태성고혈압"}],
+            }
+        )
+        assert result["disease_codes"][0]["disease_name"] == "본태성고혈압"
+
+    def test_icd10_with_dot_passes(self):
+        result = _validate_parsed_result(
+            {
+                "medications": [],
+                "disease_codes": [{"icd10_code": "H04.11", "disease_name": None}],
+            }
+        )
+        assert result["disease_codes"][0]["icd10_code"] == "H04.11"
+
+    def test_medication_with_empty_name_filtered(self):
+        result = _validate_parsed_result(
+            {
+                "medications": [{"medication_name": "", "dosage": "1정"}],
+                "disease_codes": [],
+            }
+        )
+        assert result["medications"] == []
+
+    def test_medication_with_none_name_filtered(self):
+        result = _validate_parsed_result(
+            {
+                "medications": [{"medication_name": None}],
+                "disease_codes": [],
+            }
+        )
+        assert result["medications"] == []
+
+    def test_valid_medication_passes(self):
+        result = _validate_parsed_result(
+            {
+                "medications": [{"medication_name": "암로디핀정5mg", "dosage": "1정"}],
+                "disease_codes": [],
+            }
+        )
+        assert len(result["medications"]) == 1
 
 
 # ── _mask_pii ──────────────────────────────────────────────────────────────────

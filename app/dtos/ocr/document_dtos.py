@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.dtos.base import BaseSerializerModel
 
@@ -23,6 +23,13 @@ class MedicationResponse(BaseSerializerModel):
     confidence_score: float | None = None
     is_confirmed: bool
     is_active: bool
+
+    @field_validator("time_of_day", "warnings", mode="before")
+    @classmethod
+    def coerce_to_list(cls, v: object) -> list | None:
+        if isinstance(v, str):
+            return [v]
+        return v
 
 
 class DiseaseCodeResponse(BaseSerializerModel):

@@ -14,7 +14,7 @@ import type { DocType, OcrStatus } from "@/types/api";
 
 const ACCEPT = ["image/jpeg", "image/png", "application/pdf"];
 const MAX_SIZE_MB = 10;
-const MAX_FILES = 5;
+const MAX_FILES = 1;
 
 const DOC_TYPE_LABEL: Partial<Record<DocType, string>> = {
   PRESCRIPTION: "처방전",
@@ -67,7 +67,7 @@ export default function Upload() {
 
   const addFiles = (incoming: FileList | null) => {
     if (!incoming) return;
-    const merged = [...files, ...Array.from(incoming)].slice(0, MAX_FILES);
+    const merged = Array.from(incoming).slice(0, 1);
     const err = validateFiles(merged);
     setError(err);
     if (!err) setFiles(merged);
@@ -175,7 +175,7 @@ export default function Upload() {
                     선택
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    JPEG · PNG · PDF / 최대 {MAX_FILES}개 / 각 {MAX_SIZE_MB}MB 이하 / PDF 최대 2페이지
+                    JPEG · PNG · PDF / 1개 / {MAX_SIZE_MB}MB 이하 / PDF 최대 2페이지
                   </p>
                 </div>
               </label>
@@ -183,7 +183,6 @@ export default function Upload() {
                 id="file-input"
                 ref={inputRef}
                 type="file"
-                multiple
                 accept=".jpg,.jpeg,.png,.pdf"
                 className="hidden"
                 onChange={(e) => addFiles(e.target.files)}
@@ -232,7 +231,7 @@ export default function Upload() {
                     업로드 중...
                   </>
                 ) : (
-                  `OCR 추출 시작 (${files.length}개 파일)`
+                  "OCR 추출 시작"
                 )}
               </Button>
             </CardContent>
