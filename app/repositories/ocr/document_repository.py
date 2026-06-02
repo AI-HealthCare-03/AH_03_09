@@ -5,7 +5,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.ocr.ocr_document import DiseaseCode, Medication, OcrDocument
+from app.models.ocr.ocr_document import DiseaseCode, Medication, OcrDocument, OcrStatus
 
 
 class OcrDocumentRepository:
@@ -197,6 +197,30 @@ class OcrDocumentRepository:
             .values(is_confirmed=False)
         )
         return result.rowcount
+
+    async def get_recent_done_by_user(
+        self,
+        user_id: int,
+        exclude_record_id: int,
+        limit: int = 9,
+    ) -> list[OcrDocument]:
+        """유저의 최근 DONE 문서를 limit개 반환 (현재 문서 제외, medications/disease_codes 포함)."""
+        result = await self.session.execute(
+            select(OcrDocument)
+            .options(
+                selectinload(OcrDocument.medications),
+                selectinload(OcrDocument.disease_codes),
+            )
+            .where(
+                OcrDocument.user_id == user_id,
+                OcrDocument.is_active.is_(True),
+                OcrDocument.ocr_status == OcrStatus.DONE,
+                OcrDocument.record_id != exclude_record_id,
+            )
+            .order_by(OcrDocument.created_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
 
     async def list_by_user(
         self,

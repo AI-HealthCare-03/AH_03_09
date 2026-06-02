@@ -58,9 +58,9 @@ export default function UploadProcessing() {
     timerRef.current = setInterval(() => {
       const elapsed = Date.now() - startTimeRef.current!;
       let pct: number;
-      if (elapsed < 60000) pct = Math.floor(elapsed / 1000);
-      else if (elapsed < 120000) pct = Math.floor(60 + (elapsed - 60000) / 3000);
-      else pct = Math.min(90, Math.floor(80 + (elapsed - 120000) / 7500));
+      if (elapsed < 30000) pct = Math.floor(elapsed / 500);
+      else if (elapsed < 90000) pct = Math.floor(60 + (elapsed - 30000) / 3000);
+      else pct = Math.min(92, Math.floor(80 + (elapsed - 90000) / 7500));
       setDisplayPct(pct);
     }, 200);
 
@@ -129,6 +129,8 @@ export default function UploadProcessing() {
   }
 
   const isDone = data?.status === "DONE" && displayPct === 100;
+  const isDelayed = displayPct >= 60 && !isDone;
+  const isStuck = displayPct >= 92 && !isDone;
   const message = isDone
     ? "OCR 처리가 완료되었습니다."
     : (data?.message ?? "OCR 처리 대기 중입니다.");
@@ -140,7 +142,19 @@ export default function UploadProcessing() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Progress value={displayPct} />
-        <p className="text-sm text-muted-foreground text-center">{message}</p>
+        <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          {isStuck && (
+            <span className="size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+          )}
+          {message}
+        </p>
+        {isDelayed && (
+          <Alert>
+            <AlertDescription>
+              처리 시간이 길어지고 있습니다. 문서 상태에 따라 최대 2분이 소요될 수 있습니다.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   );
