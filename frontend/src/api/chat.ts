@@ -48,6 +48,7 @@ export const streamMessage = async (
   onChunk: (chunk: string) => void,
   onDone: (messageId: number, title: string | null) => void,
   onError: (detail: string) => void,
+  onDelay?: (detail: string) => void,
 ): Promise<void> => {
   const res = await fetch(`/api/v1/chat/sessions/${sessionId}/messages/stream`, {
     method: "POST",
@@ -64,7 +65,6 @@ export const streamMessage = async (
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let currentEvent = "";
   let streamCompleted = false;
 
   while (true) {
@@ -72,36 +72,27 @@ export const streamMessage = async (
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
 
-    const messages = buffer.split("\n\n");
-    buffer = messages.pop() ?? "";
-
-    for (const message of messages) {
-      const lines = message.split("\n");
-      currentEvent = "";
-      let dataLine = "";
-
-      for (const line of lines) {
-        if (line.startsWith("event:")) currentEvent = line.slice(6).trim();
-        else if (line.startsWith("data:")) dataLine = line.slice(5).trim();
-      }
-
-      if (!dataLine) continue;
-
+    for (const line of lines) {
+      if (!line.trim()) continue;
       try {
-        const parsed = JSON.parse(dataLine);
-        if (currentEvent === "error") {
-          onError(parsed.detail ?? "알 수 없는 오류가 발생했습니다.");
-          return;
-        } else if (currentEvent === "done") {
+        const data = JSON.parse(line);
+        if (data.type === "chunk") {
+          onChunk(data.chunk);
+        } else if (data.type === "done") {
           streamCompleted = true;
-          onDone(parsed.message_id, parsed.title ?? null);
+          onDone(0, null);
           return;
-        } else if (parsed.chunk !== undefined) {
-          onChunk(parsed.chunk);
+        } else if (data.type === "error") {
+          onError(data.detail ?? "알 수 없는 오류가 발생했습니다.");
+          return;
+        } else if (data.type === "delay") {
+          onDelay?.(data.detail);
         }
       } catch {
-        // ignore malformed SSE lines
+        // ignore malformed lines
       }
     }
   }

@@ -35,11 +35,16 @@ export function useStreamMessage() {
   const [streamingContent, setStreamingContent] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [delayMessage, setDelayMessage] = useState<string | null>(null);
+  const lastParamsRef = { sessionId: "", content: "" };
 
   const mutate = async ({ sessionId, content }: { sessionId: string; content: string }) => {
+    lastParamsRef.sessionId = sessionId;
+    lastParamsRef.content = content;
     setIsPending(true);
     setStreamingContent("");
     setError(null);
+    setDelayMessage(null);
 
     await streamMessage(
       sessionId,
@@ -49,15 +54,24 @@ export function useStreamMessage() {
         qc.invalidateQueries({ queryKey: messagesKey(sessionId) });
         qc.invalidateQueries({ queryKey: SESSIONS_KEY });
         setStreamingContent("");
+        setDelayMessage(null);
         setIsPending(false);
       },
       (detail) => {
         setError(detail);
         setStreamingContent("");
+        setDelayMessage(null);
         setIsPending(false);
       },
+      (detail) => setDelayMessage(detail),
     );
   };
 
-  return { mutate, streamingContent, isPending, error };
+  const retry = () => {
+    if (lastParamsRef.sessionId && lastParamsRef.content) {
+      mutate({ sessionId: lastParamsRef.sessionId, content: lastParamsRef.content });
+    }
+  };
+
+  return { mutate, retry, streamingContent, isPending, error, delayMessage };
 }

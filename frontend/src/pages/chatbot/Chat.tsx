@@ -30,6 +30,7 @@ export default function Chat() {
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
   const streamMut = useStreamMessage();
+  const { retry } = streamMut;
   const createMut = useCreateSession();
 
   const messages = messagesData?.messages ?? [];
@@ -147,9 +148,22 @@ export default function Chat() {
                   </div>
                 )}
 
+                {streamMut.delayMessage && (
+                  <div className="rounded-md bg-yellow-50 px-4 py-2 text-sm text-yellow-700">
+                    ⏳ {streamMut.delayMessage}
+                  </div>
+                )}
+
                 {streamMut.error && (
-                  <div className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">
-                    ⚠️ {streamMut.error}
+                  <div className="flex items-center gap-3 rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">
+                    <span>⚠️ {streamMut.error}</span>
+                    <button
+                      type="button"
+                      onClick={retry}
+                      className="ml-auto shrink-0 rounded border border-red-300 px-2 py-1 text-xs hover:bg-red-100"
+                    >
+                      다시 시도
+                    </button>
                   </div>
                 )}
               </div>
