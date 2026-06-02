@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -7,12 +7,18 @@ import {
   type MedicationCreateBody,
   type MedicationUpdateBody,
   addMedication,
+  confirmDiseaseCodes,
+  confirmMedications,
   confirmOcr,
   deleteMedication,
   fetchDocument,
   fetchDocumentFile,
   fetchOcrResult,
+  reanalyzeDocument,
   searchDrugs,
+  unconfirmDiseaseCodes,
+  unconfirmMedications,
+  updateDiseaseCode,
   updateMedication,
 } from "@/api/ocr";
 import { Badge } from "@/components/ui/badge";
@@ -43,9 +49,18 @@ const DOC_TYPE_VARIANT: Record<DocType, "default" | "secondary" | "outline"> = {
 function ConfidenceBadge({ score }: { score: number | null }) {
   if (score === null) return null;
   const pct = Math.round(score * 100);
-  const variant: "default" | "secondary" | "destructive" =
-    pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive";
-  return <Badge variant={variant}>{pct}%</Badge>;
+  const colorClass =
+    pct >= 80
+      ? "bg-green-100 text-green-800 border-green-200"
+      : pct >= 60
+        ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+        : "bg-red-100 text-red-800 border-red-200";
+  return (
+    <>
+      <Badge className={colorClass}>{pct}%</Badge>
+      {score < 0.7 && <p className="mt-1 text-xs text-amber-600">재촬영 권고</p>}
+    </>
+  );
 }
 
 export default function UploadResult() {
@@ -58,6 +73,8 @@ export default function UploadResult() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<MedicationUpdateBody>({});
+  const [editingDiseaseId, setEditingDiseaseId] = useState<number | null>(null);
+  const [editDiseaseCode, setEditDiseaseCode] = useState("");
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [drugSearch, setDrugSearch] = useState("");
@@ -94,6 +111,17 @@ export default function UploadResult() {
       toast.success("약물이 삭제되었습니다.");
     },
     onError: () => toast.error("삭제에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const updateDiseaseCodeMutation = useMutation({
+    mutationFn: ({ codeId, icd10Code }: { codeId: number; icd10Code: string }) =>
+      updateDiseaseCode(recordId, codeId, icd10Code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      setEditingDiseaseId(null);
+      toast.success("질병분류기호가 수정되었습니다.");
+    },
+    onError: () => toast.error("수정에 실패했습니다. 다시 시도해주세요."),
   });
 
   const addMedMutation = useMutation({
@@ -137,7 +165,38 @@ export default function UploadResult() {
   const confirmMutation = useMutation({
     mutationFn: (jobId: string) =>
       confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
-    onSuccess: () => navigate("/health-guide"),
+    onSuccess: (data) =>
+      navigate("/health-guide", { state: { guide_job_id: data.guide_job_id } }),
+  });
+
+  const reanalyzeMutation = useMutation({
+    mutationFn: () => reanalyzeDocument(recordId),
+    onSuccess: (data) => navigate(`/upload/processing/${data.job_id}`, { state: { recordId } }),
+    onError: () => toast.error("재추출에 실패했습니다. 다시 시도해주세요."),
+  });
+
+  const confirmMedMutation = useMutation({
+    mutationFn: () => confirmMedications(recordId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
+    onError: () => toast.error("확인 처리에 실패했습니다."),
+  });
+
+  const unconfirmMedMutation = useMutation({
+    mutationFn: () => unconfirmMedications(recordId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
+    onError: () => toast.error("확인 취소에 실패했습니다."),
+  });
+
+  const confirmDiseaseCodeMutation = useMutation({
+    mutationFn: () => confirmDiseaseCodes(recordId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
+    onError: () => toast.error("확인 처리에 실패했습니다."),
+  });
+
+  const unconfirmDiseaseCodeMutation = useMutation({
+    mutationFn: () => unconfirmDiseaseCodes(recordId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
+    onError: () => toast.error("확인 취소에 실패했습니다."),
   });
 
   useEffect(() => {
@@ -180,11 +239,23 @@ export default function UploadResult() {
   const diseaseCodes = doc.disease_codes.filter((c) => c.is_active);
   const ocrText = result?.processed_text ?? result?.raw_text;
 
+  const allMedsConfirmed = medications.length > 0 && medications.every((m) => m.is_confirmed);
+  const allDiseasesConfirmed = diseaseCodes.length === 0 || diseaseCodes.every((c) => c.is_confirmed);
+  const isLocked = allMedsConfirmed; // 약물 전체 확인 완료 시 편집 잠금
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">분석 결과</h1>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => reanalyzeMutation.mutate()}
+            disabled={reanalyzeMutation.isPending}
+          >
+            {reanalyzeMutation.isPending ? "요청 중..." : "재추출"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/upload")}>
             새 업로드
           </Button>
@@ -195,7 +266,8 @@ export default function UploadResult() {
             <Button
               size="sm"
               onClick={() => confirmMutation.mutate(doc.job_id)}
-              disabled={confirmMutation.isPending}
+              disabled={confirmMutation.isPending || !allMedsConfirmed}
+              title={!allMedsConfirmed ? "약물 목록을 먼저 전체 확인해주세요" : undefined}
             >
               {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
             </Button>
@@ -263,15 +335,39 @@ export default function UploadResult() {
                 </span>
               )}
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddModalOpen(true)}
-              disabled={editingId !== null}
-            >
-              <PlusIcon className="mr-1 size-3.5" />
-              약물 추가
-            </Button>
+            <div className="flex gap-2">
+              {medications.length > 0 && (
+                allMedsConfirmed ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => unconfirmMedMutation.mutate()}
+                    disabled={unconfirmMedMutation.isPending}
+                  >
+                    {unconfirmMedMutation.isPending ? "처리 중..." : "확인 취소"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => confirmMedMutation.mutate()}
+                    disabled={confirmMedMutation.isPending || editingId !== null}
+                  >
+                    <CheckCircle2Icon className="mr-1 size-3.5" />
+                    {confirmMedMutation.isPending ? "처리 중..." : "전체 확인"}
+                  </Button>
+                )
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddModalOpen(true)}
+                disabled={isLocked || editingId !== null}
+              >
+                <PlusIcon className="mr-1 size-3.5" />
+                약물 추가
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -301,6 +397,7 @@ export default function UploadResult() {
                     const isBusy =
                       (updateMedMutation.isPending && updateMedMutation.variables?.medId === m.id) ||
                       (deleteMedMutation.isPending && deleteMedMutation.variables === m.id);
+                    const isRowLocked = isLocked;
 
                     if (isEditing) {
                       return (
@@ -367,7 +464,14 @@ export default function UploadResult() {
 
                     return (
                       <tr key={m.id} className="transition-colors hover:bg-muted/20">
-                        <td className="py-2.5 font-medium">{m.medication_name}</td>
+                        <td className="py-2.5 font-medium">
+                          <span className="flex items-center gap-1">
+                            {m.is_confirmed && (
+                              <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
+                            )}
+                            {m.medication_name}
+                          </span>
+                        </td>
                         <td className="py-2.5 font-mono text-muted-foreground">
                           {m.edi_code ?? "-"}
                         </td>
@@ -383,7 +487,7 @@ export default function UploadResult() {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2"
-                              disabled={isBusy || editingId !== null}
+                              disabled={isBusy || editingId !== null || isRowLocked}
                               onClick={() => {
                                 setEditForm({
                                   frequency: m.frequency,
@@ -398,7 +502,7 @@ export default function UploadResult() {
                               variant="ghost"
                               size="sm"
                               className="h-7 px-2 text-destructive hover:text-destructive"
-                              disabled={isBusy || editingId !== null}
+                              disabled={isBusy || editingId !== null || isRowLocked}
                               onClick={() => deleteMedMutation.mutate(m.id)}
                             >
                               <Trash2Icon className="size-3.5" />
@@ -419,14 +523,38 @@ export default function UploadResult() {
       {(doc.doc_type === "PRESCRIPTION" || diseaseCodes.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              질병분류기호
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                질병분류기호
+                {diseaseCodes.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {diseaseCodes.length}개
+                  </span>
+                )}
+              </CardTitle>
               {diseaseCodes.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {diseaseCodes.length}개
-                </span>
+                allDiseasesConfirmed ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => unconfirmDiseaseCodeMutation.mutate()}
+                    disabled={unconfirmDiseaseCodeMutation.isPending}
+                  >
+                    {unconfirmDiseaseCodeMutation.isPending ? "처리 중..." : "확인 취소"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => confirmDiseaseCodeMutation.mutate()}
+                    disabled={confirmDiseaseCodeMutation.isPending || editingDiseaseId !== null}
+                  >
+                    <CheckCircle2Icon className="mr-1 size-3.5" />
+                    {confirmDiseaseCodeMutation.isPending ? "처리 중..." : "전체 확인"}
+                  </Button>
+                )
               )}
-            </CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             {diseaseCodes.length === 0 ? (
@@ -438,27 +566,72 @@ export default function UploadResult() {
                 <table className="w-full text-sm">
                   <thead className="border-b">
                     <tr>
-                      <th
-                        scope="col"
-                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                      >
+                      <th scope="col" className="pb-2 text-left text-xs font-medium text-muted-foreground">
                         ICD-10 코드
                       </th>
-                      <th
-                        scope="col"
-                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
-                      >
+                      <th scope="col" className="pb-2 text-left text-xs font-medium text-muted-foreground">
                         질병명
                       </th>
+                      <th scope="col" className="pb-2" />
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {diseaseCodes.map((c) => (
-                      <tr key={c.id}>
-                        <td className="py-2.5 font-mono font-medium">{c.icd10_code}</td>
-                        <td className="py-2.5 text-muted-foreground">{c.disease_name ?? "-"}</td>
-                      </tr>
-                    ))}
+                    {diseaseCodes.map((c) => {
+                      const isEditing = editingDiseaseId === c.id;
+                      const isBusy = updateDiseaseCodeMutation.isPending && updateDiseaseCodeMutation.variables?.codeId === c.id;
+                      if (isEditing) {
+                        return (
+                          <tr key={c.id} className="bg-muted/20">
+                            <td className="py-1.5 pr-2">
+                              <input
+                                className="w-28 rounded border px-2 py-1 font-mono text-sm"
+                                value={editDiseaseCode}
+                                onChange={(e) => setEditDiseaseCode(e.target.value)}
+                              />
+                            </td>
+                            <td className="py-1.5 text-muted-foreground text-sm italic">자동 갱신</td>
+                            <td className="py-1.5">
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  disabled={isBusy || !editDiseaseCode.trim()}
+                                  onClick={() => updateDiseaseCodeMutation.mutate({ codeId: c.id, icd10Code: editDiseaseCode.trim() })}
+                                >
+                                  저장
+                                </Button>
+                                <Button size="sm" variant="ghost" disabled={isBusy} onClick={() => setEditingDiseaseId(null)}>
+                                  <XIcon className="size-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return (
+                        <tr key={c.id} className="transition-colors hover:bg-muted/20">
+                          <td className="py-2.5 font-mono font-medium">
+                            <span className="flex items-center gap-1">
+                              {c.is_confirmed && (
+                                <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
+                              )}
+                              {c.icd10_code}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-muted-foreground">{c.disease_name ?? "-"}</td>
+                          <td className="py-2.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2"
+                              disabled={editingDiseaseId !== null || editingId !== null || allDiseasesConfirmed}
+                              onClick={() => { setEditDiseaseCode(c.icd10_code); setEditingDiseaseId(c.id); }}
+                            >
+                              <PencilIcon className="size-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -496,6 +669,7 @@ export default function UploadResult() {
 
           <Dialog open={modalOpen} onOpenChange={setModalOpen}>
             <DialogContent className="top-0 left-0 w-screen h-screen max-w-none sm:max-w-none translate-x-0 translate-y-0 rounded-none flex flex-col p-4">
+              <DialogTitle className="sr-only">원본 문서 보기</DialogTitle>
               {doc.original_filename.toLowerCase().endsWith(".pdf") ? (
                 <embed src={fileUrl} type="application/pdf" className="flex-1 rounded" />
               ) : (

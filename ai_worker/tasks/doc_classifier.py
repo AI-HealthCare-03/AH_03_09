@@ -1,4 +1,5 @@
 import logging
+import re
 
 from openai import AsyncOpenAI
 
@@ -13,27 +14,32 @@ _PRESCRIPTION_KW = [
     "처방의",
     "진료과",
     "질병분류코드",
+    "질병분류기호",
     "질병코드",
     "상병명",
+    "상병코드",
     "의료기관",
     "면허번호",
     "처방전발급",
+    "요양기관",
+    "1회투약량",
+    "1일투여",
+    "EDI코드",
 ]
 
-# 약봉투 특징 키워드
+# 약봉투 특징 키워드 (처방전에도 등장하는 "조제"·"약국"·"1일" 단어 자체는 제외)
 _MEDICATION_BAG_KW = [
     "복용법",
     "용법",
     "용량",
     "복약",
-    "조제",
-    "약국",
-    "1일",
+    "조제약사",
+    "조제일자",
     "식후",
     "식전",
     "식간",
-    "조제일",
-    "조제약사",
+    "복약지도",
+    "조제명세",
 ]
 
 _MIN_SCORE = 1  # 규칙 분류 인정 최소 점수
@@ -41,8 +47,9 @@ _MIN_SCORE = 1  # 규칙 분류 인정 최소 점수
 
 def _rule_classify(text: str) -> str | None:
     """키워드 점수 기반 분류. 명확하지 않으면 None 반환."""
-    p_score = sum(1 for kw in _PRESCRIPTION_KW if kw in text)
-    m_score = sum(1 for kw in _MEDICATION_BAG_KW if kw in text)
+    normalized = re.sub(r"\s+", "", text)
+    p_score = sum(1 for kw in _PRESCRIPTION_KW if kw in normalized)
+    m_score = sum(1 for kw in _MEDICATION_BAG_KW if kw in normalized)
 
     if p_score == m_score:
         return None  # 동점 → AI로 넘김
@@ -61,7 +68,7 @@ async def _ai_classify(text: str) -> str:
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=config.OPENAI_MODEL,
             messages=[
                 {
                     "role": "system",

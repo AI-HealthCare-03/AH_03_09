@@ -140,7 +140,6 @@ class DrugSearchResult(BaseSerializerModel):
 
 class DiseaseCodeUpdateRequest(BaseModel):
     icd10_code: str | None = None
-    disease_name: str | None = None
 
 
 class OcrResultUpdateRequest(BaseModel):
