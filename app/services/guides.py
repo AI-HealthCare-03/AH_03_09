@@ -483,6 +483,29 @@ def _make_exercise_guide() -> ExerciseGuide:
 _FALLBACK_DIET = _make_diet_guide()
 _FALLBACK_EXERCISE = _make_exercise_guide()
 
+# ── Whitelist 질환 필터 (llm-guide-policy.md §8) ──────────────────────────────
+
+_DISEASE_WHITELIST_ICD_PREFIXES: tuple[str, ...] = (
+    "I10", "I11", "I12", "I13",        # 고혈압
+    "E11", "E12", "E13", "E14",        # 당뇨
+    "E78",                              # 고지혈증
+    "K29",                              # 위염
+    "K21",                              # 역류성식도염
+    "K59.0",                             # 변비
+    "M15", "M16", "M17", "M18", "M19", # 골관절염
+    "J30",                              # 알레르기비염
+)
+
+_DISEASE_WHITELIST_NAME_KEYWORDS: tuple[str, ...] = (
+    "고혈압", "당뇨", "고지혈증", "위염",
+    "역류성식도염", "변비", "골관절염", "알레르기비염",
+)
+
+_GENERIC_GUIDE_NOTICE = (
+    "현재 인식된 질환 정보가 가이드 생성 지원 범위에 포함되지 않아, "
+    "일반적인 건강관리 안내를 제공합니다."
+)
+
 
 async def _make_exercise_guide_with_llm(
     medication_names: list[str],
@@ -693,6 +716,25 @@ async def _make_lifestyle_guide_with_llm(
     return LifestyleGuide(tips=tips)
 
 
+def _filter_whitelist_diseases(
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> tuple[list[str], list[str]]:
+    """llm-guide-policy.md §8 whitelist 기준으로 disease 쌍을 필터링."""
+    filtered_codes: list[str] = []
+    filtered_names: list[str] = []
+    max_len = max(len(disease_codes), len(disease_names)) if (disease_codes or disease_names) else 0
+    for i in range(max_len):
+        code = disease_codes[i] if i < len(disease_codes) else ""
+        name = disease_names[i] if i < len(disease_names) else ""
+        code_match = bool(code) and any(code.startswith(p) for p in _DISEASE_WHITELIST_ICD_PREFIXES)
+        name_match = bool(name) and any(kw in name for kw in _DISEASE_WHITELIST_NAME_KEYWORDS)
+        if code_match or name_match:
+            filtered_codes.append(code)
+            filtered_names.append(name)
+    return filtered_codes, filtered_names
+
+
 async def _run_mock_worker(
     job_id: str,
     guide_id: str,
@@ -711,18 +753,23 @@ async def _run_mock_worker(
 
     generation_results = [GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types]
 
+    filtered_codes, filtered_names = _filter_whitelist_diseases(disease_codes, disease_names)
+    needs_generic_notice = bool(disease_codes) and not filtered_codes
+
     if GuideType.LIFESTYLE in guide_types:
         try:
-            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, disease_codes, disease_names)
+            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, filtered_codes, filtered_names)
         except Exception as e:
             print(f"LLM guide generation failed: {e}")
             lifestyle_guide = _make_lifestyle_guide()
+        if needs_generic_notice:
+            lifestyle_guide = LifestyleGuide(tips=[_GENERIC_GUIDE_NOTICE] + lifestyle_guide.tips)
     else:
         lifestyle_guide = None
 
     if GuideType.DIET in guide_types:
         try:
-            diet_guide = await _make_diet_guide_with_llm(medication_names, disease_codes, disease_names)
+            diet_guide = await _make_diet_guide_with_llm(medication_names, filtered_codes, filtered_names)
         except Exception as e:
             print(f"LLM diet guide generation failed: {e}")
             diet_guide = _make_diet_guide()
@@ -731,7 +778,7 @@ async def _run_mock_worker(
 
     if GuideType.EXERCISE in guide_types:
         try:
-            exercise_guide = await _make_exercise_guide_with_llm(medication_names, disease_codes, disease_names)
+            exercise_guide = await _make_exercise_guide_with_llm(medication_names, filtered_codes, filtered_names)
         except Exception as e:
             print(f"LLM exercise guide generation failed: {e}")
             exercise_guide = _make_exercise_guide()
