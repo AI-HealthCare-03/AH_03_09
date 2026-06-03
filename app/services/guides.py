@@ -486,24 +486,39 @@ _FALLBACK_EXERCISE = _make_exercise_guide()
 # ── Whitelist 질환 필터 (llm-guide-policy.md §8) ──────────────────────────────
 
 _DISEASE_WHITELIST_ICD_PREFIXES: tuple[str, ...] = (
-    "I10", "I11", "I12", "I13",        # 고혈압
-    "E11", "E12", "E13", "E14",        # 당뇨
-    "E78",                              # 고지혈증
-    "K29",                              # 위염
-    "K21",                              # 역류성식도염
-    "K59.0",                             # 변비
-    "M15", "M16", "M17", "M18", "M19", # 골관절염
-    "J30",                              # 알레르기비염
+    "I10",
+    "I11",
+    "I12",
+    "I13",  # 고혈압
+    "E11",
+    "E12",
+    "E13",
+    "E14",  # 당뇨
+    "E78",  # 고지혈증
+    "K29",  # 위염
+    "K21",  # 역류성식도염
+    "K59.0",  # 변비
+    "M15",
+    "M16",
+    "M17",
+    "M18",
+    "M19",  # 골관절염
+    "J30",  # 알레르기비염
 )
 
 _DISEASE_WHITELIST_NAME_KEYWORDS: tuple[str, ...] = (
-    "고혈압", "당뇨", "고지혈증", "위염",
-    "역류성식도염", "변비", "골관절염", "알레르기비염",
+    "고혈압",
+    "당뇨",
+    "고지혈증",
+    "위염",
+    "역류성식도염",
+    "변비",
+    "골관절염",
+    "알레르기비염",
 )
 
 _GENERIC_GUIDE_NOTICE = (
-    "현재 인식된 질환 정보가 가이드 생성 지원 범위에 포함되지 않아, "
-    "일반적인 건강관리 안내를 제공합니다."
+    "현재 인식된 질환 정보가 가이드 생성 지원 범위에 포함되지 않아, 일반적인 건강관리 안내를 제공합니다."
 )
 
 
@@ -520,8 +535,7 @@ async def _make_exercise_guide_with_llm(
 
     if disease_names:
         disease_entries = [
-            f"{code} - {name}" if name else code
-            for code, name in zip(disease_codes, disease_names, strict=False)
+            f"{code} - {name}" if name else code for code, name in zip(disease_codes, disease_names, strict=False)
         ]
     else:
         disease_entries = disease_codes
@@ -596,8 +610,7 @@ async def _make_diet_guide_with_llm(
 
     if disease_names:
         disease_entries = [
-            f"{code} - {name}" if name else code
-            for code, name in zip(disease_codes, disease_names, strict=False)
+            f"{code} - {name}" if name else code for code, name in zip(disease_codes, disease_names, strict=False)
         ]
     else:
         disease_entries = disease_codes
