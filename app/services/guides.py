@@ -760,66 +760,81 @@ async def _run_mock_worker(
     await asyncio.sleep(1)
     _jobs[job_id]["status"] = JobStatus.PROCESSING
 
-    await asyncio.sleep(3)
+    try:
+        await asyncio.sleep(3)
 
-    now = datetime.now(UTC).isoformat()
+        now = datetime.now(UTC).isoformat()
 
-    generation_results = [GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types]
+        generation_results = [
+            GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types
+        ]
 
-    filtered_codes, filtered_names = _filter_whitelist_diseases(disease_codes, disease_names)
-    needs_generic_notice = bool(disease_codes) and not filtered_codes
+        filtered_codes, filtered_names = _filter_whitelist_diseases(disease_codes, disease_names)
+        needs_generic_notice = bool(disease_codes) and not filtered_codes
 
-    if GuideType.LIFESTYLE in guide_types:
-        try:
-            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, filtered_codes, filtered_names)
-        except Exception as e:
-            print(f"LLM guide generation failed: {e}")
-            lifestyle_guide = _make_lifestyle_guide()
-        if needs_generic_notice:
-            lifestyle_guide = LifestyleGuide(tips=[_GENERIC_GUIDE_NOTICE] + lifestyle_guide.tips)
-    else:
-        lifestyle_guide = None
+        if GuideType.LIFESTYLE in guide_types:
+            try:
+                lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, filtered_codes, filtered_names)
+            except Exception as e:
+                print(f"LLM guide generation failed: {e}")
+                lifestyle_guide = _make_lifestyle_guide()
+            if needs_generic_notice:
+                lifestyle_guide = LifestyleGuide(tips=[_GENERIC_GUIDE_NOTICE] + lifestyle_guide.tips)
+        else:
+            lifestyle_guide = None
 
-    if GuideType.DIET in guide_types:
-        try:
-            diet_guide = await _make_diet_guide_with_llm(medication_names, filtered_codes, filtered_names)
-        except Exception as e:
-            print(f"LLM diet guide generation failed: {e}")
-            diet_guide = _make_diet_guide()
-    else:
-        diet_guide = None
+        if GuideType.DIET in guide_types:
+            try:
+                diet_guide = await _make_diet_guide_with_llm(medication_names, filtered_codes, filtered_names)
+            except Exception as e:
+                print(f"LLM diet guide generation failed: {e}")
+                diet_guide = _make_diet_guide()
+        else:
+            diet_guide = None
 
-    if GuideType.EXERCISE in guide_types:
-        try:
-            exercise_guide = await _make_exercise_guide_with_llm(medication_names, filtered_codes, filtered_names)
-        except Exception as e:
-            print(f"LLM exercise guide generation failed: {e}")
-            exercise_guide = _make_exercise_guide()
-    else:
-        exercise_guide = None
+        if GuideType.EXERCISE in guide_types:
+            try:
+                exercise_guide = await _make_exercise_guide_with_llm(medication_names, filtered_codes, filtered_names)
+            except Exception as e:
+                print(f"LLM exercise guide generation failed: {e}")
+                exercise_guide = _make_exercise_guide()
+        else:
+            exercise_guide = None
 
-    guide = GuideResponse(
-        guide_id=guide_id,
-        guide_types=guide_types,
-        created_at=now,
-        medication_guide=(
-            await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
-        ),
-        schedule_table=(
-            _build_schedule_table(medications)
-            if medications
-            else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
-        ),
-        lifestyle_guide=lifestyle_guide,
-        diet_guide=diet_guide,
-        exercise_guide=exercise_guide,
-        generation_results=generation_results,
-    )
+        guide = GuideResponse(
+            guide_id=guide_id,
+            guide_types=guide_types,
+            created_at=now,
+            medication_guide=(
+                await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
+            ),
+            schedule_table=(
+                _build_schedule_table(medications)
+                if medications
+                else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
+            ),
+            lifestyle_guide=lifestyle_guide,
+            diet_guide=diet_guide,
+            exercise_guide=exercise_guide,
+            generation_results=generation_results,
+        )
 
-    _guides[guide_id] = guide.model_dump()
-    _guides[guide_id]["disease_codes"] = disease_codes
-    _jobs[job_id]["status"] = JobStatus.DONE
-    _jobs[job_id]["guide_id"] = guide_id
+        _guides[guide_id] = guide.model_dump()
+        _guides[guide_id]["disease_codes"] = disease_codes
+        _jobs[job_id]["status"] = JobStatus.DONE
+        _jobs[job_id]["guide_id"] = guide_id
+
+    except FileNotFoundError as e:
+        error_message = f"필수 파일 없음: {e.filename}"
+        print(f"[GuideWorker] job_id={job_id} {error_message}")
+        _jobs[job_id]["status"] = JobStatus.FAILED
+        _jobs[job_id]["error_message"] = error_message
+
+    except Exception as e:
+        error_message = str(e)
+        print(f"[GuideWorker] job_id={job_id} 가이드 생성 실패: {error_message}")
+        _jobs[job_id]["status"] = JobStatus.FAILED
+        _jobs[job_id]["error_message"] = error_message
 
 
 # ── Service ───────────────────────────────────────────────────────────────────
