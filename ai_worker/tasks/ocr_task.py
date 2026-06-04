@@ -229,22 +229,7 @@ def _mask_pii(text: str) -> str:
     return text
 
 
-_UNIT_NORMALIZE = [
-    (re.compile(r"(\d+(?:\.\d+)?)\s*mg\b", re.IGNORECASE), r"\1밀리그램"),
-    (re.compile(r"(\d+(?:\.\d+)?)\s*mL\b", re.IGNORECASE), r"\1밀리리터"),
-    (re.compile(r"(\d+(?:\.\d+)?)\s*mcg\b", re.IGNORECASE), r"\1마이크로그램"),
-    (re.compile(r"(\d+(?:\.\d+)?)\s*g\b", re.IGNORECASE), r"\1그램"),
-]
-
 _PAREN_PATTERN = re.compile(r"\s*\(.*?\)\s*")
-
-
-def _normalize_drug_name(name: str) -> str:
-    """OCR 약물명의 단위(mg→밀리그램 등)를 DB 형식으로 정규화하고 공백·괄호를 제거합니다."""
-    name = _PAREN_PATTERN.sub("", name)
-    for pattern, repl in _UNIT_NORMALIZE:
-        name = pattern.sub(repl, name)
-    return re.sub(r"\s+", "", name).strip()
 
 
 _DOSAGE_PATTERN = re.compile(
@@ -262,9 +247,10 @@ def _extract_base_name(name: str) -> str:
 async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
     """OCR 약물명을 drug_master 테이블과 매칭해 정규화합니다.
 
-    1차: 기본 약품명으로 ILIKE 부분 일치 (정확한 매칭)
-    2차: 기본 약품명으로 word_similarity > 0.7 (OCR 오타 허용)
-    둘 다 실패 시 원문 유지.
+    1차: 기본 약품명(용량 제거)으로 ILIKE 매칭
+         → 성분명(generic_name)이 있으면 DB 항목명에 포함 여부 검증
+         → 불일치 시 원문 유지 (다른 성분의 동명 약품 오매칭 방지)
+    매칭 실패 또는 성분명 불일치 → 원문 유지
     """
     result = []
     for m in medications:
@@ -274,21 +260,28 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
             continue
 
         base = _extract_base_name(name)
+        generic = (m.get("generic_name") or "").strip()
 
         row = await conn.fetchrow(
-            "SELECT item_name FROM drug_master WHERE item_name ILIKE $1 LIMIT 1",
+            """
+            SELECT item_name FROM drug_master
+            WHERE item_name ILIKE $1
+            ORDER BY (CASE WHEN $2 != '' AND item_name ILIKE $3 THEN 0 ELSE 1 END)
+            LIMIT 1
+            """,
             f"%{base}%",
+            generic,
+            f"%{generic}%",
         )
 
-        if not row:
-            normalized = _normalize_drug_name(base)
-            row = await conn.fetchrow(
-                "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.7 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
-                normalized,
-            )
-
         if row:
-            m = {**m, "medication_name": row["item_name"]}
+            item_name = row["item_name"]
+            _strip = re.compile(r"[\d%\(\)\s/.\-→]")
+            generic_simplified = _strip.sub("", generic)
+            item_simplified = _strip.sub("", item_name)
+            if not generic_simplified or generic_simplified in item_simplified:
+                m = {**m, "medication_name": item_name}
+
         result.append(m)
     return result
 
