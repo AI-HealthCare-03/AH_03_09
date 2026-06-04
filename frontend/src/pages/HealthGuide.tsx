@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useChatStore } from "@/store/chatStore";
 
 import {
   generateGuide,
@@ -72,6 +73,8 @@ export default function HealthGuide() {
   const [guideContext, setGuideContext] =
     useState<GuideContextResponse | null>(null);
   const [guideId, setGuideId] = useState("");
+  const navigate = useNavigate();
+  const setStoreGuideId = useChatStore((s) => s.setGuideId);
 
   const [ratingComprehension, setRatingComprehension] = useState(5);
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
@@ -236,9 +239,23 @@ export default function HealthGuide() {
             복약 정보를 바탕으로 맞춤 건강 가이드를 생성합니다.
           </p>
 
-          <Button type="button" onClick={handleGenerate} disabled={loading}>
-            {loading ? "생성 중..." : "가이드 생성"}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" onClick={handleGenerate} disabled={loading}>
+              {loading ? "생성 중..." : "가이드 생성"}
+            </Button>
+            {guideId && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setStoreGuideId(guideId);
+                  navigate("/chat");
+                }}
+              >
+                챗봇에서 상담하기
+              </Button>
+            )}
+          </div>
 
           {status && <p className="text-sm text-muted-foreground">{status}</p>}
 

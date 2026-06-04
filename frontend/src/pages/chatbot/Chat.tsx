@@ -24,6 +24,7 @@ export default function Chat() {
   const clear = useAuthStore((s) => s.clear);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
+  const guideId = useChatStore((s) => s.guideId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
@@ -55,7 +56,7 @@ export default function Chat() {
       sessionId = session.id;
       setCurrentSessionId(sessionId);
     }
-    await streamMut.mutate({ sessionId, content });
+    await streamMut.mutate({ sessionId, content, guideId });
   };
 
   const handleFeedback = async (messageId: number, feedback: "good" | "bad") => {
