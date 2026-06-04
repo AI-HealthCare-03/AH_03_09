@@ -274,6 +274,7 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
             f"%{generic}%",
         )
 
+        matched = False
         if row:
             item_name = row["item_name"]
             _strip = re.compile(r"[\d%\(\)\s/.\-→]")
@@ -281,7 +282,9 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
             item_simplified = _strip.sub("", item_name)
             if not generic_simplified or generic_simplified in item_simplified:
                 m = {**m, "medication_name": item_name}
+                matched = True
 
+        m = {**m, "is_db_matched": matched}
         result.append(m)
     return result
 
@@ -293,8 +296,8 @@ async def _insert_medications(conn: asyncpg.Connection, record_id: int, medicati
             INSERT INTO medications
                 (document_id, medication_name, edi_code, generic_name, dosage, frequency, timing,
                  usage_time, duration_days, time_of_day, warnings, confidence_score,
-                 is_confirmed, is_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, FALSE, TRUE)
+                 is_db_matched, is_confirmed, is_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE, TRUE)
             """,
             record_id,
             m.get("medication_name") or "",
@@ -308,6 +311,7 @@ async def _insert_medications(conn: asyncpg.Connection, record_id: int, medicati
             json.dumps(m["time_of_day"], ensure_ascii=False) if m.get("time_of_day") is not None else None,
             json.dumps(m["warnings"], ensure_ascii=False) if m.get("warnings") is not None else None,
             m.get("confidence_score"),
+            m.get("is_db_matched"),
         )
 
 

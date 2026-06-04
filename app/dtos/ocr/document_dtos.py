@@ -21,6 +21,7 @@ class MedicationResponse(BaseSerializerModel):
     instructions: str | None = None
     warnings: list | None = None
     confidence_score: float | None = None
+    is_db_matched: bool | None = None
     is_confirmed: bool
     is_active: bool
 
