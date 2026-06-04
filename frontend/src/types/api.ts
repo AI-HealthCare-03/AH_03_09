@@ -114,6 +114,7 @@ export interface MedicationResponse {
   instructions: string | null;
   warnings: string[] | null;
   confidence_score: number | null;
+  is_db_matched: boolean | null;
   is_confirmed: boolean;
   is_active: boolean;
 }

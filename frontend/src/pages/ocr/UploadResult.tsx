@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -402,11 +402,28 @@ export default function UploadResult() {
                     if (isEditing) {
                       return (
                         <tr key={m.id} className="bg-muted/20">
-                          <td className="py-2.5 font-medium">{m.medication_name}</td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-36 rounded border px-2 py-1 text-sm"
+                              value={editForm.medication_name ?? m.medication_name}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, medication_name: e.target.value }))
+                              }
+                            />
+                          </td>
                           <td className="py-2.5 font-mono text-muted-foreground">
                             {m.edi_code ?? "-"}
                           </td>
-                          <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-28 rounded border px-2 py-1 text-sm"
+                              value={editForm.generic_name ?? m.generic_name ?? ""}
+                              placeholder="성분명"
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, generic_name: e.target.value || null }))
+                              }
+                            />
+                          </td>
                           <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
                           <td className="py-1.5 pr-2">
                             <input
@@ -440,6 +457,8 @@ export default function UploadResult() {
                                   updateMedMutation.mutate({
                                     medId: m.id,
                                     body: {
+                                      medication_name: editForm.medication_name,
+                                      generic_name: editForm.generic_name,
                                       frequency: editForm.frequency,
                                       duration_days: editForm.duration_days,
                                     },
@@ -469,6 +488,13 @@ export default function UploadResult() {
                             {m.is_confirmed && (
                               <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
                             )}
+                            {m.is_db_matched === false && (
+                              <AlertTriangleIcon
+                                className="size-3.5 shrink-0 text-amber-500"
+                                aria-label="약물명 미확인 — 직접 확인 후 수정해 주세요"
+                                title="DB에서 약물을 찾지 못해 원문을 유지했습니다. 수정 버튼으로 약물명·성분명을 직접 수정해 주세요."
+                              />
+                            )}
                             {m.medication_name}
                           </span>
                         </td>
@@ -490,6 +516,8 @@ export default function UploadResult() {
                               disabled={isBusy || editingId !== null || isRowLocked}
                               onClick={() => {
                                 setEditForm({
+                                  medication_name: m.medication_name,
+                                  generic_name: m.generic_name,
                                   frequency: m.frequency,
                                   duration_days: m.duration_days,
                                 });
