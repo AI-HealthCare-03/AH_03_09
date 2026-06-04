@@ -480,6 +480,188 @@ def _make_exercise_guide() -> ExerciseGuide:
     )
 
 
+_FALLBACK_DIET = _make_diet_guide()
+_FALLBACK_EXERCISE = _make_exercise_guide()
+
+# ── Whitelist 질환 필터 (llm-guide-policy.md §8) ──────────────────────────────
+
+_DISEASE_WHITELIST_ICD_PREFIXES: tuple[str, ...] = (
+    "I10",
+    "I11",
+    "I12",
+    "I13",  # 고혈압
+    "E11",
+    "E12",
+    "E13",
+    "E14",  # 당뇨
+    "E78",  # 고지혈증
+    "K29",  # 위염
+    "K21",  # 역류성식도염
+    "K59.0",  # 변비
+    "M15",
+    "M16",
+    "M17",
+    "M18",
+    "M19",  # 골관절염
+    "J30",  # 알레르기비염
+)
+
+_DISEASE_WHITELIST_NAME_KEYWORDS: tuple[str, ...] = (
+    "고혈압",
+    "당뇨",
+    "고지혈증",
+    "위염",
+    "역류성식도염",
+    "변비",
+    "골관절염",
+    "알레르기비염",
+)
+
+_GENERIC_GUIDE_NOTICE = (
+    "현재 인식된 질환 정보가 가이드 생성 지원 범위에 포함되지 않아, 일반적인 건강관리 안내를 제공합니다."
+)
+
+
+async def _make_exercise_guide_with_llm(
+    medication_names: list[str],
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> ExerciseGuide:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    client = AsyncOpenAI(api_key=api_key)
+
+    if disease_names:
+        disease_entries = [
+            f"{code} - {name}" if name else code for code, name in zip(disease_codes, disease_names, strict=False)
+        ]
+    else:
+        disease_entries = disease_codes
+
+    prompt = f"""
+아래 약물과 질병 정보를 참고하여 환자 운동 가이드를 JSON으로 작성하세요.
+
+출력 형식 (아래 JSON만 출력, 추가 설명 없이):
+{{
+  "intensity": "운동 강도 한 구절",
+  "frequency": "운동 빈도 한 구절",
+  "duration": "1회 운동 시간 한 구절",
+  "cautions": ["주의사항 2~4가지"]
+}}
+
+조건:
+- 환자가 이해하기 쉬운 한국어 사용
+- 질병 정보가 있으면 해당 질환의 특성을 intensity와 cautions에 반영할 것
+- 질병 정보가 있으면 해당 질환과 관련된 일반 주의사항을 cautions에 1개 이상 반드시 포함할 것
+  (예: 혈압 관련이면 심박수 급상승 주의, 소화기 질환이면 식후 즉시 운동 피하기 등)
+- 질병 정보가 없거나 불명확하면 저강도 운동 중심으로 작성
+- 무리한 운동이나 고강도 운동을 권장하지 말 것
+- 통증, 어지러움, 흉통, 호흡곤란 발생 시 운동 중단 안내 포함 가능
+- 질병코드에 없는 새로운 질환이나 신체부위를 추가하지 말 것
+- 확정 진단처럼 표현하지 말 것
+- 재활치료, 전문 운동처방 수준의 구체적인 지시는 하지 말 것
+- 일반적인 생활관리 수준의 운동 가이드만 작성할 것
+- 특정 운동 동작(팔 들기, 스쿼트, 계단 오르기 등)을 구체적으로 지시하지 말 것
+
+약물:
+{", ".join(medication_names) if medication_names else "정보 없음"}
+
+질병 정보 (OCR 추출 참고정보):
+{", ".join(disease_entries) if disease_entries else "정보 없음"}
+"""
+
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "당신은 환자 친화적인 운동 가이드를 작성하는 의료 AI입니다."},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.5,
+    )
+
+    data = json.loads(response.choices[0].message.content or "{}")
+
+    intensity = data.get("intensity")
+    frequency = data.get("frequency")
+    duration = data.get("duration")
+    cautions = data.get("cautions")
+
+    return ExerciseGuide(
+        intensity=intensity if isinstance(intensity, str) and intensity.strip() else _FALLBACK_EXERCISE.intensity,
+        frequency=frequency if isinstance(frequency, str) and frequency.strip() else _FALLBACK_EXERCISE.frequency,
+        duration=duration if isinstance(duration, str) and duration.strip() else _FALLBACK_EXERCISE.duration,
+        cautions=cautions if isinstance(cautions, list) and cautions else _FALLBACK_EXERCISE.cautions,
+    )
+
+
+async def _make_diet_guide_with_llm(
+    medication_names: list[str],
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> DietGuide:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    client = AsyncOpenAI(api_key=api_key)
+
+    if disease_names:
+        disease_entries = [
+            f"{code} - {name}" if name else code for code, name in zip(disease_codes, disease_names, strict=False)
+        ]
+    else:
+        disease_entries = disease_codes
+
+    prompt = f"""
+아래 약물과 질병 정보를 참고하여 환자 식사 가이드를 JSON으로 작성하세요.
+
+출력 형식 (아래 JSON만 출력, 추가 설명 없이):
+{{
+  "forbidden": ["피해야 할 음식 또는 성분 2~4가지"],
+  "recommended": ["권장 음식 또는 성분 2~4가지"],
+  "hydration": "수분 섭취 안내 한 문장"
+}}
+
+조건:
+- 환자가 이해하기 쉬운 한국어 사용
+- 질병 정보가 있으면 해당 질환에 적합한 식사 안내를 일반 안내보다 우선
+- 질병코드 기반 확정 진단 표현 금지
+- 질병코드에 없는 새로운 질환이나 증상을 추가하지 말 것
+- 안전한 생활관리 수준으로만 작성
+
+약물:
+{", ".join(medication_names) if medication_names else "정보 없음"}
+
+질병 정보 (OCR 추출 참고정보):
+{", ".join(disease_entries) if disease_entries else "정보 없음"}
+"""
+
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "당신은 환자 친화적인 식사 가이드를 작성하는 의료 AI입니다."},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.5,
+    )
+
+    data = json.loads(response.choices[0].message.content or "{}")
+
+    forbidden = data.get("forbidden")
+    recommended = data.get("recommended")
+    hydration = data.get("hydration")
+
+    return DietGuide(
+        forbidden=forbidden if isinstance(forbidden, list) and forbidden else _FALLBACK_DIET.forbidden,
+        recommended=recommended if isinstance(recommended, list) and recommended else _FALLBACK_DIET.recommended,
+        hydration=hydration if isinstance(hydration, str) and hydration.strip() else _FALLBACK_DIET.hydration,
+    )
+
+
 async def _make_lifestyle_guide_with_llm(
     medication_names: list[str],
     disease_codes: list[str],
@@ -547,6 +729,25 @@ async def _make_lifestyle_guide_with_llm(
     return LifestyleGuide(tips=tips)
 
 
+def _filter_whitelist_diseases(
+    disease_codes: list[str],
+    disease_names: list[str],
+) -> tuple[list[str], list[str]]:
+    """llm-guide-policy.md §8 whitelist 기준으로 disease 쌍을 필터링."""
+    filtered_codes: list[str] = []
+    filtered_names: list[str] = []
+    max_len = max(len(disease_codes), len(disease_names)) if (disease_codes or disease_names) else 0
+    for i in range(max_len):
+        code = disease_codes[i] if i < len(disease_codes) else ""
+        name = disease_names[i] if i < len(disease_names) else ""
+        code_match = bool(code) and any(code.startswith(p) for p in _DISEASE_WHITELIST_ICD_PREFIXES)
+        name_match = bool(name) and any(kw in name for kw in _DISEASE_WHITELIST_NAME_KEYWORDS)
+        if code_match or name_match:
+            filtered_codes.append(code)
+            filtered_names.append(name)
+    return filtered_codes, filtered_names
+
+
 async def _run_mock_worker(
     job_id: str,
     guide_id: str,
@@ -565,14 +766,37 @@ async def _run_mock_worker(
 
     generation_results = [GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types]
 
+    filtered_codes, filtered_names = _filter_whitelist_diseases(disease_codes, disease_names)
+    needs_generic_notice = bool(disease_codes) and not filtered_codes
+
     if GuideType.LIFESTYLE in guide_types:
         try:
-            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, disease_codes, disease_names)
+            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, filtered_codes, filtered_names)
         except Exception as e:
             print(f"LLM guide generation failed: {e}")
             lifestyle_guide = _make_lifestyle_guide()
+        if needs_generic_notice:
+            lifestyle_guide = LifestyleGuide(tips=[_GENERIC_GUIDE_NOTICE] + lifestyle_guide.tips)
     else:
         lifestyle_guide = None
+
+    if GuideType.DIET in guide_types:
+        try:
+            diet_guide = await _make_diet_guide_with_llm(medication_names, filtered_codes, filtered_names)
+        except Exception as e:
+            print(f"LLM diet guide generation failed: {e}")
+            diet_guide = _make_diet_guide()
+    else:
+        diet_guide = None
+
+    if GuideType.EXERCISE in guide_types:
+        try:
+            exercise_guide = await _make_exercise_guide_with_llm(medication_names, filtered_codes, filtered_names)
+        except Exception as e:
+            print(f"LLM exercise guide generation failed: {e}")
+            exercise_guide = _make_exercise_guide()
+    else:
+        exercise_guide = None
 
     guide = GuideResponse(
         guide_id=guide_id,
@@ -587,8 +811,8 @@ async def _run_mock_worker(
             else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
         ),
         lifestyle_guide=lifestyle_guide,
-        diet_guide=_make_diet_guide() if GuideType.DIET in guide_types else None,
-        exercise_guide=_make_exercise_guide() if GuideType.EXERCISE in guide_types else None,
+        diet_guide=diet_guide,
+        exercise_guide=exercise_guide,
         generation_results=generation_results,
     )
 
