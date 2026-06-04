@@ -46,6 +46,7 @@ export function submitFeedback(
 export const streamMessage = async (
   sessionId: string,
   content: string,
+  guideId: string | null | undefined,
   onChunk: (chunk: string) => void,
   onDone: (messageId: number, title: string | null) => void,
   onError: (detail: string) => void,
@@ -59,7 +60,7 @@ export const streamMessage = async (
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: "include",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, guide_id: guideId ?? null }),
   });
 
   if (!res.ok || !res.body) {

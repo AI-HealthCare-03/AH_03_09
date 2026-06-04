@@ -38,7 +38,7 @@ export function useStreamMessage() {
   const [delayMessage, setDelayMessage] = useState<string | null>(null);
   const lastParamsRef = { sessionId: "", content: "" };
 
-  const mutate = async ({ sessionId, content }: { sessionId: string; content: string }) => {
+  const mutate = async ({ sessionId, content, guideId }: { sessionId: string; content: string; guideId?: string | null }) => {
     lastParamsRef.sessionId = sessionId;
     lastParamsRef.content = content;
     setIsPending(true);
@@ -49,6 +49,7 @@ export function useStreamMessage() {
     await streamMessage(
       sessionId,
       content,
+      guideId,
       (chunk) => setStreamingContent((prev) => prev + chunk),
       (_messageId, _title) => {
         qc.invalidateQueries({ queryKey: messagesKey(sessionId) });
