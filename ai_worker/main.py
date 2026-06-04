@@ -7,8 +7,10 @@ import redis.asyncio as aioredis
 from ai_worker.core.config import config
 from ai_worker.core.logger import setup_logger
 from ai_worker.schemas.chat import ChatTaskPayload
+from ai_worker.schemas.guide import GuideJobPayload
 from ai_worker.schemas.ocr import OcrTaskPayload
 from ai_worker.tasks.chat_task import process_chat
+from ai_worker.tasks.guide_task import process_guide_task
 from ai_worker.tasks.ocr_task import process_ocr
 
 logger = setup_logger()
@@ -55,9 +57,9 @@ async def main() -> None:
     await _recover_pending_jobs(redis_client)
 
     pubsub = redis_client.pubsub()
-    await pubsub.psubscribe("chat:request:*", "ocr:request:*")
+    await pubsub.psubscribe("chat:request:*", "ocr:request:*", "guide:request:*")
 
-    logger.info("AI Worker started — listening for chat/ocr tasks")
+    logger.info("AI Worker started — listening for chat/ocr/guide tasks")
 
     async for message in pubsub.listen():
         if message["type"] != "pmessage":
@@ -74,6 +76,9 @@ async def main() -> None:
             elif channel.startswith("ocr:"):
                 payload = OcrTaskPayload.model_validate(data)
                 asyncio.create_task(process_ocr(payload, redis_client))
+            elif channel.startswith("guide:"):
+                payload = GuideJobPayload.model_validate(data)
+                asyncio.create_task(process_guide_task(payload))
             else:
                 logger.warning("Unknown channel pattern: %s", channel)
         except Exception as exc:
