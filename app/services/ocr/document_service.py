@@ -308,13 +308,13 @@ class OcrDocumentService:
             from app.dtos.guides import GenerateGuideRequest, GuideType, MedicationDetail
             from app.services.guides import GuideService
 
-            other_docs = await self.repo.get_recent_done_by_user(user_id, exclude_record_id=doc.record_id, limit=9)
-            merged_meds, merged_codes = self._merge_multi_doc_data([doc] + other_docs)
+            meds = [m for m in (doc.medications or []) if m.is_active and m.medication_name]
+            codes = [c for c in (doc.disease_codes or []) if c.is_active and c.icd10_code]
 
             guide_req = GenerateGuideRequest(
                 patient_id=str(user_id),
                 guide_types=list(GuideType),
-                medication_names=[m.medication_name for m in merged_meds],
+                medication_names=[m.medication_name for m in meds],
                 medications=[
                     MedicationDetail(
                         medication_name=m.medication_name,
@@ -326,10 +326,10 @@ class OcrDocumentService:
                         time_of_day=_to_list(m.time_of_day),
                         warnings=_to_list(m.warnings),
                     )
-                    for m in merged_meds
+                    for m in meds
                 ],
-                disease_codes=[c.icd10_code for c in merged_codes],
-                disease_names=[c.disease_name or "" for c in merged_codes],
+                disease_codes=[c.icd10_code for c in codes],
+                disease_names=[c.disease_name or "" for c in codes],
             )
             guide_resp = await GuideService().create_guide_job(guide_req)
             guide_job_id = guide_resp.job_id
