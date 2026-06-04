@@ -13,7 +13,10 @@ from datetime import UTC, datetime
 import pandas as pd
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.sqlalchemy_client import _AsyncSessionFactory
 from app.dtos.guides import (
     DietGuide,
     ExerciseGuide,
@@ -36,6 +39,7 @@ from app.dtos.guides import (
     MedicationMatchStatus,
     UpdateFeedbackStatusRequest,
 )
+from app.models.drug_master import DrugMaster
 
 # ── In-memory 저장소 ──────────────────────────────────────────────────────────
 _jobs: dict[str, dict] = {}
@@ -423,6 +427,52 @@ def _search_medication(name: str) -> MedicationItem:
     return _row_to_medication_item(matches.iloc[0])
 
 
+async def _search_medication_db(session: AsyncSession, name: str) -> MedicationItem | None:
+    """drug_master DB에서 약물 조회. 없거나 오류 시 None 반환."""
+    normalized = _normalize_drug_name(name)
+    try:
+        stmt = (
+            select(DrugMaster)
+            .where(func.lower(func.replace(DrugMaster.item_name, " ", "")).like(f"%{normalized}%"))
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        row = result.scalar_one_or_none()
+    except Exception:
+        return None
+    if row is None:
+        return None
+
+    dosage = row.dosage or ""
+    cautions_str = row.cautions or ""
+    side_effects_str = row.side_effects or ""
+    storage = row.storage or ""
+    cautions = [cautions_str] if cautions_str else []
+    match_status = (
+        MedicationMatchStatus.EXACT_DB_MATCH if row.source == "식약처" else MedicationMatchStatus.WEB_REFERENCE
+    )
+    return MedicationItem(
+        name=row.item_name,
+        dosage=dosage,
+        timing="",
+        before_after_meal="",
+        side_effects=[side_effects_str] if side_effects_str else [],
+        cautions=cautions,
+        missed_dose="",
+        storage=storage,
+        action_icons=_make_medication_action_icons(
+            cautions,
+            [side_effects_str] if side_effects_str else [],
+            storage,
+        ),
+        usage_icons=_make_medication_usage_icons(dosage),
+        easy_summary=_make_easy_summary(cautions, side_effects_str, dosage, storage),
+        match_status=match_status,
+        source_name=row.source or "DB",
+        disclaimer=None,
+    )
+
+
 def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
     schedule: dict[str, list[str]] = {}
     for med in medications:
@@ -437,12 +487,33 @@ def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
     return [{"time": t, "medications": names} for t, names in schedule.items()]
 
 
-async def _make_medication_guide_from_csv(medication_names: list[str]) -> MedicationGuide:
-    items = [_search_medication(n) for n in medication_names]
+async def _make_medication_guide_from_csv(
+    medication_names: list[str],
+    session: AsyncSession | None = None,
+) -> MedicationGuide:
+    items: list[MedicationItem] = []
+    for name in medication_names:
+        item: MedicationItem | None = None
+        if session is not None:
+            item = await _search_medication_db(session, name)
+        if item is None:
+            item = _search_medication(name)  # CSV fallback
+        items.append(item)
     enriched_summaries = await asyncio.gather(*[_enrich_easy_summary(item) for item in items])
     for item, summary in zip(items, enriched_summaries, strict=True):
         item.easy_summary = summary
     return MedicationGuide(medications=items)
+
+
+async def _build_medication_guide(
+    medication_names: list[str],
+    guide_types: list[GuideType],
+) -> MedicationGuide | None:
+    """DB 우선 조회로 MEDICATION 가이드 생성. guide_types에 MEDICATION 없으면 None."""
+    if GuideType.MEDICATION not in guide_types:
+        return None
+    async with _AsyncSessionFactory() as db_session:
+        return await _make_medication_guide_from_csv(medication_names, db_session)
 
 
 # ── Mock 데이터 생성 헬퍼 (LIFESTYLE / DIET / EXERCISE) ──────────────────────
@@ -760,66 +831,81 @@ async def _run_mock_worker(
     await asyncio.sleep(1)
     _jobs[job_id]["status"] = JobStatus.PROCESSING
 
-    await asyncio.sleep(3)
+    try:
+        await asyncio.sleep(3)
 
-    now = datetime.now(UTC).isoformat()
+        now = datetime.now(UTC).isoformat()
 
-    generation_results = [GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types]
+        generation_results = [
+            GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types
+        ]
 
-    filtered_codes, filtered_names = _filter_whitelist_diseases(disease_codes, disease_names)
-    needs_generic_notice = bool(disease_codes) and not filtered_codes
+        filtered_codes, filtered_names = _filter_whitelist_diseases(disease_codes, disease_names)
+        needs_generic_notice = bool(disease_codes) and not filtered_codes
 
-    if GuideType.LIFESTYLE in guide_types:
-        try:
-            lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, filtered_codes, filtered_names)
-        except Exception as e:
-            print(f"LLM guide generation failed: {e}")
-            lifestyle_guide = _make_lifestyle_guide()
-        if needs_generic_notice:
-            lifestyle_guide = LifestyleGuide(tips=[_GENERIC_GUIDE_NOTICE] + lifestyle_guide.tips)
-    else:
-        lifestyle_guide = None
+        if GuideType.LIFESTYLE in guide_types:
+            try:
+                lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, filtered_codes, filtered_names)
+            except Exception as e:
+                print(f"LLM guide generation failed: {e}")
+                lifestyle_guide = _make_lifestyle_guide()
+            if needs_generic_notice:
+                lifestyle_guide = LifestyleGuide(tips=[_GENERIC_GUIDE_NOTICE] + lifestyle_guide.tips)
+        else:
+            lifestyle_guide = None
 
-    if GuideType.DIET in guide_types:
-        try:
-            diet_guide = await _make_diet_guide_with_llm(medication_names, filtered_codes, filtered_names)
-        except Exception as e:
-            print(f"LLM diet guide generation failed: {e}")
-            diet_guide = _make_diet_guide()
-    else:
-        diet_guide = None
+        if GuideType.DIET in guide_types:
+            try:
+                diet_guide = await _make_diet_guide_with_llm(medication_names, filtered_codes, filtered_names)
+            except Exception as e:
+                print(f"LLM diet guide generation failed: {e}")
+                diet_guide = _make_diet_guide()
+        else:
+            diet_guide = None
 
-    if GuideType.EXERCISE in guide_types:
-        try:
-            exercise_guide = await _make_exercise_guide_with_llm(medication_names, filtered_codes, filtered_names)
-        except Exception as e:
-            print(f"LLM exercise guide generation failed: {e}")
-            exercise_guide = _make_exercise_guide()
-    else:
-        exercise_guide = None
+        if GuideType.EXERCISE in guide_types:
+            try:
+                exercise_guide = await _make_exercise_guide_with_llm(medication_names, filtered_codes, filtered_names)
+            except Exception as e:
+                print(f"LLM exercise guide generation failed: {e}")
+                exercise_guide = _make_exercise_guide()
+        else:
+            exercise_guide = None
 
-    guide = GuideResponse(
-        guide_id=guide_id,
-        guide_types=guide_types,
-        created_at=now,
-        medication_guide=(
-            await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
-        ),
-        schedule_table=(
-            _build_schedule_table(medications)
-            if medications
-            else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
-        ),
-        lifestyle_guide=lifestyle_guide,
-        diet_guide=diet_guide,
-        exercise_guide=exercise_guide,
-        generation_results=generation_results,
-    )
+        medication_guide = await _build_medication_guide(medication_names, guide_types)
 
-    _guides[guide_id] = guide.model_dump()
-    _guides[guide_id]["disease_codes"] = disease_codes
-    _jobs[job_id]["status"] = JobStatus.DONE
-    _jobs[job_id]["guide_id"] = guide_id
+        guide = GuideResponse(
+            guide_id=guide_id,
+            guide_types=guide_types,
+            created_at=now,
+            medication_guide=medication_guide,
+            schedule_table=(
+                _build_schedule_table(medications)
+                if medications
+                else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
+            ),
+            lifestyle_guide=lifestyle_guide,
+            diet_guide=diet_guide,
+            exercise_guide=exercise_guide,
+            generation_results=generation_results,
+        )
+
+        _guides[guide_id] = guide.model_dump()
+        _guides[guide_id]["disease_codes"] = disease_codes
+        _jobs[job_id]["status"] = JobStatus.DONE
+        _jobs[job_id]["guide_id"] = guide_id
+
+    except FileNotFoundError as e:
+        error_message = f"필수 파일 없음: {e.filename}"
+        print(f"[GuideWorker] job_id={job_id} {error_message}")
+        _jobs[job_id]["status"] = JobStatus.FAILED
+        _jobs[job_id]["error_message"] = error_message
+
+    except Exception as e:
+        error_message = str(e)
+        print(f"[GuideWorker] job_id={job_id} 가이드 생성 실패: {error_message}")
+        _jobs[job_id]["status"] = JobStatus.FAILED
+        _jobs[job_id]["error_message"] = error_message
 
 
 # ── Service ───────────────────────────────────────────────────────────────────
