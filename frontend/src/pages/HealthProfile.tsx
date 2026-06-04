@@ -154,13 +154,13 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
           icon={CalendarIcon}
           label="생년월일"
           value={profile.birthDate ?? "-"}
-          unit=""
+          unit={profile.birthDate ? `만 ${computeAge(profile.birthDate)}세` : ""}
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard icon={RulerIcon} label="키" value={`${profile.heightCm}`} unit="cm" />
-        <StatCard icon={WeightIcon} label="체중" value={`${profile.weightKg}`} unit="kg" />
+        <StatCard icon={RulerIcon} label="키" value={profile.heightCm ? `${profile.heightCm}` : "-"} unit={profile.heightCm ? "cm" : "미입력"} />
+        <StatCard icon={WeightIcon} label="체중" value={profile.weightKg ? `${profile.weightKg}` : "-"} unit={profile.weightKg ? "kg" : "미입력"} />
         <StatCard
           icon={ActivityIcon}
           label="BMI"
@@ -328,6 +328,7 @@ function Row({
 }
 
 function computeBmi(heightCm: number, weightKg: number) {
+  if (!heightCm || !weightKg) return { value: "-", label: "미입력", accent: "text-muted-foreground" };
   const m = heightCm / 100;
   const v = weightKg / (m * m);
   const value = v.toFixed(1);
@@ -335,4 +336,13 @@ function computeBmi(heightCm: number, weightKg: number) {
   if (v < 23) return { value, label: "정상", accent: "text-success" };
   if (v < 25) return { value, label: "과체중", accent: "text-warning" };
   return { value, label: "비만", accent: "text-destructive" };
+}
+
+function computeAge(birthDate: string): number {
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
 }

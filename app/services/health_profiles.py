@@ -42,6 +42,21 @@ class HealthProfileService:
                 gender=_map_kakao_gender(user.gender),
                 birth_date=_build_birth_date(user.birthyear, user.birthday),
             )
+        else:
+            # 기존 프로필에 gender/birth_date 미설정이면 카카오 데이터로 보완
+            updates: dict = {}
+            if profile.gender is None:
+                mapped = _map_kakao_gender(user.gender)
+                if mapped:
+                    updates["gender"] = mapped
+            if profile.birth_date is None:
+                bd = _build_birth_date(user.birthyear, user.birthday)
+                if bd:
+                    updates["birth_date"] = bd
+            if updates:
+                await self.repo.update_instance(profile, updates)
+                await self.repo.session.commit()
+                await self.repo.session.refresh(profile)
         return profile
 
     async def update(self, user: User, data: HealthProfileUpdateRequest) -> HealthProfile:

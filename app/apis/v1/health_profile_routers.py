@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import ORJSONResponse as Response
+from fastapi.responses import JSONResponse as Response
 
 from app.dependencies.security import get_request_user
 from app.dtos.health_profiles import HealthProfileHistoryResponse, HealthProfileResponse, HealthProfileUpdateRequest
@@ -17,7 +17,7 @@ async def get_health_profile(
     service: Annotated[HealthProfileService, Depends(HealthProfileService)],
 ) -> Response:
     result = await service.get_or_create(user)
-    return Response(HealthProfileResponse.model_validate(result).model_dump())
+    return Response(HealthProfileResponse.model_validate(result).model_dump(mode="json"))
 
 
 @health_profile_router.patch("", response_model=HealthProfileResponse, status_code=status.HTTP_200_OK)
@@ -27,7 +27,7 @@ async def update_health_profile(
     service: Annotated[HealthProfileService, Depends(HealthProfileService)],
 ) -> Response:
     result = await service.update(user, body)
-    return Response(HealthProfileResponse.model_validate(result).model_dump())
+    return Response(HealthProfileResponse.model_validate(result).model_dump(mode="json"))
 
 
 @health_profile_router.get(
@@ -38,4 +38,4 @@ async def get_health_profile_history(
     service: Annotated[HealthProfileService, Depends(HealthProfileService)],
 ) -> Response:
     result = await service.get_history(user)
-    return Response([HealthProfileHistoryResponse.model_validate(h).model_dump() for h in result])
+    return Response([HealthProfileHistoryResponse.model_validate(h).model_dump(mode="json") for h in result])
