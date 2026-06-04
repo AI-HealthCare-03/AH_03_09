@@ -22,6 +22,8 @@ const optionalNumeric = (label: string, min: number, max: number) =>
 
 export const healthProfileSchema = z
   .object({
+    gender: z.enum(["M", "F", "OTHER"]).optional(),
+    birthDate: z.string().optional(),
     heightCm: numericInRange("키", 80, 250),
     weightKg: numericInRange("체중", 20, 300),
     existingDiagnoses: z.string().optional(),
@@ -52,6 +54,8 @@ export function toMedicalProfile(values: HealthProfileFormValues): MedicalProfil
   const hasBp = !!values.systolic && !!values.diastolic;
 
   return {
+    ...(values.gender ? { gender: values.gender } : {}),
+    ...(values.birthDate ? { birthDate: values.birthDate } : {}),
     heightCm: Number(values.heightCm),
     weightKg: Number(values.weightKg),
     ...(diagnoses ? { existingDiagnoses: diagnoses } : {}),
@@ -73,6 +77,8 @@ export function toMedicalProfile(values: HealthProfileFormValues): MedicalProfil
 
 export function fromMedicalProfile(profile: MedicalProfile | null): HealthProfileFormValues {
   return {
+    gender: profile?.gender,
+    birthDate: profile?.birthDate ?? "",
     heightCm: profile ? String(profile.heightCm) : "",
     weightKg: profile ? String(profile.weightKg) : "",
     existingDiagnoses: profile?.existingDiagnoses ?? "",

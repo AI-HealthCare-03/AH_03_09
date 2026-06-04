@@ -12,11 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import config
 from app.core.redis_client import get_redis
 from app.dtos.ocr.document_dtos import MedicationCreateRequest, MedicationUpdateRequest, OcrDocumentUpdateRequest
-from app.models.ocr.ocr_document import DiseaseCode, Medication, OcrDocument, OcrStatus
+from app.models.ocr.ocr_document import DiseaseCode, Medication, OcrCorrection, OcrDocument, OcrStatus
 from app.repositories.ocr.document_repository import OcrDocumentRepository
 from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
 
 logger = logging.getLogger(__name__)
+
+
+def _to_list(v: list | str | None) -> list | None:
+    if v is None:
+        return None
+    return v if isinstance(v, list) else [v]
 
 
 async def _lookup_disease_name(icd10_code: str) -> str | None:
@@ -186,8 +192,20 @@ class OcrDocumentService:
         if med is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="약물 정보를 찾을 수 없습니다.")
         for field, value in body.model_dump(exclude_unset=True).items():
+            original = getattr(med, field, None)
+            self.session.add(
+                OcrCorrection(
+                    document_id=record_id,
+                    field_name=field,
+                    entity_type="medication",
+                    entity_id=medication_id,
+                    original_value=str(original) if original is not None else None,
+                    corrected_value=str(value) if value is not None else None,
+                    corrected_by=user_id,
+                )
+            )
             setattr(med, field, value)
-        med.is_confirmed = False  # 수정 시 재확인 필요
+        med.is_confirmed = False
         await self.session.commit()
         await self.session.refresh(med)
         return med
@@ -199,6 +217,17 @@ class OcrDocumentService:
         if code is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="질병분류기호를 찾을 수 없습니다.")
         if icd10_code != code.icd10_code:
+            self.session.add(
+                OcrCorrection(
+                    document_id=record_id,
+                    field_name="icd10_code",
+                    entity_type="disease_code",
+                    entity_id=disease_code_id,
+                    original_value=code.icd10_code,
+                    corrected_value=icd10_code,
+                    corrected_by=user_id,
+                )
+            )
             code.icd10_code = icd10_code
             code.disease_name = await _lookup_disease_name(icd10_code)
         await self.session.commit()
@@ -294,8 +323,8 @@ class OcrDocumentService:
                         frequency=m.frequency,
                         timing=m.timing,
                         duration_days=m.duration_days,
-                        time_of_day=m.time_of_day,
-                        warnings=m.warnings,
+                        time_of_day=_to_list(m.time_of_day),
+                        warnings=_to_list(m.warnings),
                     )
                     for m in merged_meds
                 ],

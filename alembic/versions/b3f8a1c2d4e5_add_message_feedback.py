@@ -1,7 +1,7 @@
 """add message feedback
 
 Revision ID: b3f8a1c2d4e5
-Revises: 7162fbb2b310
+Revises: 6b8b1c19f098
 Create Date: 2026-05-27 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "b3f8a1c2d4e5"
-down_revision: Union[str, Sequence[str], None] = "d1e2f3a4b5c6"
+down_revision: Union[str, Sequence[str], None] = "6b8b1c19f098"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
