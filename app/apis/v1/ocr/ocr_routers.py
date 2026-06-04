@@ -24,7 +24,6 @@ from app.dtos.ocr.document_dtos import (
     OcrJobStatusResponse,
     OcrPreviewResponse,
     OcrResultResponse,
-    OcrResultUpdateRequest,
     OcrUploadResponse,
     UploadedFileItem,
 )
@@ -503,14 +502,3 @@ async def get_ocr_result(
     if doc.result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OCR 결과가 아직 없습니다.")
     return OcrResultResponse.model_validate(doc.result)
-
-
-@ocr_router.patch("/records/{record_id}/result", response_model=OcrResultResponse)
-async def update_ocr_result(
-    record_id: int,
-    body: OcrResultUpdateRequest,
-    current_user: _AUTH,
-    session: _SESSION,
-) -> OcrResultResponse:
-    """OCR 텍스트를 사용자가 직접 수정합니다. (REQ-OCR-015)"""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
