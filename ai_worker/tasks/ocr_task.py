@@ -247,11 +247,24 @@ def _normalize_drug_name(name: str) -> str:
     return re.sub(r"\s+", "", name).strip()
 
 
-async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
-    """OCR 약물명을 drug_master 테이블과 pg_trgm으로 매칭해 정규화합니다.
+_DOSAGE_PATTERN = re.compile(
+    r"\s*\d+(?:[./]\d+)?\s*(?:mg|ml|mcg|g|%|밀리그램|밀리리터|마이크로그램|그램).*$", re.IGNORECASE
+)
 
-    단위 정규화(mg→밀리그램) 후 word_similarity > 0.6으로 1차 매칭.
-    미달이면 원문 유지.
+
+def _extract_base_name(name: str) -> str:
+    """약품명에서 용량·규격 부분을 제거해 기본 약품명만 반환합니다."""
+    base = _PAREN_PATTERN.sub("", name)
+    base = _DOSAGE_PATTERN.sub("", base)
+    return base.strip() or name
+
+
+async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
+    """OCR 약물명을 drug_master 테이블과 매칭해 정규화합니다.
+
+    1차: 기본 약품명으로 ILIKE 부분 일치 (정확한 매칭)
+    2차: 기본 약품명으로 word_similarity > 0.7 (OCR 오타 허용)
+    둘 다 실패 시 원문 유지.
     """
     result = []
     for m in medications:
@@ -259,11 +272,21 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
         if not name:
             result.append(m)
             continue
-        normalized = _normalize_drug_name(name)
+
+        base = _extract_base_name(name)
+
         row = await conn.fetchrow(
-            "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.6 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
-            normalized,
+            "SELECT item_name FROM drug_master WHERE item_name ILIKE $1 LIMIT 1",
+            f"%{base}%",
         )
+
+        if not row:
+            normalized = _normalize_drug_name(base)
+            row = await conn.fetchrow(
+                "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.7 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
+                normalized,
+            )
+
         if row:
             m = {**m, "medication_name": row["item_name"]}
         result.append(m)
