@@ -1,6 +1,7 @@
 import {
   ActivityIcon,
   BeakerIcon,
+  CalendarIcon,
   CigaretteIcon,
   GlassWaterIcon,
   HeartPulseIcon,
@@ -8,6 +9,7 @@ import {
   PillIcon,
   RulerIcon,
   StethoscopeIcon,
+  UserIcon,
   WeightIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -45,6 +47,8 @@ export default function HealthProfile() {
 
   const mergedProfile: MedicalProfile | null = medicalProfile || serverProfile
     ? {
+        gender: serverProfile?.gender ?? medicalProfile?.gender,
+        birthDate: serverProfile?.birth_date ?? medicalProfile?.birthDate,
         heightCm: serverProfile?.height_cm ?? medicalProfile?.heightCm ?? 0,
         weightKg: serverProfile?.weight_kg ?? medicalProfile?.weightKg ?? 0,
         bloodPressure:
@@ -69,6 +73,8 @@ export default function HealthProfile() {
 
     try {
       await syncMutation.mutateAsync({
+        gender: values.gender,
+        birth_date: values.birthDate || undefined,
         height_cm: Number(values.heightCm) || undefined,
         weight_kg: Number(values.weightKg) || undefined,
         blood_pressure_systolic: hasBp ? Number(values.systolic) : undefined,
@@ -137,6 +143,21 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
 
   return (
     <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard
+          icon={UserIcon}
+          label="성별"
+          value={profile.gender === "M" ? "남성" : profile.gender === "F" ? "여성" : profile.gender === "OTHER" ? "기타" : "-"}
+          unit=""
+        />
+        <StatCard
+          icon={CalendarIcon}
+          label="생년월일"
+          value={profile.birthDate ?? "-"}
+          unit=""
+        />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard icon={RulerIcon} label="키" value={`${profile.heightCm}`} unit="cm" />
         <StatCard icon={WeightIcon} label="체중" value={`${profile.weightKg}`} unit="kg" />

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
@@ -11,6 +12,24 @@ from app.models.users import User
 from app.repositories.health_profile_repository import HealthProfileRepository
 
 
+def _map_kakao_gender(kakao_gender: str | None) -> str | None:
+    if kakao_gender == "male":
+        return "M"
+    if kakao_gender == "female":
+        return "F"
+    return None
+
+
+def _build_birth_date(birthyear: str | None, birthday: str | None) -> date | None:
+    """카카오 birthyear('1990')와 birthday('0315', MMDD)를 date로 변환합니다."""
+    if not birthyear or not birthday or len(birthday) != 4:
+        return None
+    try:
+        return date(int(birthyear), int(birthday[:2]), int(birthday[2:]))
+    except (ValueError, TypeError):
+        return None
+
+
 class HealthProfileService:
     def __init__(self, session: Annotated[AsyncSession, Depends(get_async_session)]) -> None:
         self.repo = HealthProfileRepository(session)
@@ -18,7 +37,11 @@ class HealthProfileService:
     async def get_or_create(self, user: User) -> HealthProfile:
         profile = await self.repo.get_by_user_id(user.id)
         if not profile:
-            profile = await self.repo.create(user_id=user.id)
+            profile = await self.repo.create(
+                user_id=user.id,
+                gender=_map_kakao_gender(user.gender),
+                birth_date=_build_birth_date(user.birthyear, user.birthday),
+            )
         return profile
 
     async def update(self, user: User, data: HealthProfileUpdateRequest) -> HealthProfile:
