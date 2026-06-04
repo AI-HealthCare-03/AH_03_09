@@ -13,7 +13,10 @@ from datetime import UTC, datetime
 import pandas as pd
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.sqlalchemy_client import _AsyncSessionFactory
 from app.dtos.guides import (
     DietGuide,
     ExerciseGuide,
@@ -36,6 +39,7 @@ from app.dtos.guides import (
     MedicationMatchStatus,
     UpdateFeedbackStatusRequest,
 )
+from app.models.drug_master import DrugMaster
 
 # ── In-memory 저장소 ──────────────────────────────────────────────────────────
 _jobs: dict[str, dict] = {}
@@ -423,6 +427,52 @@ def _search_medication(name: str) -> MedicationItem:
     return _row_to_medication_item(matches.iloc[0])
 
 
+async def _search_medication_db(session: AsyncSession, name: str) -> MedicationItem | None:
+    """drug_master DB에서 약물 조회. 없거나 오류 시 None 반환."""
+    normalized = _normalize_drug_name(name)
+    try:
+        stmt = (
+            select(DrugMaster)
+            .where(func.lower(func.replace(DrugMaster.item_name, " ", "")).like(f"%{normalized}%"))
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        row = result.scalar_one_or_none()
+    except Exception:
+        return None
+    if row is None:
+        return None
+
+    dosage = row.dosage or ""
+    cautions_str = row.cautions or ""
+    side_effects_str = row.side_effects or ""
+    storage = row.storage or ""
+    cautions = [cautions_str] if cautions_str else []
+    match_status = (
+        MedicationMatchStatus.EXACT_DB_MATCH if row.source == "식약처" else MedicationMatchStatus.WEB_REFERENCE
+    )
+    return MedicationItem(
+        name=row.item_name,
+        dosage=dosage,
+        timing="",
+        before_after_meal="",
+        side_effects=[side_effects_str] if side_effects_str else [],
+        cautions=cautions,
+        missed_dose="",
+        storage=storage,
+        action_icons=_make_medication_action_icons(
+            cautions,
+            [side_effects_str] if side_effects_str else [],
+            storage,
+        ),
+        usage_icons=_make_medication_usage_icons(dosage),
+        easy_summary=_make_easy_summary(cautions, side_effects_str, dosage, storage),
+        match_status=match_status,
+        source_name=row.source or "DB",
+        disclaimer=None,
+    )
+
+
 def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
     schedule: dict[str, list[str]] = {}
     for med in medications:
@@ -437,12 +487,33 @@ def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
     return [{"time": t, "medications": names} for t, names in schedule.items()]
 
 
-async def _make_medication_guide_from_csv(medication_names: list[str]) -> MedicationGuide:
-    items = [_search_medication(n) for n in medication_names]
+async def _make_medication_guide_from_csv(
+    medication_names: list[str],
+    session: AsyncSession | None = None,
+) -> MedicationGuide:
+    items: list[MedicationItem] = []
+    for name in medication_names:
+        item: MedicationItem | None = None
+        if session is not None:
+            item = await _search_medication_db(session, name)
+        if item is None:
+            item = _search_medication(name)  # CSV fallback
+        items.append(item)
     enriched_summaries = await asyncio.gather(*[_enrich_easy_summary(item) for item in items])
     for item, summary in zip(items, enriched_summaries, strict=True):
         item.easy_summary = summary
     return MedicationGuide(medications=items)
+
+
+async def _build_medication_guide(
+    medication_names: list[str],
+    guide_types: list[GuideType],
+) -> MedicationGuide | None:
+    """DB 우선 조회로 MEDICATION 가이드 생성. guide_types에 MEDICATION 없으면 None."""
+    if GuideType.MEDICATION not in guide_types:
+        return None
+    async with _AsyncSessionFactory() as db_session:
+        return await _make_medication_guide_from_csv(medication_names, db_session)
 
 
 # ── Mock 데이터 생성 헬퍼 (LIFESTYLE / DIET / EXERCISE) ──────────────────────
@@ -801,13 +872,13 @@ async def _run_mock_worker(
         else:
             exercise_guide = None
 
+        medication_guide = await _build_medication_guide(medication_names, guide_types)
+
         guide = GuideResponse(
             guide_id=guide_id,
             guide_types=guide_types,
             created_at=now,
-            medication_guide=(
-                await _make_medication_guide_from_csv(medication_names) if GuideType.MEDICATION in guide_types else None
-            ),
+            medication_guide=medication_guide,
             schedule_table=(
                 _build_schedule_table(medications)
                 if medications
