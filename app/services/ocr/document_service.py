@@ -19,6 +19,12 @@ from app.services.ocr.s3_service import LOCAL_BUCKET, S3Service
 logger = logging.getLogger(__name__)
 
 
+def _to_list(v: list | str | None) -> list | None:
+    if v is None:
+        return None
+    return v if isinstance(v, list) else [v]
+
+
 async def _lookup_disease_name(icd10_code: str) -> str | None:
     """ICD-10 코드에 해당하는 한국어 질병명을 GPT-mini로 조회합니다."""
     if not config.OPENAI_API_KEY:
@@ -294,8 +300,8 @@ class OcrDocumentService:
                         frequency=m.frequency,
                         timing=m.timing,
                         duration_days=m.duration_days,
-                        time_of_day=m.time_of_day,
-                        warnings=m.warnings,
+                        time_of_day=_to_list(m.time_of_day),
+                        warnings=_to_list(m.warnings),
                     )
                     for m in merged_meds
                 ],
