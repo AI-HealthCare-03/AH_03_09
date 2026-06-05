@@ -19,6 +19,7 @@ type Step = "consent" | "health-profile";
 export default function Onboarding() {
   const navigate = useNavigate();
   const setMedicalProfile = useAuthStore((s) => s.setMedicalProfile);
+  const setIsOnboarded = useAuthStore((s) => s.setIsOnboarded);
 
   const [step, setStep] = useState<Step>("consent");
   const [termsChecked, setTermsChecked] = useState(false);
@@ -29,6 +30,7 @@ export default function Onboarding() {
 
   const finishOnboarding = async () => {
     await completeMutation.mutateAsync();
+    setIsOnboarded(true);
     navigate("/home", { replace: true });
   };
 
