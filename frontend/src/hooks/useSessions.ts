@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createSession, fetchSessions } from "@/api/chat";
+import { createSession, deleteSession, fetchSessions } from "@/api/chat";
 
 export const SESSIONS_KEY = ["sessions"] as const;
 
@@ -15,6 +15,16 @@ export function useCreateSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (title?: string) => createSession(title),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SESSIONS_KEY });
+    },
+  });
+}
+
+export function useDeleteSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SESSIONS_KEY });
     },
