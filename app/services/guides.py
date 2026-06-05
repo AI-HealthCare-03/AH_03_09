@@ -656,8 +656,9 @@ def _build_health_profile_section(health_profile: dict | None) -> str:
 
     if not parts:
         return ""
-    return "\n환자 건강 정보 (OCR 외 참고정보, 확정 진단 아님. 치료·처방 수준의 안내에 사용하지 말 것):\n" + "\n".join(
-        f"- {p}" for p in parts
+    return (
+        "\n환자 건강 정보 (가이드 작성 시 참고할 정보. 확정 진단 정보는 아니며 진단·치료·처방 판단에는 사용하지 말 것):\n"
+        + "\n".join(f"- {p}" for p in parts)
     )
 
 
@@ -732,6 +733,8 @@ async def _make_exercise_guide_with_llm(
 - 재활치료, 전문 운동처방 수준의 구체적인 지시는 하지 말 것
 - 일반적인 생활관리 수준의 운동 가이드만 작성할 것
 - 특정 운동 동작(팔 들기, 스쿼트, 계단 오르기 등)을 구체적으로 지시하지 말 것
+- 환자 건강 정보(기저질환, 혈압, 알레르기, 생활습관)가 제공된 경우 운동 가이드에 반영할 것
+- 단, 확정 진단·치료 계획·처방 변경·수술 권고 등 의료적 판단은 생성하지 말 것
 
 약물:
 {", ".join(medication_names) if medication_names else "정보 없음"}
@@ -802,6 +805,8 @@ async def _make_diet_guide_with_llm(
 - 질병코드 기반 확정 진단 표현 금지
 - 질병코드에 없는 새로운 질환이나 증상을 추가하지 말 것
 - 안전한 생활관리 수준으로만 작성
+- 환자 건강 정보(기저질환, 혈압, 알레르기, 생활습관)가 제공된 경우 식사 가이드에 반영할 것
+- 단, 확정 진단·치료 계획·처방 변경·수술 권고 등 의료적 판단은 생성하지 말 것
 
 약물:
 {", ".join(medication_names) if medication_names else "정보 없음"}
@@ -872,6 +877,8 @@ async def _make_lifestyle_guide_with_llm(
 - 질병분류기호는 OCR로 추출된 참고정보이며 확정 진단이 아닙니다. 확정 진단으로 표현하거나 치료·처방·수술 수준의 안내는 절대 포함하지 말 것
 - 질병코드에 근거해 새로운 진단명이나 치료 지시를 생성하지 말 것
 - 약물명과 질병 정보를 함께 고려하되, 환자에게 안전한 생활관리 수준으로만 작성할 것
+- 환자 건강 정보(기저질환, 혈압, 알레르기, 생활습관)가 제공된 경우 생활관리 팁에 반영할 것
+- 단, 확정 진단·치료 계획·처방 변경·수술 권고 등 의료적 판단은 생성하지 말 것
 
 약물:
 {", ".join(medication_names) if medication_names else "정보 없음"}
