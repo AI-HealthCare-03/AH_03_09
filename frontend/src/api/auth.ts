@@ -7,6 +7,7 @@ interface KakaoLoginUrlResponse {
 
 interface TokenResponse {
   access_token: string;
+  is_onboarded: boolean;
 }
 
 interface LoginResponse {
