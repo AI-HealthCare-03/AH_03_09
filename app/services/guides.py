@@ -1,6 +1,7 @@
 import asyncio
 import html
 import json
+import logging
 import os
 import pathlib
 import re
@@ -13,7 +14,7 @@ from datetime import UTC, datetime
 import pandas as pd
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import _AsyncSessionFactory
@@ -40,6 +41,9 @@ from app.dtos.guides import (
     UpdateFeedbackStatusRequest,
 )
 from app.models.drug_master import DrugMaster
+from app.models.guides import Guide
+
+logger = logging.getLogger(__name__)
 
 # ── In-memory 저장소 ──────────────────────────────────────────────────────────
 _jobs: dict[str, dict] = {}
@@ -836,6 +840,34 @@ def _filter_whitelist_diseases(
     return filtered_codes, filtered_names
 
 
+async def _db_guide_exists(guide_id: str) -> bool:
+    """DB에서 guide_id 존재 여부를 확인한다. DB 오류 시 False 반환."""
+    try:
+        async with _AsyncSessionFactory() as db_session:
+            result = await db_session.execute(select(Guide.id).where(Guide.guide_id == guide_id))
+            return result.scalar_one_or_none() is not None
+    except Exception:
+        return False
+
+
+async def _persist_guide(
+    guide_id: str,
+    patient_id: str | None,
+    guide: GuideResponse,
+    disease_codes: list[str],
+) -> None:
+    """가이드를 DB에 저장한다. 실패해도 _guides fallback이 유지되므로 예외를 삼키지 않고 로그만 남긴다."""
+    try:
+        guide_data = guide.model_dump(mode="json")
+        guide_data["disease_codes"] = disease_codes
+        async with _AsyncSessionFactory() as db_session:
+            db_guide = Guide(guide_id=guide_id, patient_id=patient_id, guide_data=guide_data)
+            db_session.add(db_guide)
+            await db_session.commit()
+    except Exception:
+        logger.exception("[GuideWorker] guide_id=%s DB 저장 실패 — _guides fallback 유지", guide_id)
+
+
 async def _run_mock_worker(
     job_id: str,
     guide_id: str,
@@ -909,6 +941,7 @@ async def _run_mock_worker(
 
         _guides[guide_id] = guide.model_dump()
         _guides[guide_id]["disease_codes"] = disease_codes
+        await _persist_guide(guide_id, _jobs[job_id].get("patient_id"), guide, disease_codes)
         _jobs[job_id]["status"] = JobStatus.DONE
         _jobs[job_id]["guide_id"] = guide_id
 
@@ -957,48 +990,121 @@ class GuideService:
         )
 
     async def get_guide(self, guide_id: str) -> GuideResponse:
+        # 1순위: DB
+        try:
+            async with _AsyncSessionFactory() as db_session:
+                result = await db_session.execute(select(Guide).where(Guide.guide_id == guide_id))
+                row = result.scalar_one_or_none()
+            if row is not None:
+                return GuideResponse(**row.guide_data)
+        except Exception:
+            logger.exception("get_guide DB 조회 실패 guide_id=%s — fallback", guide_id)
+        # 2순위: _guides fallback
         guide = _guides.get(guide_id)
         if not guide:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
         return GuideResponse(**guide)
 
     async def submit_feedback(self, guide_id: str, req: FeedbackRequest) -> FeedbackResponse:
-        if guide_id not in _guides:
+        # guide 존재 확인 (DB 우선, _guides fallback)
+        guide_in_db = await _db_guide_exists(guide_id)
+        if not guide_in_db and guide_id not in _guides:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
+
         feedback_id = str(uuid.uuid4())
         created_at = datetime.now(UTC).isoformat()
+        feedback_data = {
+            "feedback_id": feedback_id,
+            "created_at": created_at,  # ISO 문자열 — JSONB 저장 가능
+            "is_submitted": True,
+            "data": req.model_dump(),
+        }
+
+        # _feedbacks 기존 동작 유지
         _feedbacks.setdefault(guide_id, {})
         _feedbacks[guide_id]["feedback_id"] = feedback_id
         _feedbacks[guide_id]["created_at"] = created_at
         _feedbacks[guide_id]["is_submitted"] = True
         _feedbacks[guide_id]["data"] = req.model_dump()
+
+        # DB 저장 — 실패해도 _feedbacks fallback 유지
+        if guide_in_db:
+            try:
+                async with _AsyncSessionFactory() as db_session:
+                    await db_session.execute(
+                        update(Guide).where(Guide.guide_id == guide_id).values(feedback_data=feedback_data)
+                    )
+                    await db_session.commit()
+            except Exception:
+                logger.exception("submit_feedback DB 저장 실패 guide_id=%s — _feedbacks fallback 유지", guide_id)
+
         return FeedbackResponse(feedback_id=feedback_id, created_at=created_at)
 
     async def get_feedback_status(self, guide_id: str) -> FeedbackStatusResponse:
+        # 1순위: DB
+        try:
+            async with _AsyncSessionFactory() as db_session:
+                result = await db_session.execute(select(Guide).where(Guide.guide_id == guide_id))
+                row = result.scalar_one_or_none()
+            if row is not None:
+                fb = row.feedback_data or {}
+                return FeedbackStatusResponse(is_submitted=fb.get("is_submitted", False))
+        except Exception:
+            logger.exception("get_feedback_status DB 조회 실패 guide_id=%s — fallback", guide_id)
+        # 2순위: _guides fallback
         if guide_id not in _guides:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
         fb = _feedbacks.get(guide_id, {})
         return FeedbackStatusResponse(is_submitted=fb.get("is_submitted", False))
 
     async def update_feedback_status(self, guide_id: str, req: UpdateFeedbackStatusRequest) -> FeedbackStatusResponse:
+        is_submitted = req.status == "submitted"
+        # 1순위: DB (SELECT + UPDATE 동일 세션)
+        try:
+            async with _AsyncSessionFactory() as db_session:
+                result = await db_session.execute(select(Guide).where(Guide.guide_id == guide_id))
+                row = result.scalar_one_or_none()
+                if row is not None:
+                    fb = dict(row.feedback_data or {})
+                    fb["is_submitted"] = is_submitted
+                    await db_session.execute(update(Guide).where(Guide.guide_id == guide_id).values(feedback_data=fb))
+                    await db_session.commit()
+                    _feedbacks.setdefault(guide_id, {})
+                    _feedbacks[guide_id]["is_submitted"] = is_submitted
+                    return FeedbackStatusResponse(is_submitted=is_submitted)
+        except Exception:
+            logger.exception("update_feedback_status DB 실패 guide_id=%s — fallback", guide_id)
+        # 2순위: _guides fallback
         if guide_id not in _guides:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
         _feedbacks.setdefault(guide_id, {})
-        _feedbacks[guide_id]["is_submitted"] = req.status == "submitted"
-        return FeedbackStatusResponse(is_submitted=_feedbacks[guide_id]["is_submitted"])
+        _feedbacks[guide_id]["is_submitted"] = is_submitted
+        return FeedbackStatusResponse(is_submitted=is_submitted)
 
     async def get_guide_context(self, guide_id: str) -> GuideContextResponse:
-        guide = _guides.get(guide_id)
-        if not guide:
+        # 1순위: DB
+        guide_dict: dict | None = None
+        try:
+            async with _AsyncSessionFactory() as db_session:
+                result = await db_session.execute(select(Guide).where(Guide.guide_id == guide_id))
+                row = result.scalar_one_or_none()
+            if row is not None:
+                guide_dict = row.guide_data
+        except Exception:
+            logger.exception("get_guide_context DB 조회 실패 guide_id=%s — fallback", guide_id)
+        # 2순위: _guides fallback
+        if guide_dict is None:
+            guide_dict = _guides.get(guide_id)
+        if not guide_dict:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
 
         medications: list[str] = []
-        if guide.get("medication_guide"):
-            medications = [m["name"] for m in guide["medication_guide"].get("medications", [])]
+        if guide_dict.get("medication_guide"):
+            medications = [m["name"] for m in guide_dict["medication_guide"].get("medications", [])]
 
-        schedule: list[dict] = guide.get("schedule_table") or []
+        schedule: list[dict] = guide_dict.get("schedule_table") or []
 
-        lifestyle = guide.get("lifestyle_guide")
+        lifestyle = guide_dict.get("lifestyle_guide")
         tips = lifestyle.get("tips", []) if lifestyle else []
         key_instructions = tips if tips else _FALLBACK_KEY_INSTRUCTIONS
 
@@ -1007,5 +1113,5 @@ class GuideService:
             medications=medications,
             schedule=schedule,
             key_instructions=key_instructions,
-            disease_codes=guide.get("disease_codes", []),
+            disease_codes=guide_dict.get("disease_codes", []),
         )
