@@ -1,4 +1,5 @@
-import { useCreateSession, useSessions } from "@/hooks/useSessions";
+import { Trash2 } from "lucide-react";
+import { useCreateSession, useDeleteSession, useSessions } from "@/hooks/useSessions";
 import { useChatStore } from "@/store/chatStore";
 
 interface Props {
@@ -16,10 +17,19 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
   const { data: sessions, isLoading } = useSessions();
   const createMut = useCreateSession();
+  const deleteMut = useDeleteSession();
 
   const handleNew = async () => {
     const session = await createMut.mutateAsync(undefined);
     setCurrentSessionId(session.id);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    await deleteMut.mutateAsync(sessionId);
+    if (currentSessionId === sessionId) {
+      setCurrentSessionId(null);
+    }
   };
 
   return (
@@ -40,13 +50,12 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
           <p className="p-4 text-sm text-slate-500">불러오는 중…</p>
         ) : sessions && sessions.length > 0 ? (
           <ul className="divide-y divide-slate-100">
-            {/* TODO: 세션 삭제 버튼 추가 — DELETE /api/v1/chat/sessions/{id} 백엔드 구현 완료 */}
             {sessions.map((s) => (
-              <li key={s.id}>
+              <li key={s.id} className="group relative">
                 <button
                   type="button"
                   onClick={() => setCurrentSessionId(s.id)}
-                  className={`block w-full px-4 py-3 text-left text-sm hover:bg-slate-50 ${
+                  className={`block w-full px-4 py-3 pr-10 text-left text-sm hover:bg-slate-50 ${
                     s.id === currentSessionId ? "bg-slate-100 font-medium" : ""
                   }`}
                 >
@@ -54,6 +63,15 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
                   <div className="mt-1 text-xs text-slate-400">
                     {dateFormatter.format(new Date(s.updated_at))}
                   </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleDelete(e, s.id)}
+                  disabled={deleteMut.isPending}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 opacity-0 hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 disabled:opacity-40"
+                  aria-label="대화 삭제"
+                >
+                  <Trash2 className="size-4" />
                 </button>
               </li>
             ))}

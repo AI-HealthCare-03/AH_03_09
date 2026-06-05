@@ -39,10 +39,9 @@ export default function InputComposer({ onSubmit, disabled }: Props) {
               void submit();
             }
           }}
-          placeholder="메시지를 입력하세요…"
+          placeholder={disabled ? "AI가 답변 중입니다…" : "메시지를 입력하세요…"}
           rows={2}
-          disabled={disabled}
-          className="flex-1 resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none disabled:opacity-60"
+          className="flex-1 resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
         />
         <button
           type="submit"

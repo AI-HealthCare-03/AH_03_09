@@ -52,7 +52,8 @@ export default function Chat() {
   const handleSubmit = async (content: string) => {
     let sessionId = currentSessionId;
     if (!sessionId) {
-      const session = await createMut.mutateAsync(undefined);
+      const title = content.length > 20 ? content.slice(0, 20) + "…" : content;
+      const session = await createMut.mutateAsync(title);
       sessionId = session.id;
       setCurrentSessionId(sessionId);
     }
