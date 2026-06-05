@@ -24,8 +24,8 @@ export const healthProfileSchema = z
   .object({
     gender: z.enum(["M", "F", "OTHER"]).optional(),
     birthDate: z.string().optional(),
-    heightCm: numericInRange("키", 80, 250),
-    weightKg: numericInRange("체중", 20, 300),
+    heightCm: optionalNumeric("키", 80, 250),
+    weightKg: optionalNumeric("체중", 20, 300),
     existingDiagnoses: z.string().optional(),
     systolic: optionalNumeric("수축기 혈압", 70, 250),
     diastolic: optionalNumeric("이완기 혈압", 40, 150),
@@ -79,8 +79,8 @@ export function fromMedicalProfile(profile: MedicalProfile | null): HealthProfil
   return {
     gender: profile?.gender,
     birthDate: profile?.birthDate ?? "",
-    heightCm: profile ? String(profile.heightCm) : "",
-    weightKg: profile ? String(profile.weightKg) : "",
+    heightCm: profile?.heightCm ? String(profile.heightCm) : "",
+    weightKg: profile?.weightKg ? String(profile.weightKg) : "",
     existingDiagnoses: profile?.existingDiagnoses ?? "",
     systolic: profile?.bloodPressure ? String(profile.bloodPressure.systolic) : "",
     diastolic: profile?.bloodPressure ? String(profile.bloodPressure.diastolic) : "",

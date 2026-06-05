@@ -115,9 +115,7 @@ export function HealthProfileForm({
             name="heightCm"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  키 (cm)<span className="text-destructive"> *</span>
-                </FormLabel>
+                <FormLabel>키 (cm)</FormLabel>
                 <FormControl>
                   <Input type="number" min={80} max={250} placeholder="예) 170" {...field} />
                 </FormControl>
@@ -130,9 +128,7 @@ export function HealthProfileForm({
             name="weightKg"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  체중 (kg)<span className="text-destructive"> *</span>
-                </FormLabel>
+                <FormLabel>체중 (kg)</FormLabel>
                 <FormControl>
                   <Input type="number" min={20} max={300} placeholder="예) 65" {...field} />
                 </FormControl>
