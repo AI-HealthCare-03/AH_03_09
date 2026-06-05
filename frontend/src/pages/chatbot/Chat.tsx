@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, BotIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +28,7 @@ export default function Chat() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
+  const [optimisticUserMsg, setOptimisticUserMsg] = useState<string | null>(null);
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
   const streamMut = useStreamMessage();
@@ -35,6 +36,11 @@ export default function Chat() {
   const createMut = useCreateSession();
 
   const messages = messagesData?.messages ?? [];
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
+
+  useEffect(() => {
+    setOptimisticUserMsg(null);
+  }, [messages.length]);
 
   useEffect(() => {
     if (messages.length === 0 && !streamMut.streamingContent) return;
@@ -50,6 +56,7 @@ export default function Chat() {
   };
 
   const handleSubmit = async (content: string) => {
+    setOptimisticUserMsg(content);
     let sessionId = currentSessionId;
     if (!sessionId) {
       const title = content.length > 20 ? content.slice(0, 20) + "…" : content;
@@ -89,15 +96,11 @@ export default function Chat() {
           </header>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
-            {!currentSessionId ? (
-              <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                왼쪽에서 대화를 선택하거나 새 대화를 시작하세요.
-              </div>
-            ) : isLoading ? (
+            {currentSessionId && isLoading ? (
               <p className="text-sm text-slate-500">불러오는 중…</p>
             ) : (
               <div className="space-y-4">
-                {messages.length === 0 && !streamMut.streamingContent && (
+                {!optimisticUserMsg && !streamMut.isPending && !streamMut.streamingContent && (!currentSessionId || messages.length === 0) ? (
                   <div className="flex h-full flex-col items-center justify-center gap-6 py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <div className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
@@ -131,10 +134,40 @@ export default function Chat() {
                   <MessageBubble
                     key={m.id}
                     message={m}
-                    onFeedback={m.role === "assistant" ? handleFeedback : undefined}
+                    onFeedback={
+                      m.role === "assistant" && m.id === lastAssistantId && !streamMut.isPending
+                        ? handleFeedback
+                        : undefined
+                    }
                     feedbackGiven={feedbackGiven.has(m.id)}
                   />
                 ))}
+
+                {optimisticUserMsg && (
+                  <MessageBubble
+                    message={{
+                      id: -1,
+                      role: "user",
+                      content: optimisticUserMsg,
+                      created_at: new Date().toISOString(),
+                    }}
+                  />
+                )}
+
+                {streamMut.isPending && !streamMut.streamingContent && (
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-primary text-white">
+                      <BotIcon className="size-4" />
+                    </div>
+                    <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3">
+                      <div className="flex gap-1">
+                        <span className="size-2 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
+                        <span className="size-2 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
+                        <span className="size-2 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {streamMut.streamingContent && (
                   <div className="flex flex-col items-start">
@@ -144,9 +177,6 @@ export default function Chat() {
                       </div>
                       <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-slate-400" />
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
-                      ⚕️ 본 답변은 참고용이며, 정확한 진단은 전문가와 상담하세요.
-                    </p>
                   </div>
                 )}
 
