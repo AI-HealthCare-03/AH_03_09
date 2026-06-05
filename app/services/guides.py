@@ -445,6 +445,8 @@ async def _search_medication_db(session: AsyncSession, name: str) -> MedicationI
 
     dosage = row.dosage or ""
     cautions_str = row.cautions or ""
+    if len(cautions_str) > 1500:
+        cautions_str = cautions_str[:1500] + "... (제품허가정보 원문 일부)"
     side_effects_str = row.side_effects or ""
     storage = row.storage or ""
     cautions = [cautions_str] if cautions_str else []
