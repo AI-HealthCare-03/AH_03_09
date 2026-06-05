@@ -38,7 +38,7 @@ export default function MessageBubble({ message, onFeedback, feedbackGiven }: Pr
   const isSafetyMessage = variant === "danger" || variant === "emergency";
 
   return (
-    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+    <div className={`group flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       <div
         className={`mt-1 grid size-8 shrink-0 place-items-center rounded-full text-white ${
           isUser ? "bg-slate-700" : "bg-primary"
@@ -73,28 +73,24 @@ export default function MessageBubble({ message, onFeedback, feedbackGiven }: Pr
 
         <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
 
-        {!isUser && !isSafetyMessage && (
-          <div className="space-y-1">
-            {onFeedback && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => !feedbackGiven && onFeedback(message.id, "good")}
-                  disabled={feedbackGiven}
-                  className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400 disabled:cursor-default disabled:opacity-50"
-                >
-                  {feedbackGiven ? "✓ 감사합니다" : "👍 도움됐어요"}
-                </button>
-                {!feedbackGiven && (
-                  <button
-                    type="button"
-                    onClick={() => onFeedback(message.id, "bad")}
-                    className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400"
-                  >
-                    👎 도움 안됐어요
-                  </button>
-                )}
-              </div>
+        {!isUser && !isSafetyMessage && onFeedback && (
+          <div className="flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={() => !feedbackGiven && onFeedback(message.id, "good")}
+              disabled={feedbackGiven}
+              className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400 disabled:cursor-default disabled:opacity-50"
+            >
+              {feedbackGiven ? "✓ 감사합니다" : "👍 도움됐어요"}
+            </button>
+            {!feedbackGiven && (
+              <button
+                type="button"
+                onClick={() => onFeedback(message.id, "bad")}
+                className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400"
+              >
+                👎 도움 안됐어요
+              </button>
             )}
           </div>
         )}

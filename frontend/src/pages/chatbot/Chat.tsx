@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, BotIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
@@ -36,6 +36,7 @@ export default function Chat() {
   const createMut = useCreateSession();
 
   const messages = messagesData?.messages ?? [];
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
 
   useEffect(() => {
     setOptimisticUserMsg(null);
@@ -133,7 +134,11 @@ export default function Chat() {
                   <MessageBubble
                     key={m.id}
                     message={m}
-                    onFeedback={m.role === "assistant" ? handleFeedback : undefined}
+                    onFeedback={
+                      m.role === "assistant" && m.id === lastAssistantId && !streamMut.isPending
+                        ? handleFeedback
+                        : undefined
+                    }
                     feedbackGiven={feedbackGiven.has(m.id)}
                   />
                 ))}
@@ -147,6 +152,21 @@ export default function Chat() {
                       created_at: new Date().toISOString(),
                     }}
                   />
+                )}
+
+                {streamMut.isPending && !streamMut.streamingContent && (
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-primary text-white">
+                      <BotIcon className="size-4" />
+                    </div>
+                    <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3">
+                      <div className="flex gap-1">
+                        <span className="size-2 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
+                        <span className="size-2 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
+                        <span className="size-2 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {streamMut.streamingContent && (
