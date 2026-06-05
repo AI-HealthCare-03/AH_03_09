@@ -20,6 +20,15 @@ async def user_me_info(
     return UserInfoResponse.model_validate(user)
 
 
+@user_router.post("/me/onboarding", status_code=status.HTTP_204_NO_CONTENT)
+async def complete_onboarding(
+    user: Annotated[User, Depends(get_request_user)],
+    user_service: Annotated[UserManageService, Depends(UserManageService)],
+) -> Response:
+    await user_service.complete_onboarding(user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @user_router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def withdraw_me(
     body: WithdrawRequest,

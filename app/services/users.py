@@ -15,5 +15,8 @@ class UserManageService:
     async def get_user(self, user_id: int) -> User | None:
         return await self.repo.get_user(user_id)
 
+    async def complete_onboarding(self, user_id: int) -> None:
+        await self.repo.complete_onboarding(user_id)
+
     async def withdraw(self, user_id: int) -> None:
         await self.repo.hard_delete(user_id)
