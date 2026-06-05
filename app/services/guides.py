@@ -431,12 +431,12 @@ async def _search_medication_db(session: AsyncSession, name: str) -> MedicationI
     """drug_master DB에서 약물 조회. 없거나 오류 시 None 반환."""
     normalized = _normalize_drug_name(name)
     try:
-        stmt = (
+        result = await session.execute(
             select(DrugMaster)
-            .where(func.lower(func.replace(DrugMaster.item_name, " ", "")).like(f"%{normalized}%"))
+            .where(func.word_similarity(normalized, DrugMaster.item_name) > 0.6)
+            .order_by(func.word_similarity(normalized, DrugMaster.item_name).desc())
             .limit(1)
         )
-        result = await session.execute(stmt)
         row = result.scalar_one_or_none()
     except Exception:
         return None
@@ -494,13 +494,28 @@ async def _make_medication_guide_from_csv(
     session: AsyncSession | None = None,
 ) -> MedicationGuide:
     items: list[MedicationItem] = []
+    seen_names: set[str] = set()
     for name in medication_names:
         item: MedicationItem | None = None
         if session is not None:
             item = await _search_medication_db(session, name)
         if item is None:
-            item = _search_medication(name)  # CSV fallback
-        items.append(item)
+            item = MedicationItem(
+                name=name,
+                dosage="",
+                timing="",
+                before_after_meal="",
+                side_effects=[],
+                cautions=[],
+                missed_dose="",
+                storage="",
+                match_status=MedicationMatchStatus.NOT_FOUND,
+                disclaimer="해당 의약품 정보를 데이터베이스에서 찾을 수 없습니다.",
+                source_name=None,
+            )
+        if item.name not in seen_names:
+            seen_names.add(item.name)
+            items.append(item)
     enriched_summaries = await asyncio.gather(*[_enrich_easy_summary(item) for item in items])
     for item, summary in zip(items, enriched_summaries, strict=True):
         item.easy_summary = summary
