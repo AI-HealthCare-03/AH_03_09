@@ -20,6 +20,7 @@
 | v8 | (현재) | 2026-06-04 | `ocr_parser.py` | 사용자 수정 이력(ocr_corrections) 기반 패턴 분석 → 프롬프트 개선 구조 도입 |
 | v9 | `d7c2686` | 2026-06-05 | `ocr_parser.py` | 복약안내문·복약정보지 OCR 특이사항 섹션 추가, ※ 반복 복용 지시문 timing 순서 매핑 규칙 |
 | v10 | (현재) | 2026-06-05 | `ocr_task.py`, `ocr_parser.py` | 재분석 시 ocr_corrections 이전 수정 이력 → GPT few-shot 힌트 자동 주입 |
+| v11 | (현재) | 2026-06-05 | `ocr_parser.py`, `ocr_task.py` | 약봉투 disease_codes 추출 버그 수정 — 처방전 전용으로 제한 |
 
 ---
 
