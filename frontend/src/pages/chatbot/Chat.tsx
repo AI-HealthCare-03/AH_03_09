@@ -100,7 +100,7 @@ export default function Chat() {
               <p className="text-sm text-slate-500">불러오는 중…</p>
             ) : (
               <div className="space-y-4">
-                {!currentSessionId || (messages.length === 0 && !streamMut.streamingContent && !optimisticUserMsg) ? (
+                {!optimisticUserMsg && !streamMut.isPending && !streamMut.streamingContent && (!currentSessionId || messages.length === 0) ? (
                   <div className="flex h-full flex-col items-center justify-center gap-6 py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <div className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
