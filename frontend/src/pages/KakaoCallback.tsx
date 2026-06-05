@@ -6,7 +6,8 @@ import { useAuthStore } from "@/store/authStore";
 export default function KakaoCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const setToken = useAuthStore((s) => s.setToken);
+  const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
+  const setIsOnboarded = useAuthStore((s) => s.setIsOnboarded);
   const [error, setError] = useState<string | null>(null);
   // Kakao OAuth code는 1회용 — StrictMode dev 더블 실행 시 두 번째 호출이 400으로 떨어지는 것을 막는다.
   const exchangedCodeRef = useRef<string | null>(null);
@@ -21,14 +22,15 @@ export default function KakaoCallback() {
     exchangedCodeRef.current = code;
 
     exchangeKakaoCode(code)
-      .then(({ access_token, is_onboarded }) => {
-        setToken(access_token);
+      .then(({ is_onboarded }) => {
+        setAuthenticated(true);
+        setIsOnboarded(is_onboarded);
         navigate(is_onboarded ? "/home" : "/onboarding", { replace: true });
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "로그인 처리에 실패했습니다.");
       });
-  }, [searchParams, navigate, setToken]);
+  }, [searchParams, navigate, setAuthenticated, setIsOnboarded]);
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-slate-50 text-slate-900">

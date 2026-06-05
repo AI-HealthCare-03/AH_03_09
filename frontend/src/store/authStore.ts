@@ -23,11 +23,13 @@ export interface MedicalProfile {
 }
 
 interface AuthState {
-  accessToken: string | null;
+  isAuthenticated: boolean;
+  isOnboarded: boolean;
   user: UserInfo | null;
   hasSeenDisclaimer: boolean;
   medicalProfile: MedicalProfile | null;
-  setToken: (token: string) => void;
+  setAuthenticated: (v: boolean) => void;
+  setIsOnboarded: (v: boolean) => void;
   setUser: (user: UserInfo | null) => void;
   setHasSeenDisclaimer: (v: boolean) => void;
   setMedicalProfile: (profile: MedicalProfile) => void;
@@ -38,18 +40,21 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      accessToken: null,
+      isAuthenticated: false,
+      isOnboarded: false,
       user: null,
       hasSeenDisclaimer: false,
       medicalProfile: null,
-      setToken: (token) => set({ accessToken: token }),
+      setAuthenticated: (v) => set({ isAuthenticated: v }),
+      setIsOnboarded: (v) => set({ isOnboarded: v }),
       setUser: (user) => set({ user }),
       setHasSeenDisclaimer: (v) => set({ hasSeenDisclaimer: v }),
       setMedicalProfile: (profile) => set({ medicalProfile: profile }),
       clearMedicalProfile: () => set({ medicalProfile: null }),
       clear: () =>
         set({
-          accessToken: null,
+          isAuthenticated: false,
+          isOnboarded: false,
           user: null,
           hasSeenDisclaimer: false,
           medicalProfile: null,
@@ -58,7 +63,8 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "medi-mate-auth",
       partialize: (state) => ({
-        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
+        isOnboarded: state.isOnboarded,
         hasSeenDisclaimer: state.hasSeenDisclaimer,
         medicalProfile: state.medicalProfile,
       }),

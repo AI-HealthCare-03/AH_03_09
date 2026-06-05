@@ -13,18 +13,16 @@ export class ApiError extends Error {
   }
 }
 
-let refreshInFlight: Promise<string | null> | null = null;
+let refreshInFlight: Promise<boolean> | null = null;
 
-async function callRefresh(): Promise<string | null> {
+async function callRefresh(): Promise<boolean> {
   const res = await fetch(`${API_BASE}/auth/token/refresh`, {
     credentials: "include",
   });
-  if (!res.ok) return null;
-  const data = (await res.json()) as { access_token: string };
-  return data.access_token;
+  return res.ok;
 }
 
-function dedupedRefresh(): Promise<string | null> {
+function dedupedRefresh(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = callRefresh().finally(() => {
       refreshInFlight = null;
@@ -33,25 +31,16 @@ function dedupedRefresh(): Promise<string | null> {
   return refreshInFlight;
 }
 
-/**
- * Runs a fetch with the current access token. On 401, transparently refreshes
- * via the HttpOnly refresh cookie and retries once. If refresh fails, clears
- * the auth store and redirects to /login.
- *
- * `path` is only used to decide whether to attempt the refresh (auth endpoints
- * are excluded). The caller's `doFetch` is responsible for building the URL.
- */
 export async function withAuthRetry(
   path: string,
-  doFetch: (token: string | null) => Promise<Response>,
+  doFetch: () => Promise<Response>,
 ): Promise<Response> {
-  let res = await doFetch(useAuthStore.getState().accessToken);
+  let res = await doFetch();
 
   if (res.status === 401 && !path.startsWith("/auth/")) {
     const refreshed = await dedupedRefresh();
     if (refreshed) {
-      useAuthStore.getState().setToken(refreshed);
-      res = await doFetch(refreshed);
+      res = await doFetch();
     } else {
       useAuthStore.getState().clear();
       window.location.href = "/login";

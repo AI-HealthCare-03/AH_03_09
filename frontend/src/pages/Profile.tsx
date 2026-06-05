@@ -43,8 +43,7 @@ export default function Profile() {
     mutationFn: withdrawMe,
     onSuccess: () => {
       clear();
-      // ProtectedRoute가 accessToken=null을 감지해 /login으로 튀는 레이스를 피하려고
-      // SPA 네비게이션 대신 풀 리로드로 랜딩(/)으로 이동.
+      // SPA 네비게이션 대신 풀 리로드로 랜딩(/)으로 이동 — 잔여 상태 초기화.
       window.location.assign("/");
     },
   });

@@ -179,10 +179,9 @@ export function unconfirmDiseaseCodes(recordId: number): Promise<{ unconfirmed_c
 
 export async function fetchDocumentFile(recordId: number): Promise<string> {
   const path = `/ocr/records/${recordId}/file`;
-  const res = await withAuthRetry(path, (token) =>
+  const res = await withAuthRetry(path, () =>
     fetch(`${API_BASE}${path}`, {
       credentials: "include",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
     }),
   );
   if (!res.ok) throw new ApiError(res.status, await res.text());

@@ -45,8 +45,9 @@ class TestKakaoCallback:
             response = client.post("/api/v1/auth/kakao/callback", params={"code": "test_code"})
 
         assert response.status_code == 200
-        assert "access_token" in response.json()
+        assert "access_token" not in response.json()
         assert "is_onboarded" in response.json()
+        assert "access_token" in response.headers.get("set-cookie", "")
 
     def test_kakao_callback_invalid_code(self, client):
         """잘못된 code → 400 반환 테스트"""

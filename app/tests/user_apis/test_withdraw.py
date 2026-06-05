@@ -28,7 +28,7 @@ class TestWithdrawMe:
         mock_hard_delete.assert_awaited_once_with(1)
 
     def test_withdraw_unauthenticated(self, client):
-        """인증 헤더 없이 호출 → 401 (HTTPBearer 기본 동작)."""
+        """인증 쿠키 없이 호출 → 401."""
         response = client.request("DELETE", "/api/v1/users/me", json=self.valid_body)
         assert response.status_code == 401
 

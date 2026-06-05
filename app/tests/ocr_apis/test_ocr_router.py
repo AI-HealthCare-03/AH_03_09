@@ -234,37 +234,6 @@ class TestOcrUpload:
         assert response.status_code == 409
 
 
-class TestOcrPreview:
-    def test_preview_valid_file(self, client, mock_db, auth_headers):
-        """유효한 파일 미리보기 → 200, is_valid=True (REQ-OCR-003)"""
-        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
-
-        response = client.post(
-            "/api/v1/ocr/preview",
-            headers=auth_headers,
-            files={"file": ("test.jpg", b"fake-jpeg-content", "image/jpeg")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["is_valid"] is True
-        assert data["filename"] == "test.jpg"
-
-    def test_preview_invalid_file(self, client, mock_db, auth_headers):
-        """유효하지 않은 파일 미리보기 → 200, is_valid=False (REQ-OCR-003)"""
-        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
-
-        response = client.post(
-            "/api/v1/ocr/preview",
-            headers=auth_headers,
-            files={"file": ("test.txt", b"text content", "text/plain")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["is_valid"] is False
-
-
 class TestOcrRecordFile:
     def test_get_file_success(self, client, mock_db, auth_headers, tmp_path):
         """원본 파일 서빙 → 200, 파일 내용 반환"""

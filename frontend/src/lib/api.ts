@@ -3,13 +3,12 @@ import { API_BASE, ApiError, withAuthRetry } from "@/lib/withAuthRetry";
 export { ApiError } from "@/lib/withAuthRetry";
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await withAuthRetry(path, (token) =>
+  const res = await withAuthRetry(path, () =>
     fetch(`${API_BASE}${path}`, {
       ...init,
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },
     }),
