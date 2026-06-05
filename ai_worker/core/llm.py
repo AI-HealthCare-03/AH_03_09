@@ -297,8 +297,15 @@ async def stream_chat(
     else:
         trimmed_history = history
 
+    cleaned_history = [
+        {**msg, "content": msg["content"].replace(_MEDICAL_DISCLAIMER, "").rstrip()}
+        if msg.get("role") == "assistant"
+        else msg
+        for msg in trimmed_history
+    ]
+
     messages = [{"role": "system", "content": system_prompt}]
-    messages.extend(trimmed_history)
+    messages.extend(cleaned_history)
     messages.append({"role": "user", "content": user_message})
 
     stream = await client.chat.completions.create(
