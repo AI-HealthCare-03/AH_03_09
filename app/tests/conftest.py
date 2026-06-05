@@ -56,7 +56,7 @@ def auth_headers(sample_user_payload):
     user = MagicMock()
     user.id = sample_user_payload["id"]
     tokens = JwtService().issue_jwt_pair(user)
-    return {"Authorization": f"Bearer {str(tokens['access_token'])}"}
+    return {"Cookie": f"access_token={str(tokens['access_token'])}"}
 
 
 # ── Integration test fixtures (real Postgres via testcontainers) ─────────────
