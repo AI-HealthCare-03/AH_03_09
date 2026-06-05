@@ -52,3 +52,7 @@ export function logout(): Promise<void> {
 export function getMe(): Promise<UserInfoResponse> {
   return request<UserInfoResponse>("/users/me");
 }
+
+export function completeOnboarding(): Promise<void> {
+  return request<void>("/users/me/onboarding", { method: "POST" });
+}

@@ -12,6 +12,7 @@ import Home from "@/pages/Home";
 import KakaoCallback from "@/pages/KakaoCallback";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
+import Onboarding from "@/pages/Onboarding";
 import MyDocuments from "@/pages/MyDocuments";
 import NotFound from "@/pages/NotFound";
 import Upload from "@/pages/ocr/Upload";
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
+      { path: "/onboarding", element: <Onboarding /> },
       {
         element: <AppLayout />,
         children: [
