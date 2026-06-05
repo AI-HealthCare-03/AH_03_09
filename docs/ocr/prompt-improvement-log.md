@@ -18,6 +18,8 @@
 | v6 | `b6e99d7` | 2026-05-29 | `ocr_parser.py` | 처방전 열 단위 OCR 구조 설명, ICD-10 복원, EDI 코드 파싱 |
 | v7 | (현재) | 2026-06-01 | `ocr_parser.py` | 약봉투 time_of_day 오파싱 수정 — frequency 추론 금지 |
 | v8 | (현재) | 2026-06-04 | `ocr_parser.py` | 사용자 수정 이력(ocr_corrections) 기반 패턴 분석 → 프롬프트 개선 구조 도입 |
+| v9 | `d7c2686` | 2026-06-05 | `ocr_parser.py` | 복약안내문·복약정보지 OCR 특이사항 섹션 추가, ※ 반복 복용 지시문 timing 순서 매핑 규칙 |
+| v10 | (현재) | 2026-06-05 | `ocr_task.py`, `ocr_parser.py` | 재분석 시 ocr_corrections 이전 수정 이력 → GPT few-shot 힌트 자동 주입 |
 
 ---
 
@@ -202,6 +204,48 @@ v7에서 QA 과정에서 발견한 `time_of_day` 오파싱 문제는 향후 `ocr
 | 동일 필드 10건 이상 | 해당 필드 프롬프트 규칙 점검 및 개선 |
 | 동일 original_value 5건 이상 | 해당 값 전처리 예외 처리 추가 |
 | ICD-10 코드 오인식 반복 | `_collapse_spaced_icd10()` 패턴 확장 |
+
+---
+
+### v9 — 복약안내문 timing 매핑 규칙 추가 (2026-06-05)
+
+**문제:**
+복약안내문·복약정보지에서 "※ 아침 식사 후 복용하십시오"처럼 ※로 시작하는 복용 지시문이
+약물 수만큼 반복될 때, GPT가 모든 약물에 동일한 timing을 적용하거나 무작위로 매핑하는 현상.
+
+**수정 내용:**
+- 복약안내문 전용 OCR 특이사항 섹션 추가
+- ※ 지시문 N개 반복 시 "문서 등장 순서 기준으로 1번째 지시문 → 1번째 약물" 매핑 규칙 명시
+- 복약과 무관한 내용(영양소 결핍 안내, 약국 광고, 영수증 등) 무시 규칙 추가
+
+---
+
+### v10 — 수정 이력 기반 GPT few-shot 힌트 자동 주입 (2026-06-05)
+
+#### 구조
+
+```
+사용자 수정 (FE)
+  ↓
+ocr_corrections INSERT (field_name, original_value, corrected_value)
+  ↓
+재분석 요청 (POST /records/{id}/reanalyze)
+  ↓
+_fetch_corrections(conn, record_id)  ← ocr_task.py
+  ↓
+parse_medications_and_diseases(..., corrections=corrections)  ← ocr_parser.py
+  ↓
+GPT 유저 메시지에 few-shot 힌트 섹션 삽입:
+
+  [이전 수정 이력 — 동일 오류가 반복되지 않도록 참고하세요]
+  - medication_name: "암로디핀정5mg" → "암로디핀정 5mg"
+  - dosage: "1T" → "1정"
+```
+
+#### 효과
+- 동일 문서 재분석 시 이전에 사용자가 수정한 패턴을 GPT가 참고해 동일 오류 재발 방지
+- corrections가 없으면(초회 분석 또는 수정 이력 없음) 기존 프롬프트와 동일하게 동작
+- 수집된 corrections 데이터가 실제 GPT 입력에 자동 반영되는 end-to-end 피드백 루프 완성
 
 ---
 

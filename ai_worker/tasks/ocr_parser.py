@@ -119,23 +119,33 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
 - "※ 아침 식사 후 복용하십시오"처럼 ※로 시작하는 복용 지시문이 N번 반복될 경우, 문서에 등장한 약물 순서 기준으로 1번째 지시문 → 1번째 약물, 2번째 지시문 → 2번째 약물 순으로 timing을 매핑할 것."""
 
 
-async def parse_medications_and_diseases(raw_text: str, doc_type: str) -> dict:
+def _build_corrections_hint(corrections: list[dict]) -> str:
+    """이전 수정 이력을 GPT few-shot 힌트 문자열로 변환합니다."""
+    lines = ["[이전 수정 이력 — 동일 오류가 반복되지 않도록 참고하세요]"]
+    for c in corrections:
+        lines.append(f'- {c["field_name"]}: "{c["original_value"]}" → "{c["corrected_value"]}"')
+    return "\n".join(lines)
+
+
+async def parse_medications_and_diseases(raw_text: str, doc_type: str, corrections: list[dict] | None = None) -> dict:
     """OCR raw_text에서 약물 정보와 질병분류기호를 GPT로 추출합니다."""
     if not config.OPENAI_API_KEY:
         logger.warning("OPENAI_API_KEY 미설정 — OCR 파싱 건너뜀")
         return {"medications": [], "disease_codes": []}
 
     cleaned_text = _restore_icd10_periods(_collapse_spaced_icd10(_clean_ocr_text(raw_text)))
+    user_content = f"문서 유형: {doc_type}\n\n"
+    if corrections:
+        user_content += _build_corrections_hint(corrections) + "\n\n"
+    user_content += f"OCR 텍스트:\n{cleaned_text[:3000]}"
+
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = await client.chat.completions.create(
             model=config.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"문서 유형: {doc_type}\n\nOCR 텍스트:\n{cleaned_text[:3000]}",
-                },
+                {"role": "user", "content": user_content},
             ],
             response_format={"type": "json_object"},
             temperature=0,

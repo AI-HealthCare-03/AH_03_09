@@ -159,7 +159,8 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
         await conn.execute("DELETE FROM medications WHERE document_id = $1", payload.record_id)
         await conn.execute("DELETE FROM disease_codes WHERE document_id = $1", payload.record_id)
         if doc_type != "OTHER":
-            parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type)
+            corrections = await _fetch_corrections(conn, payload.record_id)
+            parsed = await parse_medications_and_diseases(ocr["raw_text"], doc_type, corrections=corrections)
             medications = await _normalize_medication_names(conn, parsed["medications"])
             await _insert_medications(conn, payload.record_id, medications)
             await _insert_disease_codes(conn, payload.record_id, parsed["disease_codes"])
@@ -213,6 +214,22 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
     finally:
         if conn is not None:
             await conn.close()
+
+
+async def _fetch_corrections(conn: asyncpg.Connection, record_id: int) -> list[dict]:
+    """재분석 시 이전 수정 이력을 조회해 GPT few-shot 컨텍스트로 활용합니다."""
+    rows = await conn.fetch(
+        """
+        SELECT field_name, original_value, corrected_value
+        FROM ocr_corrections
+        WHERE document_id = $1
+          AND original_value IS NOT NULL
+          AND corrected_value IS NOT NULL
+        ORDER BY created_at
+        """,
+        record_id,
+    )
+    return [dict(r) for r in rows]
 
 
 _PII_PATTERNS = [
