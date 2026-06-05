@@ -95,15 +95,11 @@ export default function Chat() {
           </header>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
-            {!currentSessionId ? (
-              <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                왼쪽에서 대화를 선택하거나 새 대화를 시작하세요.
-              </div>
-            ) : isLoading ? (
+            {currentSessionId && isLoading ? (
               <p className="text-sm text-slate-500">불러오는 중…</p>
             ) : (
               <div className="space-y-4">
-                {messages.length === 0 && !streamMut.streamingContent && (
+                {!currentSessionId || (messages.length === 0 && !streamMut.streamingContent && !optimisticUserMsg) ? (
                   <div className="flex h-full flex-col items-center justify-center gap-6 py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <div className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">

@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import { useCreateSession, useDeleteSession, useSessions } from "@/hooks/useSessions";
+import { useDeleteSession, useSessions } from "@/hooks/useSessions";
 import { useChatStore } from "@/store/chatStore";
 
 interface Props {
@@ -16,12 +16,10 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
   const { data: sessions, isLoading } = useSessions();
-  const createMut = useCreateSession();
   const deleteMut = useDeleteSession();
 
-  const handleNew = async () => {
-    const session = await createMut.mutateAsync(undefined);
-    setCurrentSessionId(session.id);
+  const handleNew = () => {
+    setCurrentSessionId(null);
   };
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
@@ -38,7 +36,6 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
         <button
           type="button"
           onClick={handleNew}
-          disabled={createMut.isPending}
           className="w-full rounded-md bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
         >
           + 새 대화
