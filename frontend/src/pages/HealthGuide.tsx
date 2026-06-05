@@ -73,6 +73,7 @@ export default function HealthGuide() {
   const [guideId, setGuideId] = useState("");
   const navigate = useNavigate();
   const setStoreGuideId = useChatStore((s) => s.setGuideId);
+  const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
 
   const [ratingComprehension, setRatingComprehension] = useState(5);
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
@@ -193,6 +194,7 @@ export default function HealthGuide() {
               variant="outline"
               onClick={() => {
                 setStoreGuideId(guideId);
+                setCurrentSessionId(null);
                 navigate("/chat");
               }}
             >
