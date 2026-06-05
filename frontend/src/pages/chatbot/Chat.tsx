@@ -28,6 +28,7 @@ export default function Chat() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
+  const [optimisticUserMsg, setOptimisticUserMsg] = useState<string | null>(null);
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
   const streamMut = useStreamMessage();
@@ -35,6 +36,10 @@ export default function Chat() {
   const createMut = useCreateSession();
 
   const messages = messagesData?.messages ?? [];
+
+  useEffect(() => {
+    setOptimisticUserMsg(null);
+  }, [messages.length]);
 
   useEffect(() => {
     if (messages.length === 0 && !streamMut.streamingContent) return;
@@ -50,6 +55,7 @@ export default function Chat() {
   };
 
   const handleSubmit = async (content: string) => {
+    setOptimisticUserMsg(content);
     let sessionId = currentSessionId;
     if (!sessionId) {
       const title = content.length > 20 ? content.slice(0, 20) + "…" : content;
@@ -135,6 +141,17 @@ export default function Chat() {
                     feedbackGiven={feedbackGiven.has(m.id)}
                   />
                 ))}
+
+                {optimisticUserMsg && (
+                  <MessageBubble
+                    message={{
+                      id: -1,
+                      role: "user",
+                      content: optimisticUserMsg,
+                      created_at: new Date().toISOString(),
+                    }}
+                  />
+                )}
 
                 {streamMut.streamingContent && (
                   <div className="flex flex-col items-start">
