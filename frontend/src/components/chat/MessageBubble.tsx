@@ -75,9 +75,6 @@ export default function MessageBubble({ message, onFeedback, feedbackGiven }: Pr
 
         {!isUser && !isSafetyMessage && (
           <div className="space-y-1">
-            <p className="text-xs text-slate-400">
-              ⚕️ 본 답변은 참고용이며, 정확한 진단은 전문가와 상담하세요.
-            </p>
             {onFeedback && (
               <div className="flex gap-2">
                 <button

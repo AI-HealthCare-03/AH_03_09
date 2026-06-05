@@ -144,9 +144,6 @@ export default function Chat() {
                       </div>
                       <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-slate-400" />
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
-                      ⚕️ 본 답변은 참고용이며, 정확한 진단은 전문가와 상담하세요.
-                    </p>
                   </div>
                 )}
 
