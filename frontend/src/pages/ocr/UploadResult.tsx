@@ -86,6 +86,12 @@ export default function UploadResult() {
   });
   const [dupWarning, setDupWarning] = useState<string | null>(null);
 
+  const [editNameModalOpen, setEditNameModalOpen] = useState(false);
+  const [editNameSearch, setEditNameSearch] = useState("");
+  const [showEditNameSuggestions, setShowEditNameSuggestions] = useState(false);
+  const [editNameFocusField, setEditNameFocusField] = useState<"medication_name" | "generic_name">("medication_name");
+  const [editNameModalForm, setEditNameModalForm] = useState({ medication_name: "", generic_name: "", selected_from_db: false });
+
   const resetAddForm = () => {
     setDrugSearch("");
     setAddForm({ medication_name: "", frequency: null, duration_days: null });
@@ -139,6 +145,13 @@ export default function UploadResult() {
     queryKey: ["drug-search", drugSearch],
     queryFn: () => searchDrugs(drugSearch),
     enabled: drugSearch.length >= 2,
+    staleTime: 30_000,
+  });
+
+  const { data: editNameSuggestions } = useQuery({
+    queryKey: ["drug-search", editNameSearch],
+    queryFn: () => searchDrugs(editNameSearch),
+    enabled: editNameSearch.length >= 2,
     staleTime: 30_000,
   });
 
@@ -410,29 +423,43 @@ export default function UploadResult() {
                     const isRowLocked = isLocked;
 
                     if (isEditing) {
+                      const openEditNameModal = (focusField: "medication_name" | "generic_name") => {
+                        setEditNameModalForm({
+                          medication_name: editForm.medication_name ?? "",
+                          generic_name: editForm.generic_name ?? "",
+                          selected_from_db: false,
+                        });
+                        setEditNameSearch(editForm.medication_name ?? "");
+                        setShowEditNameSuggestions(false);
+                        setEditNameFocusField(focusField);
+                        setEditNameModalOpen(true);
+                      };
                       return (
                         <tr key={m.id} className="bg-muted/20">
                           <td className="py-1.5 pr-2">
-                            <input
-                              className="w-36 rounded border px-2 py-1 text-sm"
-                              value={editForm.medication_name ?? m.medication_name}
-                              onChange={(e) =>
-                                setEditForm((f) => ({ ...f, medication_name: e.target.value }))
-                              }
-                            />
+                            <button
+                              type="button"
+                              className="flex min-w-36 items-center gap-1 rounded border border-dashed px-2 py-1 text-sm hover:bg-muted"
+                              onClick={() => openEditNameModal("medication_name")}
+                            >
+                              <PencilIcon className="size-3 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{editForm.medication_name}</span>
+                            </button>
                           </td>
                           <td className="py-2.5 font-mono text-muted-foreground">
                             {m.edi_code ?? "-"}
                           </td>
                           <td className="py-1.5 pr-2">
-                            <input
-                              className="w-28 rounded border px-2 py-1 text-sm"
-                              value={editForm.generic_name ?? m.generic_name ?? ""}
-                              placeholder="성분명"
-                              onChange={(e) =>
-                                setEditForm((f) => ({ ...f, generic_name: e.target.value || null }))
-                              }
-                            />
+                            <button
+                              type="button"
+                              className="flex min-w-28 items-center gap-1 rounded border border-dashed px-2 py-1 text-sm hover:bg-muted"
+                              onClick={() => openEditNameModal("generic_name")}
+                            >
+                              <PencilIcon className="size-3 shrink-0 text-muted-foreground" />
+                              <span className="truncate text-muted-foreground">
+                                {editForm.generic_name || "성분명 입력"}
+                              </span>
+                            </button>
                           </td>
                           <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
                           <td className="py-1.5 pr-2">
@@ -471,6 +498,7 @@ export default function UploadResult() {
                                       generic_name: editForm.generic_name,
                                       frequency: editForm.frequency,
                                       duration_days: editForm.duration_days,
+                                      is_db_matched: editForm.is_db_matched,
                                     },
                                   })
                                 }
@@ -736,6 +764,99 @@ export default function UploadResult() {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit medication name / generic name modal */}
+      <Dialog
+        open={editNameModalOpen}
+        onOpenChange={(open) => {
+          setEditNameModalOpen(open);
+          if (!open) {
+            setEditNameSearch("");
+            setShowEditNameSuggestions(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>약물명 / 성분명 수정</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                약물명 <span className="text-destructive">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="약물명 검색 또는 직접 입력"
+                  value={editNameSearch}
+                  autoFocus={editNameFocusField === "medication_name"}
+                  onChange={(e) => {
+                    setEditNameSearch(e.target.value);
+                    setEditNameModalForm((f) => ({ ...f, medication_name: e.target.value, selected_from_db: false }));
+                    setShowEditNameSuggestions(true);
+                  }}
+                  onFocus={() => setShowEditNameSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowEditNameSuggestions(false), 150)}
+                />
+                {showEditNameSuggestions && editNameSuggestions && editNameSuggestions.length > 0 && (
+                  <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-background shadow-md">
+                    {editNameSuggestions.map((s) => (
+                      <li
+                        key={s.item_name}
+                        className="cursor-pointer px-3 py-2 text-sm hover:bg-muted"
+                        onMouseDown={() => {
+                          setEditNameSearch(s.item_name);
+                          setEditNameModalForm((f) => ({ ...f, medication_name: s.item_name, selected_from_db: true }));
+                          setShowEditNameSuggestions(false);
+                        }}
+                      >
+                        {s.item_name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                성분명{" "}
+                <span className="text-xs font-normal text-muted-foreground">(선택)</span>
+              </label>
+              <input
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="성분명 직접 입력"
+                autoFocus={editNameFocusField === "generic_name"}
+                value={editNameModalForm.generic_name}
+                onChange={(e) =>
+                  setEditNameModalForm((f) => ({ ...f, generic_name: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditNameModalOpen(false)}>
+              취소
+            </Button>
+            <Button
+              disabled={!editNameModalForm.medication_name.trim()}
+              onClick={() => {
+                setEditForm((f) => ({
+                  ...f,
+                  medication_name: editNameModalForm.medication_name,
+                  generic_name: editNameModalForm.generic_name || null,
+                  ...(editNameModalForm.selected_from_db && { is_db_matched: true }),
+                }));
+                setEditNameModalOpen(false);
+                setEditNameSearch("");
+                setShowEditNameSuggestions(false);
+              }}
+            >
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add medication modal */}
       <Dialog

@@ -57,6 +57,12 @@ class UserRepository:
         await self.session.refresh(user)
         return user
 
+    async def complete_onboarding(self, user_id: int) -> None:
+        user = await self.get_user(user_id)
+        if user:
+            user.is_onboarded = True
+            await self.session.commit()
+
     async def hard_delete(self, user_id: int) -> None:
         # ocr_corrections.corrected_by 는 CASCADE 가 없으므로 먼저 비운다.
         # chat_sessions / ocr_documents 와 그 하위 테이블은 FK CASCADE 로 함께 삭제됨.

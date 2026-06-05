@@ -26,7 +26,7 @@ async def kakao_callback(
 ) -> Response:
     tokens = await auth_service.kakao_login(code)
     resp = Response(
-        content={"access_token": str(tokens["access_token"])},
+        content={"access_token": str(tokens["access_token"]), "is_onboarded": tokens["is_onboarded"]},
         status_code=status.HTTP_200_OK,
     )
     resp.set_cookie(
