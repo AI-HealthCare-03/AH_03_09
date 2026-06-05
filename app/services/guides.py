@@ -42,6 +42,7 @@ from app.dtos.guides import (
 )
 from app.models.drug_master import DrugMaster
 from app.models.guides import Guide
+from app.models.health_profiles import HealthProfile as HealthProfileModel
 
 logger = logging.getLogger(__name__)
 
@@ -609,11 +610,89 @@ _DISEASE_WHITELIST_NAME_KEYWORDS: tuple[str, ...] = (
     "알레르기비염",
 )
 
+_HP_EXERCISE_LABEL: dict[str, str] = {
+    "REGULAR": "규칙적 (주 3회 이상)",
+    "IRREGULAR": "비규칙적",
+    "NONE": "",
+}
+_HP_ALCOHOL_LABEL: dict[str, str] = {
+    "NONE": "",
+    "MODERATE": "가끔 (주 1~2회)",
+    "HEAVY": "자주 (주 3회 이상)",
+}
+
+
+def _build_health_profile_section(health_profile: dict | None) -> str:
+    """HealthProfile dict를 LLM 프롬프트 삽입용 참고 문자열로 변환한다.
+    유효 필드가 없으면 빈 문자열을 반환한다."""
+    if not health_profile:
+        return ""
+    parts: list[str] = []
+
+    conditions = health_profile.get("primary_conditions") or []
+    if conditions:
+        parts.append(f"기저질환: {', '.join(conditions)}")
+
+    allergies = health_profile.get("allergies") or []
+    if allergies:
+        parts.append(f"알레르기: {', '.join(allergies)}")
+
+    bp_sys = health_profile.get("blood_pressure_systolic")
+    bp_dia = health_profile.get("blood_pressure_diastolic")
+    if bp_sys and bp_dia:
+        parts.append(f"혈압: {bp_sys}/{bp_dia} mmHg")
+
+    lifestyle: list[str] = []
+    exercise = _HP_EXERCISE_LABEL.get(health_profile.get("lifestyle_exercise") or "NONE", "")
+    if exercise:
+        lifestyle.append(f"운동 {exercise}")
+    if health_profile.get("lifestyle_smoking"):
+        lifestyle.append("흡연 중")
+    alcohol = _HP_ALCOHOL_LABEL.get(health_profile.get("lifestyle_alcohol") or "NONE", "")
+    if alcohol:
+        lifestyle.append(f"음주 {alcohol}")
+    if lifestyle:
+        parts.append(f"생활습관: {', '.join(lifestyle)}")
+
+    if not parts:
+        return ""
+    return "\n환자 건강 정보 (OCR 외 참고정보, 확정 진단 아님. 치료·처방 수준의 안내에 사용하지 말 것):\n" + "\n".join(
+        f"- {p}" for p in parts
+    )
+
+
+async def _fetch_health_profile_for_guide(patient_id_str: str | None) -> dict | None:
+    """patient_id 문자열로 HealthProfile을 조회해 dict로 반환한다.
+    변환 불가 또는 조회 실패 시 None 반환."""
+    try:
+        pid = int(patient_id_str or "")
+    except (ValueError, TypeError):
+        return None
+    try:
+        async with _AsyncSessionFactory() as db_session:
+            result = await db_session.execute(select(HealthProfileModel).where(HealthProfileModel.user_id == pid))
+            row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "primary_conditions": row.primary_conditions,
+            "allergies": row.allergies,
+            "blood_pressure_systolic": row.blood_pressure_systolic,
+            "blood_pressure_diastolic": row.blood_pressure_diastolic,
+            "lifestyle_exercise": row.lifestyle_exercise,
+            "lifestyle_smoking": row.lifestyle_smoking,
+            "lifestyle_alcohol": row.lifestyle_alcohol,
+        }
+    except Exception:
+        logger.exception("HealthProfile 조회 실패 patient_id=%s — 프로필 없이 가이드 생성", patient_id_str)
+        return None
+
 
 async def _make_exercise_guide_with_llm(
     medication_names: list[str],
     disease_codes: list[str],
     disease_names: list[str],
+    health_profile: dict | None = None,
 ) -> ExerciseGuide:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -659,6 +738,7 @@ async def _make_exercise_guide_with_llm(
 
 질병 정보 (OCR 추출 참고정보):
 {", ".join(disease_entries) if disease_entries else "정보 없음"}
+{_build_health_profile_section(health_profile)}
 """
 
     response = await client.chat.completions.create(
@@ -690,6 +770,7 @@ async def _make_diet_guide_with_llm(
     medication_names: list[str],
     disease_codes: list[str],
     disease_names: list[str],
+    health_profile: dict | None = None,
 ) -> DietGuide:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -727,6 +808,7 @@ async def _make_diet_guide_with_llm(
 
 질병 정보 (OCR 추출 참고정보):
 {", ".join(disease_entries) if disease_entries else "정보 없음"}
+{_build_health_profile_section(health_profile)}
 """
 
     response = await client.chat.completions.create(
@@ -756,6 +838,7 @@ async def _make_lifestyle_guide_with_llm(
     medication_names: list[str],
     disease_codes: list[str],
     disease_names: list[str],
+    health_profile: dict | None = None,
 ) -> LifestyleGuide:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -795,6 +878,7 @@ async def _make_lifestyle_guide_with_llm(
 
 질병 정보 (OCR 추출 참고정보):
 {", ".join(disease_entries) if disease_entries else "정보 없음"}
+{_build_health_profile_section(health_profile)}
 """
 
     response = await client.chat.completions.create(
@@ -887,9 +971,13 @@ async def _run_mock_worker(
             GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types
         ]
 
+        health_profile = await _fetch_health_profile_for_guide(_jobs[job_id].get("patient_id"))
+
         if GuideType.LIFESTYLE in guide_types:
             try:
-                lifestyle_guide = await _make_lifestyle_guide_with_llm(medication_names, disease_codes, disease_names)
+                lifestyle_guide = await _make_lifestyle_guide_with_llm(
+                    medication_names, disease_codes, disease_names, health_profile
+                )
             except Exception as e:
                 print(f"LLM guide generation failed: {e}")
                 lifestyle_guide = _make_lifestyle_guide()
@@ -898,7 +986,9 @@ async def _run_mock_worker(
 
         if GuideType.DIET in guide_types:
             try:
-                diet_guide = await _make_diet_guide_with_llm(medication_names, disease_codes, disease_names)
+                diet_guide = await _make_diet_guide_with_llm(
+                    medication_names, disease_codes, disease_names, health_profile
+                )
             except Exception as e:
                 print(f"LLM diet guide generation failed: {e}")
                 diet_guide = _make_diet_guide()
@@ -907,7 +997,9 @@ async def _run_mock_worker(
 
         if GuideType.EXERCISE in guide_types:
             try:
-                exercise_guide = await _make_exercise_guide_with_llm(medication_names, disease_codes, disease_names)
+                exercise_guide = await _make_exercise_guide_with_llm(
+                    medication_names, disease_codes, disease_names, health_profile
+                )
             except Exception as e:
                 print(f"LLM exercise guide generation failed: {e}")
                 exercise_guide = _make_exercise_guide()
