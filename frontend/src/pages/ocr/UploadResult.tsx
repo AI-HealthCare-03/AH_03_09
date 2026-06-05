@@ -371,6 +371,16 @@ export default function UploadResult() {
           </div>
         </CardHeader>
         <CardContent>
+          {medications.some((m) => m.is_db_matched === false) && (
+            <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+              <span>
+                <span className="font-medium">DB에서 확인되지 않은 약물</span>이 있습니다.
+                약물명 옆 ⚠ 표시된 항목은 OCR 원문 그대로 유지된 것이므로,
+                수정 버튼으로 약물명·성분명을 직접 확인해 주세요.
+              </span>
+            </div>
+          )}
           {medications.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
               추출된 약물 정보가 없습니다.
