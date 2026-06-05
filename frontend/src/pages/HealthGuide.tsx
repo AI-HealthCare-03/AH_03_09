@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useChatStore } from "@/store/chatStore";
 
 import {
-  generateGuide,
   getGuide,
   getGuideContext,
   getGuideStatus,
@@ -60,7 +59,6 @@ function StarRating({
 }
 
 export default function HealthGuide() {
-  const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
@@ -92,7 +90,6 @@ export default function HealthGuide() {
     let cancelled = false;
 
     async function pollFromOcr(id: string) {
-      setLoading(true);
       setStatus("OCR 결과를 바탕으로 가이드 생성 중...");
 
       while (!cancelled) {
@@ -119,7 +116,6 @@ export default function HealthGuide() {
           break;
         }
       }
-      if (!cancelled) setLoading(false);
     }
 
     pollFromOcr(jobId);
@@ -127,54 +123,6 @@ export default function HealthGuide() {
       cancelled = true;
     };
   }, []); // initialJobIdRef는 마운트 시 한 번만 읽음
-
-  async function handleGenerate() {
-    try {
-      setLoading(true);
-      setStatus("가이드 생성 요청 중...");
-      setContextStatus("");
-      setFeedbackStatus("");
-      setFeedbackSubmitted(false);
-      setGuide(null);
-      setGuideContext(null);
-      setGuideId("");
-
-      const generateResult = await generateGuide({
-        patient_id: "demo-patient-001",
-        guide_types: ["MEDICATION", "LIFESTYLE", "DIET", "EXERCISE"],
-        medication_names: ["타이레놀", "아모잘탄"],
-      });
-
-      const jobId = generateResult.job_id;
-      let done = false;
-
-      while (!done) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        const statusResult = await getGuideStatus(jobId);
-        setStatus(`현재 상태: ${statusResult.status}`);
-
-        if (statusResult.status === "DONE" && statusResult.guide_id) {
-          const guideResult = await getGuide(statusResult.guide_id);
-
-          setGuide(guideResult);
-          setGuideId(statusResult.guide_id);
-          setStatus("가이드 생성 완료");
-          done = true;
-        }
-
-        if (statusResult.status === "FAILED") {
-          setStatus("가이드 생성 실패");
-          done = true;
-        }
-      }
-    } catch (error) {
-      console.error(error);
-      setStatus("에러 발생");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleLoadContext() {
     if (!guideId) {
@@ -239,23 +187,18 @@ export default function HealthGuide() {
             복약 정보를 바탕으로 맞춤 건강 가이드를 생성합니다.
           </p>
 
-          <div className="flex gap-2">
-            <Button type="button" onClick={handleGenerate} disabled={loading}>
-              {loading ? "생성 중..." : "가이드 생성"}
+          {guideId && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setStoreGuideId(guideId);
+                navigate("/chat");
+              }}
+            >
+              챗봇에서 상담하기
             </Button>
-            {guideId && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setStoreGuideId(guideId);
-                  navigate("/chat");
-                }}
-              >
-                챗봇에서 상담하기
-              </Button>
-            )}
-          </div>
+          )}
 
           {status && <p className="text-sm text-muted-foreground">{status}</p>}
 
