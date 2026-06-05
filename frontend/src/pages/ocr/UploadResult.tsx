@@ -502,7 +502,6 @@ export default function UploadResult() {
                               <AlertTriangleIcon
                                 className="size-3.5 shrink-0 text-amber-500"
                                 aria-label="약물명 미확인 — 직접 확인 후 수정해 주세요"
-                                title="DB에서 약물을 찾지 못해 원문을 유지했습니다. 수정 버튼으로 약물명·성분명을 직접 수정해 주세요."
                               />
                             )}
                             {m.medication_name}
