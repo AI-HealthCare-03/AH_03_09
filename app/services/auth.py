@@ -72,4 +72,4 @@ class AuthService:
             birthyear=kakao_account.get("birthyear"),
             phone_number=kakao_account.get("phone_number"),
         )
-        return self.jwt_service.issue_jwt_pair(user)
+        return {**self.jwt_service.issue_jwt_pair(user), "is_onboarded": user.is_onboarded}

@@ -94,6 +94,7 @@ export interface MedicationUpdateBody {
   frequency?: string | null;
   timing?: string | null;
   duration_days?: number | null;
+  is_db_matched?: boolean | null;
 }
 
 export interface DrugSearchResult {

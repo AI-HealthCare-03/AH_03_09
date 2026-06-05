@@ -1,13 +1,14 @@
 import axios from "axios";
+import { useAuthStore } from "@/store/authStore";
 
 const api = axios.create({
   baseURL: "/api/v1",
   withCredentials: true,
 });
 
-// 요청마다 localStorage의 access_token을 Bearer 헤더에 포함
+// 요청마다 authStore의 accessToken을 Bearer 헤더에 포함
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
+  const token = useAuthStore.getState().accessToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -25,11 +26,11 @@ api.interceptors.response.use(
           withCredentials: true,
         });
         const newToken = res.data.access_token;
-        localStorage.setItem("access_token", newToken);
+        useAuthStore.getState().setToken(newToken);
         error.config.headers.Authorization = `Bearer ${newToken}`;
         return axios(error.config);
       } catch {
-        localStorage.removeItem("access_token");
+        useAuthStore.getState().clear();
         window.location.href = "/";
       }
     }

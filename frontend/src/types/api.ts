@@ -1,5 +1,7 @@
 export interface HealthProfileResponse {
   id: number;
+  gender: "M" | "F" | "OTHER" | null;
+  birth_date: string | null;
   height_cm: number | null;
   weight_kg: number | null;
   blood_pressure_systolic: number | null;
@@ -14,6 +16,8 @@ export interface HealthProfileResponse {
 }
 
 export interface HealthProfileUpdateRequest {
+  gender?: "M" | "F" | "OTHER";
+  birth_date?: string;
   height_cm?: number;
   weight_kg?: number;
   blood_pressure_systolic?: number;
@@ -110,6 +114,7 @@ export interface MedicationResponse {
   instructions: string | null;
   warnings: string[] | null;
   confidence_score: number | null;
+  is_db_matched: boolean | null;
   is_confirmed: boolean;
   is_active: boolean;
 }

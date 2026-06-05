@@ -21,6 +21,12 @@ import {
 } from "@/components/ui/select";
 import { type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
 
+const GENDER_OPTIONS = [
+  { value: "M", label: "남성" },
+  { value: "F", label: "여성" },
+  { value: "OTHER", label: "기타" },
+] as const;
+
 const EXERCISE_OPTIONS = [
   { value: "NONE", label: "운동 안 함" },
   { value: "IRREGULAR", label: "비규칙적" },
@@ -61,6 +67,47 @@ export function HealthProfileForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
+        {/* 기본 정보 */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="gender"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>성별</FormLabel>
+                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="선택" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {GENDER_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="birthDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>생년월일</FormLabel>
+                <FormControl>
+                  <Input type="date" max={new Date().toISOString().split("T")[0]} {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         {/* 신체 정보 */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -68,9 +115,7 @@ export function HealthProfileForm({
             name="heightCm"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  키 (cm)<span className="text-destructive"> *</span>
-                </FormLabel>
+                <FormLabel>키 (cm)</FormLabel>
                 <FormControl>
                   <Input type="number" min={80} max={250} placeholder="예) 170" {...field} />
                 </FormControl>
@@ -83,9 +128,7 @@ export function HealthProfileForm({
             name="weightKg"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  체중 (kg)<span className="text-destructive"> *</span>
-                </FormLabel>
+                <FormLabel>체중 (kg)</FormLabel>
                 <FormControl>
                   <Input type="number" min={20} max={300} placeholder="예) 65" {...field} />
                 </FormControl>

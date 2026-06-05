@@ -7,6 +7,7 @@ interface KakaoLoginUrlResponse {
 
 interface TokenResponse {
   access_token: string;
+  is_onboarded: boolean;
 }
 
 interface LoginResponse {
@@ -50,4 +51,8 @@ export function logout(): Promise<void> {
 
 export function getMe(): Promise<UserInfoResponse> {
   return request<UserInfoResponse>("/users/me");
+}
+
+export function completeOnboarding(): Promise<void> {
+  return request<void>("/users/me/onboarding", { method: "POST" });
 }

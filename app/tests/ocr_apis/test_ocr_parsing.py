@@ -2,7 +2,7 @@
 
 대상:
   ai_worker.tasks.ocr_parser  — _clean_ocr_text, parse_medications_and_diseases
-  ai_worker.tasks.ocr_task    — _normalize_drug_name, _normalize_medication_names
+  ai_worker.tasks.ocr_task    — _normalize_medication_names
 """
 
 import json
@@ -16,7 +16,7 @@ from ai_worker.tasks.ocr_parser import (
     _validate_parsed_result,
     parse_medications_and_diseases,
 )
-from ai_worker.tasks.ocr_task import _mask_pii, _normalize_drug_name, _normalize_medication_names
+from ai_worker.tasks.ocr_task import _mask_pii, _normalize_medication_names
 
 # ── _clean_ocr_text ────────────────────────────────────────────────────────────
 
@@ -78,41 +78,6 @@ class TestCleanOcrText:
         result = _clean_ocr_text(raw)
         assert "암로디핀정5mg" in result
         assert "넥시움정" in result
-
-
-# ── _normalize_drug_name ──────────────────────────────────────────────────────
-
-
-class TestNormalizeDrugName:
-    def test_converts_mg_to_korean(self):
-        assert _normalize_drug_name("타이레놀정 500mg") == "타이레놀정500밀리그램"
-
-    def test_converts_ml_to_korean(self):
-        assert _normalize_drug_name("아목시실린시럽 250mL") == "아목시실린시럽250밀리리터"
-
-    def test_converts_mcg_to_korean(self):
-        assert _normalize_drug_name("레보티록신정 50mcg") == "레보티록신정50마이크로그램"
-
-    def test_converts_g_to_korean(self):
-        assert _normalize_drug_name("무코다정 200g") == "무코다정200그램"
-
-    def test_removes_parenthetical_generic(self):
-        assert _normalize_drug_name("타이레놀정 (아세트아미노펜)") == "타이레놀정"
-
-    def test_converts_mg_and_removes_generic(self):
-        assert _normalize_drug_name("타이레놀정 500mg (아세트아미노펜)") == "타이레놀정500밀리그램"
-
-    def test_no_unit_unchanged(self):
-        assert _normalize_drug_name("타이레놀정") == "타이레놀정"
-
-    def test_empty_string(self):
-        assert _normalize_drug_name("") == ""
-
-    def test_converts_decimal_mg(self):
-        assert _normalize_drug_name("암로디핀정 2.5mg") == "암로디핀정2.5밀리그램"
-
-    def test_removes_spaces(self):
-        assert _normalize_drug_name("씨 잘 정") == "씨잘정"
 
 
 # ── _normalize_medication_names ────────────────────────────────────────────────

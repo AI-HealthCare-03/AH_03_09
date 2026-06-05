@@ -31,6 +31,7 @@ class TestKakaoCallback:
 
         fake_user = MagicMock()
         fake_user.id = 1
+        fake_user.is_onboarded = False
 
         with (
             patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_token_resp),
@@ -45,6 +46,7 @@ class TestKakaoCallback:
 
         assert response.status_code == 200
         assert "access_token" in response.json()
+        assert "is_onboarded" in response.json()
 
     def test_kakao_callback_invalid_code(self, client):
         """잘못된 code → 400 반환 테스트"""

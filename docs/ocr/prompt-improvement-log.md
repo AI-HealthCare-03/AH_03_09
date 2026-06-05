@@ -17,6 +17,7 @@
 | v5 | `3ae3b18` | 2026-05-29 | `doc_classifier.py` | DRUG_BAG 키워드 세분화 (처방전 오판 방지) |
 | v6 | `b6e99d7` | 2026-05-29 | `ocr_parser.py` | 처방전 열 단위 OCR 구조 설명, ICD-10 복원, EDI 코드 파싱 |
 | v7 | (현재) | 2026-06-01 | `ocr_parser.py` | 약봉투 time_of_day 오파싱 수정 — frequency 추론 금지 |
+| v8 | (현재) | 2026-06-04 | `ocr_parser.py` | 사용자 수정 이력(ocr_corrections) 기반 패턴 분석 → 프롬프트 개선 구조 도입 |
 
 ---
 
@@ -147,4 +148,61 @@ GPT가 frequency("1일 1회" 등)만 있어도 해당 예시를 그대로 채워
 
 ---
 
-*이 로그는 실제 분류 오류와 파싱 품질 저하 사례를 기반으로 작성되었습니다.*
+### v8 — 사용자 수정 이력 기반 피드백 루프 도입 (2026-06-04)
+
+#### 구조 개요
+
+v8부터 사용자가 OCR 결과를 직접 수정할 때 `ocr_corrections` 테이블에 수정 이력이 자동 기록된다.
+이 데이터를 주기적으로 분석하여 파싱 오류 패턴을 발견하고, 프롬프트 개선에 반영하는 피드백 루프를 공식화한다.
+
+```
+사용자 수정 (FE)
+  ↓
+PATCH /records/{id}/medications/{mid}
+PATCH /records/{id}/disease-codes/{dcid}
+  ↓
+ocr_corrections 테이블 INSERT
+  (field_name, original_value, corrected_value, entity_type)
+  ↓
+수정 빈도·패턴 분석 (SQL 집계)
+  ↓
+오인식 패턴 발견 → 프롬프트 규칙 추가 또는 전처리 로직 보완
+```
+
+#### 분석 쿼리 예시
+
+수정 빈도가 높은 필드 Top 5:
+```sql
+SELECT field_name, entity_type, COUNT(*) AS correction_count
+FROM ocr_corrections
+GROUP BY field_name, entity_type
+ORDER BY correction_count DESC
+LIMIT 5;
+```
+
+특정 약물명 오인식 패턴 확인:
+```sql
+SELECT original_value, corrected_value, COUNT(*) AS freq
+FROM ocr_corrections
+WHERE field_name = 'medication_name'
+GROUP BY original_value, corrected_value
+ORDER BY freq DESC;
+```
+
+#### v7→v8 연결: time_of_day 사례
+
+v7에서 QA 과정에서 발견한 `time_of_day` 오파싱 문제는 향후 `ocr_corrections`의
+`field_name='time_of_day'` 수정 빈도로 자동 감지 가능하다.
+수정 빈도가 높은 필드가 발견되면 해당 필드의 프롬프트 규칙을 우선 점검한다.
+
+#### 개선 반영 기준
+
+| 수정 빈도 | 조치 |
+|---|---|
+| 동일 필드 10건 이상 | 해당 필드 프롬프트 규칙 점검 및 개선 |
+| 동일 original_value 5건 이상 | 해당 값 전처리 예외 처리 추가 |
+| ICD-10 코드 오인식 반복 | `_collapse_spaced_icd10()` 패턴 확장 |
+
+---
+
+*이 로그는 실제 분류 오류, 파싱 품질 저하 사례, 사용자 수정 이력 분석을 기반으로 작성되었습니다.*

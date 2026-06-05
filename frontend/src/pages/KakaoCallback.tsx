@@ -21,9 +21,9 @@ export default function KakaoCallback() {
     exchangedCodeRef.current = code;
 
     exchangeKakaoCode(code)
-      .then(({ access_token }) => {
+      .then(({ access_token, is_onboarded }) => {
         setToken(access_token);
-        navigate("/home", { replace: true });
+        navigate(is_onboarded ? "/home" : "/onboarding", { replace: true });
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "로그인 처리에 실패했습니다.");
