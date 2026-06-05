@@ -204,6 +204,13 @@ export default function HealthGuide() {
 
           {status && <p className="text-sm text-muted-foreground">{status}</p>}
 
+          {guide && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+              본 가이드는 사용자가 업로드한 문서(처방전, 약봉투 등)를 바탕으로 AI가 생성한 참고용 안내입니다.
+              정확한 진단·치료 및 복약 방법은 담당 의료진의 안내를 우선적으로 따라주시기 바랍니다.
+            </div>
+          )}
+
           {guide?.medication_guide && (
             <div className="space-y-4">
               {guide.medication_guide.medications.map((medication) => (
