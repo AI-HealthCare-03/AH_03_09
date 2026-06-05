@@ -231,6 +231,11 @@ def _mask_pii(text: str) -> str:
 
 _PAREN_PATTERN = re.compile(r"\s*\(.*?\)\s*")
 
+_PHARM_SUFFIX_PATTERN = re.compile(
+    r"(?:수화물|일수화물|반수화물|염산염|황산염|인산염|베실산염|말산염|구연산염|아세트산염|메실산염|푸마르산염|타르타르산염|글루콘산염|브롬화물|나트륨|칼슘|마그네슘)+$"
+)
+_STRIP_PATTERN = re.compile(r"[\d%\(\)\s/.\-→]")
+
 
 _DOSAGE_PATTERN = re.compile(
     r"\s*\d+(?:[./]\d+)?\s*(?:mg|ml|mcg|g|%|밀리그램|밀리리터|마이크로그램|그램).*$", re.IGNORECASE
@@ -261,26 +266,35 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
 
         base = _extract_base_name(name)
         generic = (m.get("generic_name") or "").strip()
+        dosage_num_match = re.search(r"(\d+(?:[./]\d+)?)", name)
+        dosage_num = dosage_num_match.group(1) if dosage_num_match else ""
 
         row = await conn.fetchrow(
             """
             SELECT item_name FROM drug_master
             WHERE item_name ILIKE $1
-            ORDER BY (CASE WHEN $2 != '' AND item_name ILIKE $3 THEN 0 ELSE 1 END)
+            ORDER BY
+              (CASE WHEN $2 != '' AND item_name ILIKE $3 THEN 0 ELSE 1 END),
+              (CASE WHEN item_name ILIKE $4 THEN 0 ELSE 1 END),
+              (CASE WHEN $5 != '' AND item_name ILIKE $6 THEN 0 ELSE 1 END),
+              length(item_name)
             LIMIT 1
             """,
             f"%{base}%",
             generic,
             f"%{generic}%",
+            f"{base}%",
+            dosage_num,
+            f"%{dosage_num}%",
         )
 
         matched = False
         if row:
             item_name = row["item_name"]
-            _strip = re.compile(r"[\d%\(\)\s/.\-→]")
-            generic_simplified = _strip.sub("", generic)
-            item_simplified = _strip.sub("", item_name)
-            if not generic_simplified or generic_simplified in item_simplified:
+            generic_simplified = _STRIP_PATTERN.sub("", generic)
+            item_simplified = _STRIP_PATTERN.sub("", item_name)
+            generic_core = _PHARM_SUFFIX_PATTERN.sub("", generic_simplified)
+            if not generic_simplified or generic_simplified in item_simplified or (generic_core and generic_core in item_simplified):
                 m = {**m, "medication_name": item_name}
                 matched = True
 
