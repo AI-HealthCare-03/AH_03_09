@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -371,6 +371,16 @@ export default function UploadResult() {
           </div>
         </CardHeader>
         <CardContent>
+          {medications.some((m) => m.is_db_matched === false) && (
+            <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+              <span>
+                <span className="font-medium">DB에서 확인되지 않은 약물</span>이 있습니다.
+                약물명 옆 ⚠ 표시된 항목은 OCR 원문 그대로 유지된 것이므로,
+                수정 버튼으로 약물명·성분명을 직접 확인해 주세요.
+              </span>
+            </div>
+          )}
           {medications.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
               추출된 약물 정보가 없습니다.
@@ -402,11 +412,28 @@ export default function UploadResult() {
                     if (isEditing) {
                       return (
                         <tr key={m.id} className="bg-muted/20">
-                          <td className="py-2.5 font-medium">{m.medication_name}</td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-36 rounded border px-2 py-1 text-sm"
+                              value={editForm.medication_name ?? m.medication_name}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, medication_name: e.target.value }))
+                              }
+                            />
+                          </td>
                           <td className="py-2.5 font-mono text-muted-foreground">
                             {m.edi_code ?? "-"}
                           </td>
-                          <td className="py-2.5 text-muted-foreground">{m.generic_name ?? "-"}</td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-28 rounded border px-2 py-1 text-sm"
+                              value={editForm.generic_name ?? m.generic_name ?? ""}
+                              placeholder="성분명"
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, generic_name: e.target.value || null }))
+                              }
+                            />
+                          </td>
                           <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
                           <td className="py-1.5 pr-2">
                             <input
@@ -440,6 +467,8 @@ export default function UploadResult() {
                                   updateMedMutation.mutate({
                                     medId: m.id,
                                     body: {
+                                      medication_name: editForm.medication_name,
+                                      generic_name: editForm.generic_name,
                                       frequency: editForm.frequency,
                                       duration_days: editForm.duration_days,
                                     },
@@ -469,6 +498,12 @@ export default function UploadResult() {
                             {m.is_confirmed && (
                               <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
                             )}
+                            {m.is_db_matched === false && (
+                              <AlertTriangleIcon
+                                className="size-3.5 shrink-0 text-amber-500"
+                                aria-label="약물명 미확인 — 직접 확인 후 수정해 주세요"
+                              />
+                            )}
                             {m.medication_name}
                           </span>
                         </td>
@@ -490,6 +525,8 @@ export default function UploadResult() {
                               disabled={isBusy || editingId !== null || isRowLocked}
                               onClick={() => {
                                 setEditForm({
+                                  medication_name: m.medication_name,
+                                  generic_name: m.generic_name,
                                   frequency: m.frequency,
                                   duration_days: m.duration_days,
                                 });

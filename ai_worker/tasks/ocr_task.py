@@ -229,29 +229,33 @@ def _mask_pii(text: str) -> str:
     return text
 
 
-_UNIT_NORMALIZE = [
-    (re.compile(r"(\d+(?:\.\d+)?)\s*mg\b", re.IGNORECASE), r"\1밀리그램"),
-    (re.compile(r"(\d+(?:\.\d+)?)\s*mL\b", re.IGNORECASE), r"\1밀리리터"),
-    (re.compile(r"(\d+(?:\.\d+)?)\s*mcg\b", re.IGNORECASE), r"\1마이크로그램"),
-    (re.compile(r"(\d+(?:\.\d+)?)\s*g\b", re.IGNORECASE), r"\1그램"),
-]
-
 _PAREN_PATTERN = re.compile(r"\s*\(.*?\)\s*")
 
+_PHARM_SUFFIX_PATTERN = re.compile(
+    r"(?:수화물|일수화물|반수화물|염산염|황산염|인산염|베실산염|말산염|구연산염|아세트산염|메실산염|푸마르산염|타르타르산염|글루콘산염|브롬화물|나트륨|칼슘|마그네슘)+$"
+)
+_STRIP_PATTERN = re.compile(r"[\d%\(\)\s/.\-→]")
 
-def _normalize_drug_name(name: str) -> str:
-    """OCR 약물명의 단위(mg→밀리그램 등)를 DB 형식으로 정규화하고 공백·괄호를 제거합니다."""
-    name = _PAREN_PATTERN.sub("", name)
-    for pattern, repl in _UNIT_NORMALIZE:
-        name = pattern.sub(repl, name)
-    return re.sub(r"\s+", "", name).strip()
+
+_DOSAGE_PATTERN = re.compile(
+    r"\s*\d+(?:[./]\d+)?\s*(?:mg|ml|mcg|g|%|밀리그램|밀리리터|마이크로그램|그램).*$", re.IGNORECASE
+)
+
+
+def _extract_base_name(name: str) -> str:
+    """약품명에서 용량·규격 부분을 제거해 기본 약품명만 반환합니다."""
+    base = _PAREN_PATTERN.sub("", name)
+    base = _DOSAGE_PATTERN.sub("", base)
+    return base.strip() or name
 
 
 async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
-    """OCR 약물명을 drug_master 테이블과 pg_trgm으로 매칭해 정규화합니다.
+    """OCR 약물명을 drug_master 테이블과 매칭해 정규화합니다.
 
-    단위 정규화(mg→밀리그램) 후 word_similarity > 0.6으로 1차 매칭.
-    미달이면 원문 유지.
+    1차: 기본 약품명(용량 제거)으로 ILIKE 매칭
+         → 성분명(generic_name)이 있으면 DB 항목명에 포함 여부 검증
+         → 불일치 시 원문 유지 (다른 성분의 동명 약품 오매칭 방지)
+    매칭 실패 또는 성분명 불일치 → 원문 유지
     """
     result = []
     for m in medications:
@@ -259,13 +263,46 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
         if not name:
             result.append(m)
             continue
-        normalized = _normalize_drug_name(name)
+
+        base = _extract_base_name(name)
+        generic = (m.get("generic_name") or "").strip()
+        dosage_num_match = re.search(r"(\d+(?:[./]\d+)?)", name)
+        dosage_num = dosage_num_match.group(1) if dosage_num_match else ""
+
         row = await conn.fetchrow(
-            "SELECT item_name FROM drug_master WHERE word_similarity($1, item_name) > 0.6 ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
-            normalized,
+            """
+            SELECT item_name FROM drug_master
+            WHERE item_name ILIKE $1
+            ORDER BY
+              (CASE WHEN $2 != '' AND item_name ILIKE $3 THEN 0 ELSE 1 END),
+              (CASE WHEN item_name ILIKE $4 THEN 0 ELSE 1 END),
+              (CASE WHEN $5 != '' AND item_name ILIKE $6 THEN 0 ELSE 1 END),
+              length(item_name)
+            LIMIT 1
+            """,
+            f"%{base}%",
+            generic,
+            f"%{generic}%",
+            f"{base}%",
+            dosage_num,
+            f"%{dosage_num}%",
         )
+
+        matched = False
         if row:
-            m = {**m, "medication_name": row["item_name"]}
+            item_name = row["item_name"]
+            generic_simplified = _STRIP_PATTERN.sub("", generic)
+            item_simplified = _STRIP_PATTERN.sub("", item_name)
+            generic_core = _PHARM_SUFFIX_PATTERN.sub("", generic_simplified)
+            if (
+                not generic_simplified
+                or generic_simplified in item_simplified
+                or (generic_core and generic_core in item_simplified)
+            ):
+                m = {**m, "medication_name": item_name}
+                matched = True
+
+        m = {**m, "is_db_matched": matched}
         result.append(m)
     return result
 
@@ -277,8 +314,8 @@ async def _insert_medications(conn: asyncpg.Connection, record_id: int, medicati
             INSERT INTO medications
                 (document_id, medication_name, edi_code, generic_name, dosage, frequency, timing,
                  usage_time, duration_days, time_of_day, warnings, confidence_score,
-                 is_confirmed, is_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, FALSE, TRUE)
+                 is_db_matched, is_confirmed, is_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE, TRUE)
             """,
             record_id,
             m.get("medication_name") or "",
@@ -292,6 +329,7 @@ async def _insert_medications(conn: asyncpg.Connection, record_id: int, medicati
             json.dumps(m["time_of_day"], ensure_ascii=False) if m.get("time_of_day") is not None else None,
             json.dumps(m["warnings"], ensure_ascii=False) if m.get("warnings") is not None else None,
             m.get("confidence_score"),
+            m.get("is_db_matched"),
         )
 
 
