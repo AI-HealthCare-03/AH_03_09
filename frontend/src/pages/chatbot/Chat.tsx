@@ -128,7 +128,7 @@ export default function Chat() {
                       ))}
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {messages.map((m) => (
                   <MessageBubble
