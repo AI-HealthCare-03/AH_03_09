@@ -179,8 +179,35 @@ def _build_guide_section(guide_context: dict) -> str:
     return "\n\n[처방 가이드 — 이 내용을 기반으로 정확히 답변하세요]\n" + "\n".join(lines)
 
 
-def _build_profile_section(health_profile: dict) -> str:
+def _build_user_info(health_profile: dict) -> list[str]:
     lines: list[str] = []
+    gender = health_profile.get("gender")
+    age_range = health_profile.get("age_range")
+    birthyear = health_profile.get("birthyear")
+    user_info: list[str] = []
+    if gender:
+        user_info.append("남성" if gender == "male" else "여성")
+    if age_range:
+        user_info.append(f"{age_range}대")
+    elif birthyear:
+        user_info.append(f"{birthyear}년생")
+    if user_info:
+        lines.append(f"- 기본정보: {', '.join(user_info)}")
+    height = health_profile.get("height_cm")
+    weight = health_profile.get("weight_kg")
+    if height or weight:
+        parts = [*([f"키 {height}cm"] if height else []), *([f"몸무게 {weight}kg"] if weight else [])]
+        lines.append(f"- 신체정보: {', '.join(parts)}")
+    return lines
+
+
+def _build_profile_section(health_profile: dict) -> str:
+    lines: list[str] = _build_user_info(health_profile)
+
+    bp_sys = health_profile.get("blood_pressure_systolic")
+    bp_dia = health_profile.get("blood_pressure_diastolic")
+    if bp_sys and bp_dia:
+        lines.append(f"- 혈압: {bp_sys}/{bp_dia} mmHg")
 
     conditions = health_profile.get("primary_conditions") or []
     if conditions:

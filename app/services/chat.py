@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from typing import Annotated
 from uuid import UUID
@@ -12,8 +13,11 @@ from app.core.db.sqlalchemy_client import get_async_session
 from app.core.redis_client import get_redis
 from app.models.chat import ChatMessage, ChatSession, MessageRole
 from app.models.health_profiles import HealthProfile
+from app.models.users import User
 from app.repositories.chat_repository import ChatRepository
 from app.services.guides import GuideService
+
+logger = logging.getLogger(__name__)
 
 RESPONSE_TIMEOUT_SECONDS = 60
 DELAY_WARNING_SECONDS = 10
@@ -88,30 +92,56 @@ class ChatService:
         await self.repo.delete_session(session_id)
 
     async def _fetch_health_context(self, user_id: int) -> dict | None:
-        result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
-        health_profile = result.scalar_one_or_none()
-        if not health_profile:
+        health_result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
+        health_profile = health_result.scalar_one_or_none()
+
+        user_result = await self.session.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+
+        if not health_profile and not user:
             return None
-        return {
-            "primary_conditions": health_profile.primary_conditions,
-            "allergies": health_profile.allergies,
-            "current_medications": health_profile.current_medications,
-            "lifestyle_exercise": health_profile.lifestyle_exercise,
-            "lifestyle_smoking": health_profile.lifestyle_smoking,
-            "lifestyle_alcohol": health_profile.lifestyle_alcohol,
-        }
+
+        ctx: dict = {}
+
+        if user:
+            ctx["gender"] = user.gender
+            ctx["age_range"] = user.age_range
+            ctx["birthday"] = user.birthday
+            ctx["birthyear"] = user.birthyear
+
+        if health_profile:
+            ctx.update(
+                {
+                    "height_cm": health_profile.height_cm,
+                    "weight_kg": health_profile.weight_kg,
+                    "blood_pressure_systolic": health_profile.blood_pressure_systolic,
+                    "blood_pressure_diastolic": health_profile.blood_pressure_diastolic,
+                    "primary_conditions": health_profile.primary_conditions,
+                    "allergies": health_profile.allergies,
+                    "current_medications": health_profile.current_medications,
+                    "lifestyle_exercise": health_profile.lifestyle_exercise,
+                    "lifestyle_smoking": health_profile.lifestyle_smoking,
+                    "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+                }
+            )
+
+        return ctx
 
     async def _get_guide_context(self, guide_id: str | None) -> dict | None:
         if not guide_id:
+            logger.info("[guide_context] guide_id 없음 → None 반환")
             return None
         try:
             ctx = await GuideService().get_guide_context(guide_id)
-            return {
+            result = {
                 "medications": ctx.medications,
                 "schedule": ctx.schedule,
                 "key_instructions": ctx.key_instructions,
             }
-        except HTTPException:
+            logger.info("[guide_context] 조회 성공 guide_id=%s medications=%s", guide_id, ctx.medications)
+            return result
+        except HTTPException as e:
+            logger.warning("[guide_context] 조회 실패 guide_id=%s detail=%s", guide_id, e.detail)
             return None
 
     async def stream_message(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):
