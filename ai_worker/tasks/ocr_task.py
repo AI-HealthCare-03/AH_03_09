@@ -294,7 +294,11 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
             generic_simplified = _STRIP_PATTERN.sub("", generic)
             item_simplified = _STRIP_PATTERN.sub("", item_name)
             generic_core = _PHARM_SUFFIX_PATTERN.sub("", generic_simplified)
-            if not generic_simplified or generic_simplified in item_simplified or (generic_core and generic_core in item_simplified):
+            if (
+                not generic_simplified
+                or generic_simplified in item_simplified
+                or (generic_core and generic_core in item_simplified)
+            ):
                 m = {**m, "medication_name": item_name}
                 matched = True
 
