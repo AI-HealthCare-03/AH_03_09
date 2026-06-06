@@ -8,7 +8,6 @@ import {
   PanelLeftIcon,
   PillIcon,
   ScanSearchIcon,
-  SettingsIcon,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "@/api/auth";
@@ -36,7 +35,6 @@ const mainNav = [
   { to: "/health-profile", label: "내 건강정보", icon: HeartPulseIcon },
   { to: "/pharmacy", label: "약국 재고", icon: PillIcon },
   { to: "/chat", label: "챗봇", icon: MessageCircleIcon },
-  { to: "/settings", label: "설정", icon: SettingsIcon },
 ];
 
 export default function AppSidebar() {
