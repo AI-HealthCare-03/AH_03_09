@@ -24,6 +24,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/store/authStore";
@@ -37,6 +43,7 @@ export default function Profile() {
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState<"terms" | "privacy" | null>(null);
 
   const logoutMut = useMutation({
     mutationFn: logout,
@@ -81,6 +88,46 @@ export default function Profile() {
           {data ? <ProfileFields data={data} /> : null}
         </CardContent>
       </Card>
+
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">약관 및 정책</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <Button variant="ghost" className="justify-start text-sm text-slate-600" onClick={() => setTermsOpen("terms")}>
+            서비스 이용약관
+          </Button>
+          <Button variant="ghost" className="justify-start text-sm text-slate-600" onClick={() => setTermsOpen("privacy")}>
+            개인정보 수집 및 이용 동의
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={termsOpen !== null} onOpenChange={(open) => { if (!open) setTermsOpen(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {termsOpen === "terms" ? "서비스 이용약관" : "개인정보 수집 및 이용 동의"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto text-sm leading-relaxed text-slate-600">
+            {termsOpen === "terms" ? (
+              <p>
+                본 서비스는 AI 기반 복약 가이드 및 건강 정보를 제공합니다. 제공되는 정보는 참고용이며,
+                실제 치료·진단을 대체하지 않습니다. 서비스 이용 중 입력하신 데이터는 개인 맞춤형 가이드
+                생성에만 활용되며, 외부에 제공되지 않습니다. 만 14세 미만은 서비스를 이용하실 수 없습니다.
+              </p>
+            ) : (
+              <p>
+                수집 항목: 카카오 계정 정보(이름, 이메일), 건강정보(성별, 생년월일, 신체정보, 기저질환,
+                알레르기, 복용 약물, 생활 습관), 진료 문서(처방전·약봉투 이미지 및 OCR 결과).
+                수집 목적: AI 복약 가이드 생성, 챗봇 답변 맞춤화. 보유 기간: 회원 탈퇴 시까지.
+                수집된 개인정보는 외부 기관·제3자에게 제공되지 않습니다.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card className="rounded-2xl">
         <CardContent className="pt-6">
