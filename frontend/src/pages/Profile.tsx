@@ -36,6 +36,7 @@ export default function Profile() {
   const navigate = useNavigate();
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   const logoutMut = useMutation({
     mutationFn: logout,
@@ -86,7 +87,7 @@ export default function Profile() {
           <Button
             variant="outline"
             className="w-full gap-2 text-slate-600"
-            onClick={() => logoutMut.mutate()}
+            onClick={() => setLogoutOpen(true)}
             disabled={logoutMut.isPending}
           >
             <LogOutIcon className="size-4" />
@@ -94,6 +95,29 @@ export default function Profile() {
           </Button>
         </CardContent>
       </Card>
+
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>로그아웃 하시겠어요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              로그아웃 후 다시 카카오 로그인이 필요합니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={logoutMut.isPending}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                logoutMut.mutate();
+              }}
+              disabled={logoutMut.isPending}
+            >
+              {logoutMut.isPending ? "로그아웃 중…" : "로그아웃"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card className="rounded-2xl border-destructive/30">
         <CardHeader>

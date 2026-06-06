@@ -9,8 +9,19 @@ import {
   PillIcon,
   ScanSearchIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "@/api/auth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Sidebar,
   SidebarContent,
@@ -40,6 +51,7 @@ const mainNav = [
 export default function AppSidebar() {
   const navigate = useNavigate();
   const clear = useAuthStore((s) => s.clear);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -48,6 +60,21 @@ export default function AppSidebar() {
   };
 
   return (
+    <>
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>로그아웃 하시겠어요?</AlertDialogTitle>
+          <AlertDialogDescription>
+            로그아웃 후 다시 카카오 로그인이 필요합니다.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction onClick={handleLogout}>로그아웃</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-2">
         <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1">
@@ -87,7 +114,7 @@ export default function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="로그아웃"
-              onClick={handleLogout}
+              onClick={() => setConfirmOpen(true)}
               className="h-10 gap-3 rounded-lg px-3 text-sm font-medium text-slate-500 hover:text-destructive [&>svg]:size-5"
             >
               <LogOutIcon />
@@ -97,6 +124,7 @@ export default function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+    </>
   );
 }
 
