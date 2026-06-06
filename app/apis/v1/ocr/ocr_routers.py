@@ -102,7 +102,7 @@ async def search_drugs(
 async def upload_documents(
     current_user: _AUTH,
     session: _SESSION,
-    files: Annotated[list[UploadFile], File(description="처방전·약봉투 파일 (최대 5개, JPEG·PNG·PDF)")],
+    files: Annotated[list[UploadFile], File(description="처방전·약봉투 파일 (1개, JPEG·PNG·PDF)")],
 ) -> OcrUploadResponse:
     """처방전·약봉투 파일을 S3에 업로드하고 OCR 처리 작업을 생성합니다. (REQ-OCR-002/003)"""
     validate_file_count(files)
