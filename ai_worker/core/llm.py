@@ -173,6 +173,10 @@ def _build_guide_section(guide_context: dict) -> str:
         instruction_lines = [f"  · {i}" for i in instructions]
         lines.append("- 주요 지시사항:\n" + "\n".join(instruction_lines))
 
+    disease_codes = guide_context.get("disease_codes") or []
+    if disease_codes:
+        lines.append(f"- OCR/가이드에서 인식된 질병코드(참고): {', '.join(disease_codes)}")
+
     if not lines:
         return ""
 

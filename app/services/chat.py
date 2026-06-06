@@ -137,6 +137,7 @@ class ChatService:
                 "medications": ctx.medications,
                 "schedule": ctx.schedule,
                 "key_instructions": ctx.key_instructions,
+                "disease_codes": ctx.disease_codes,
             }
             logger.info("[guide_context] 조회 성공 guide_id=%s medications=%s", guide_id, ctx.medications)
             return result
