@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { DocType } from "@/types/api";
 
 const DOC_TYPE_LABEL: Record<DocType, string> = {
@@ -539,18 +540,23 @@ export default function UploadResult() {
                     return (
                       <tr key={m.id} className="transition-colors hover:bg-muted/20">
                         <td className="w-45 max-w-45 py-2.5 font-medium">
-                          <span className="flex items-center gap-1" title={m.medication_name}>
-                            {m.is_confirmed && (
-                              <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
-                            )}
-                            {m.is_db_matched === false && (
-                              <AlertTriangleIcon
-                                className="size-3.5 shrink-0 text-amber-500"
-                                aria-label="약물명 미확인 — 직접 확인 후 수정해 주세요"
-                              />
-                            )}
-                            <span className="truncate">{m.medication_name}</span>
-                          </span>
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <span className="flex min-w-0 items-center gap-1">
+                                {m.is_confirmed && (
+                                  <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
+                                )}
+                                {m.is_db_matched === false && (
+                                  <AlertTriangleIcon
+                                    className="size-3.5 shrink-0 text-amber-500"
+                                    aria-label="약물명 미확인 — 직접 확인 후 수정해 주세요"
+                                  />
+                                )}
+                                <span className="truncate">{m.medication_name}</span>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{m.medication_name}</TooltipContent>
+                          </Tooltip>
                         </td>
                         <td className="py-2.5 font-mono text-muted-foreground">
                           {m.edi_code ?? "-"}
