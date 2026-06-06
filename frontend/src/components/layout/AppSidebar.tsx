@@ -3,6 +3,7 @@ import {
   FileTextIcon,
   HeartPulseIcon,
   HomeIcon,
+  LogOutIcon,
   MessageCircleIcon,
   PanelLeftIcon,
   PillIcon,
@@ -10,9 +11,11 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { logout } from "@/api/auth";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -23,6 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuthStore } from "@/store/authStore";
 
 const mainNav = [
   { to: "/home", label: "홈", icon: HomeIcon },
@@ -36,6 +40,15 @@ const mainNav = [
 ];
 
 export default function AppSidebar() {
+  const navigate = useNavigate();
+  const clear = useAuthStore((s) => s.clear);
+
+  const handleLogout = async () => {
+    await logout();
+    clear();
+    navigate("/");
+  };
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-2">
@@ -71,6 +84,20 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="px-2 pb-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="로그아웃"
+              onClick={handleLogout}
+              className="h-10 gap-3 rounded-lg px-3 text-sm font-medium text-slate-500 hover:text-destructive [&>svg]:size-5"
+            >
+              <LogOutIcon />
+              <span>로그아웃</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }

@@ -2,12 +2,15 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   CakeIcon,
   CalendarIcon,
+  LogOutIcon,
   MailIcon,
   MessageSquareIcon,
   PhoneIcon,
   UserIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { logout } from "@/api/auth";
 import { fetchMe, WITHDRAW_CONFIRMATION_TEXT, withdrawMe } from "@/api/user";
 import {
   AlertDialog,
@@ -30,8 +33,17 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", { dateStyle: "long" });
 
 export default function Profile() {
   const clear = useAuthStore((s) => s.clear);
+  const navigate = useNavigate();
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+
+  const logoutMut = useMutation({
+    mutationFn: logout,
+    onSuccess: () => {
+      clear();
+      navigate("/");
+    },
+  });
   const [confirmationText, setConfirmationText] = useState("");
 
   const { data, isLoading, error } = useQuery({
@@ -66,6 +78,20 @@ export default function Profile() {
           {isLoading ? <ProfileSkeleton /> : null}
           {error ? <p className="text-sm text-destructive">정보를 불러오지 못했습니다.</p> : null}
           {data ? <ProfileFields data={data} /> : null}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl">
+        <CardContent className="pt-6">
+          <Button
+            variant="outline"
+            className="w-full gap-2 text-slate-600"
+            onClick={() => logoutMut.mutate()}
+            disabled={logoutMut.isPending}
+          >
+            <LogOutIcon className="size-4" />
+            {logoutMut.isPending ? "로그아웃 중…" : "로그아웃"}
+          </Button>
         </CardContent>
       </Card>
 
