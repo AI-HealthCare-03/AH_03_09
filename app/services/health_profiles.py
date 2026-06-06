@@ -64,7 +64,7 @@ class HealthProfileService:
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="건강 프로필이 존재하지 않습니다.")
 
-        update_data = data.model_dump(exclude_none=True)
+        update_data = data.model_dump(exclude_unset=True)
         if not update_data:
             return profile
 
