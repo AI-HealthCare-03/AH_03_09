@@ -119,6 +119,14 @@ export function submitGuideFeedback(
   });
 }
 
+export type FeedbackStatusResponse = {
+  is_submitted: boolean;
+};
+
+export function getGuideFeedbackStatus(guideId: string) {
+  return request<FeedbackStatusResponse>(`/guides/${guideId}/feedback/status`);
+}
+
 export type GuideContextResponse = {
   guide_id: string;
   medications: string[];
