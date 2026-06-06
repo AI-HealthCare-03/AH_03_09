@@ -9,6 +9,9 @@ export default function ProtectedRoute() {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+  if (isOnboarded && pathname === "/onboarding") {
+    return <Navigate to="/home" replace />;
+  }
   if (!isOnboarded && pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
