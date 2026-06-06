@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/store/authStore";
 import type { UserInfoResponse } from "@/types/api";
@@ -130,16 +131,41 @@ export default function Profile() {
       </Dialog>
 
       <Card className="rounded-2xl">
-        <CardContent className="pt-6">
+        <CardHeader>
+          <CardTitle className="text-base">계정 관리</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <Button
             variant="outline"
-            className="w-full gap-2 text-slate-600"
+            className="gap-2 text-slate-600"
             onClick={() => setLogoutOpen(true)}
             disabled={logoutMut.isPending}
           >
             <LogOutIcon className="size-4" />
             {logoutMut.isPending ? "로그아웃 중…" : "로그아웃"}
           </Button>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-destructive">회원 탈퇴</p>
+              <p className="mt-1 text-xs text-destructive/80">
+                탈퇴 시 계정 정보, 업로드한 문서, 대화 기록 등 모든 데이터가 영구 삭제되며 복구할 수 없습니다.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setConfirmationText("");
+                setWithdrawOpen(true);
+              }}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              회원탈퇴 진행
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -165,29 +191,6 @@ export default function Profile() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Card className="rounded-2xl border-destructive/30">
-        <CardHeader>
-          <CardTitle className="text-base text-destructive">회원 탈퇴</CardTitle>
-          <CardDescription className="text-destructive/90">
-            탈퇴 시 계정 정보, 업로드한 문서, 대화 기록 등 모든 데이터가 DB에서 영구 삭제되며 복구할
-            수 없습니다. 같은 카카오 계정으로 다시 로그인하면 새로 가입한 상태로 시작됩니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setConfirmationText("");
-              setWithdrawOpen(true);
-            }}
-            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            회원탈퇴 진행
-          </Button>
-        </CardContent>
-      </Card>
 
       <AlertDialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
         <AlertDialogContent>
