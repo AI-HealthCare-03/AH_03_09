@@ -72,6 +72,18 @@ async def token_refresh(
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout() -> Response:
     resp = Response(status_code=status.HTTP_204_NO_CONTENT)
-    resp.delete_cookie("access_token")
-    resp.delete_cookie("refresh_token")
+    resp.delete_cookie(
+        "access_token",
+        httponly=True,
+        samesite="lax",
+        secure=config.ENV == Env.PROD,
+        domain=config.COOKIE_DOMAIN or None,
+    )
+    resp.delete_cookie(
+        "refresh_token",
+        httponly=True,
+        samesite="lax",
+        secure=config.ENV == Env.PROD,
+        domain=config.COOKIE_DOMAIN or None,
+    )
     return resp
