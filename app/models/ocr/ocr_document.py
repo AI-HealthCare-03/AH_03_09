@@ -58,7 +58,9 @@ class OcrDocument(Base):
     )
 
     result: Mapped["OcrResult | None"] = relationship("OcrResult", back_populates="document", uselist=False)
-    medications: Mapped[list["Medication"]] = relationship("Medication", back_populates="document")
+    medications: Mapped[list["Medication"]] = relationship(
+        "Medication", back_populates="document", order_by="Medication.id"
+    )
     disease_codes: Mapped[list["DiseaseCode"]] = relationship("DiseaseCode", back_populates="document")
     corrections: Mapped[list["OcrCorrection"]] = relationship("OcrCorrection", back_populates="document")
     metrics: Mapped[list["AiPerformanceMetric"]] = relationship("AiPerformanceMetric", back_populates="document")
