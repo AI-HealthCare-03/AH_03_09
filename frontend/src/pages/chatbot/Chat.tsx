@@ -1,16 +1,12 @@
 import { ArrowLeftIcon, BotIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Markdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
 import InputComposer from "@/components/chat/InputComposer";
 import MessageBubble from "@/components/chat/MessageBubble";
 import SessionSidebar from "@/components/chat/SessionSidebar";
 import { Button } from "@/components/ui/button";
-import { useMessages, useStreamMessage } from "@/hooks/useMessages";
-import { useCreateSession } from "@/hooks/useSessions";
-import { submitFeedback } from "@/api/chat";
-import { useAuthStore } from "@/store/authStore";
-import { useChatStore } from "@/store/chatStore";
+import { useChat } from "@/hooks/useChat";
 
 const SUGGESTED_QUESTIONS = [
   "이 약의 부작용이 있나요?",
@@ -21,26 +17,23 @@ const SUGGESTED_QUESTIONS = [
 
 export default function Chat() {
   const navigate = useNavigate();
-  const clear = useAuthStore((s) => s.clear);
-  const currentSessionId = useChatStore((s) => s.currentSessionId);
-  const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
-  const guideId = useChatStore((s) => s.guideId);
+  const {
+    messages,
+    isLoading,
+    currentSessionId,
+    lastAssistantId,
+    optimisticUserMsg,
+    feedbackGiven,
+    feedbackError,
+    setFeedbackError,
+    busy,
+    streamMut,
+    handleSubmit,
+    handleFeedback,
+    handleLogout,
+  } = useChat();
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
-  const [optimisticUserMsg, setOptimisticUserMsg] = useState<string | null>(null);
-
-  const { data: messagesData, isLoading } = useMessages(currentSessionId);
-  const streamMut = useStreamMessage();
-  const { retry } = streamMut;
-  const createMut = useCreateSession();
-
-  const messages = messagesData?.messages ?? [];
-  const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
-
-  useEffect(() => {
-    setOptimisticUserMsg(null);
-  }, [messages.length]);
 
   useEffect(() => {
     if (messages.length === 0 && !streamMut.streamingContent) return;
@@ -49,32 +42,6 @@ export default function Chat() {
       behavior: "smooth",
     });
   }, [messages.length, streamMut.streamingContent]);
-
-  const handleLogout = () => {
-    clear();
-    navigate("/", { replace: true });
-  };
-
-  const handleSubmit = async (content: string) => {
-    setOptimisticUserMsg(content);
-    let sessionId = currentSessionId;
-    if (!sessionId) {
-      const title = content.length > 20 ? content.slice(0, 20) + "…" : content;
-      const session = await createMut.mutateAsync(title);
-      sessionId = session.id;
-      setCurrentSessionId(sessionId);
-    }
-    await streamMut.mutate({ sessionId, content, guideId });
-  };
-
-  const handleFeedback = async (messageId: number, feedback: "good" | "bad") => {
-    setFeedbackGiven((prev) => new Set(prev).add(messageId));
-    if (currentSessionId) {
-      await submitFeedback(currentSessionId, messageId, feedback).catch(() => null);
-    }
-  };
-
-  const busy = streamMut.isPending || createMut.isPending;
 
   return (
     <div className="flex h-dvh flex-col bg-slate-50 text-slate-900">
@@ -191,7 +158,7 @@ export default function Chat() {
                     <span>⚠️ {streamMut.error}</span>
                     <button
                       type="button"
-                      onClick={retry}
+                      onClick={streamMut.retry}
                       className="ml-auto shrink-0 rounded border border-red-300 px-2 py-1 text-xs hover:bg-red-100"
                     >
                       다시 시도
@@ -202,6 +169,18 @@ export default function Chat() {
             )}
           </div>
 
+          {feedbackError && (
+            <div className="flex items-center justify-between border-t border-orange-200 bg-orange-50 px-4 py-2 text-sm text-orange-700">
+              <span>{feedbackError}</span>
+              <button
+                type="button"
+                onClick={() => setFeedbackError(null)}
+                className="ml-4 shrink-0 text-orange-500 hover:text-orange-700"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <InputComposer onSubmit={handleSubmit} disabled={busy} />
         </main>
       </div>

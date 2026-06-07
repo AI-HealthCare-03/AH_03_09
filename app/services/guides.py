@@ -18,6 +18,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.sqlalchemy_client import _AsyncSessionFactory
+from app.core.redis_client import get_redis
 from app.dtos.guides import (
     DietGuide,
     ExerciseGuide,
@@ -47,9 +48,32 @@ from app.models.health_profiles import HealthProfile as HealthProfileModel
 logger = logging.getLogger(__name__)
 
 # ── In-memory 저장소 ──────────────────────────────────────────────────────────
-_jobs: dict[str, dict] = {}
 _guides: dict[str, dict] = {}
 _feedbacks: dict[str, dict] = {}
+
+# ── Redis 기반 job 상태 관리 ──────────────────────────────────────────────────
+_JOB_TTL = 86400  # 24시간
+
+
+async def _get_job(job_id: str) -> dict | None:
+    redis = await get_redis()
+    raw = await redis.get(f"guide:job:{job_id}")
+    return json.loads(raw) if raw else None
+
+
+async def _set_job(job_id: str, data: dict) -> None:
+    redis = await get_redis()
+    serializable = {k: (v.value if hasattr(v, "value") else v) for k, v in data.items()}
+    await redis.set(f"guide:job:{job_id}", json.dumps(serializable), ex=_JOB_TTL)
+
+
+async def _update_job(job_id: str, **updates) -> None:
+    job = await _get_job(job_id) or {}
+    for k, v in updates.items():
+        job[k] = v.value if hasattr(v, "value") else v
+    redis = await get_redis()
+    await redis.set(f"guide:job:{job_id}", json.dumps(job), ex=_JOB_TTL)
+
 
 # ── 식약처 CSV 싱글턴 ─────────────────────────────────────────────────────────
 _CSV_PATH = pathlib.Path(__file__).parent.parent / "data" / "식약처_의약품개요정보_전체누적본.csv"
@@ -967,7 +991,7 @@ async def _run_mock_worker(
     disease_names: list[str],
 ) -> None:
     await asyncio.sleep(1)
-    _jobs[job_id]["status"] = JobStatus.PROCESSING
+    await _update_job(job_id, status=JobStatus.PROCESSING)
 
     try:
         await asyncio.sleep(3)
@@ -978,7 +1002,8 @@ async def _run_mock_worker(
             GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types
         ]
 
-        health_profile = await _fetch_health_profile_for_guide(_jobs[job_id].get("patient_id"))
+        job = await _get_job(job_id)
+        health_profile = await _fetch_health_profile_for_guide((job or {}).get("patient_id"))
 
         if GuideType.LIFESTYLE in guide_types:
             try:
@@ -986,7 +1011,7 @@ async def _run_mock_worker(
                     medication_names, disease_codes, disease_names, health_profile
                 )
             except Exception as e:
-                print(f"LLM guide generation failed: {e}")
+                logger.warning("LLM guide generation failed: %s", e)
                 lifestyle_guide = _make_lifestyle_guide()
         else:
             lifestyle_guide = None
@@ -997,7 +1022,7 @@ async def _run_mock_worker(
                     medication_names, disease_codes, disease_names, health_profile
                 )
             except Exception as e:
-                print(f"LLM diet guide generation failed: {e}")
+                logger.warning("LLM diet guide generation failed: %s", e)
                 diet_guide = _make_diet_guide()
         else:
             diet_guide = None
@@ -1008,7 +1033,7 @@ async def _run_mock_worker(
                     medication_names, disease_codes, disease_names, health_profile
                 )
             except Exception as e:
-                print(f"LLM exercise guide generation failed: {e}")
+                logger.warning("LLM exercise guide generation failed: %s", e)
                 exercise_guide = _make_exercise_guide()
         else:
             exercise_guide = None
@@ -1033,21 +1058,19 @@ async def _run_mock_worker(
 
         _guides[guide_id] = guide.model_dump()
         _guides[guide_id]["disease_codes"] = disease_codes
-        await _persist_guide(guide_id, _jobs[job_id].get("patient_id"), guide, disease_codes)
-        _jobs[job_id]["status"] = JobStatus.DONE
-        _jobs[job_id]["guide_id"] = guide_id
+        job = await _get_job(job_id)
+        await _persist_guide(guide_id, (job or {}).get("patient_id"), guide, disease_codes)
+        await _update_job(job_id, status=JobStatus.DONE, guide_id=guide_id)
 
     except FileNotFoundError as e:
         error_message = f"필수 파일 없음: {e.filename}"
-        print(f"[GuideWorker] job_id={job_id} {error_message}")
-        _jobs[job_id]["status"] = JobStatus.FAILED
-        _jobs[job_id]["error_message"] = error_message
+        logger.error("[GuideWorker] job_id=%s %s", job_id, error_message)
+        await _update_job(job_id, status=JobStatus.FAILED, error_message=error_message)
 
     except Exception as e:
         error_message = str(e)
-        print(f"[GuideWorker] job_id={job_id} 가이드 생성 실패: {error_message}")
-        _jobs[job_id]["status"] = JobStatus.FAILED
-        _jobs[job_id]["error_message"] = error_message
+        logger.error("[GuideWorker] job_id=%s 가이드 생성 실패: %s", job_id, error_message)
+        await _update_job(job_id, status=JobStatus.FAILED, error_message=error_message)
 
 
 # ── Service ───────────────────────────────────────────────────────────────────
@@ -1057,7 +1080,7 @@ class GuideService:
     async def create_guide_job(self, req: GenerateGuideRequest) -> GenerateGuideResponse:
         job_id = str(uuid.uuid4())
         guide_id = str(uuid.uuid4())
-        _jobs[job_id] = {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id}
+        await _set_job(job_id, {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id})
         asyncio.create_task(
             _run_mock_worker(
                 job_id,
@@ -1072,7 +1095,7 @@ class GuideService:
         return GenerateGuideResponse(job_id=job_id)
 
     async def get_job_status(self, job_id: str) -> GuideStatusResponse:
-        job = _jobs.get(job_id)
+        job = await _get_job(job_id)
         if not job:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job을 찾을 수 없습니다.")
         return GuideStatusResponse(
