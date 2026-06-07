@@ -3,6 +3,7 @@ import { AlertTriangleIcon, CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIco
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 import {
   type MedicationCreateBody,
   type MedicationUpdateBody,
@@ -186,7 +187,13 @@ export default function UploadResult() {
   const reanalyzeMutation = useMutation({
     mutationFn: () => reanalyzeDocument(recordId),
     onSuccess: (data) => navigate(`/upload/processing/${data.job_id}`, { state: { recordId } }),
-    onError: () => toast.error("재추출에 실패했습니다. 다시 시도해주세요."),
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 429) {
+        toast.error("이 문서는 재추출 횟수(5회)를 모두 사용했습니다.");
+      } else {
+        toast.error("재추출에 실패했습니다. 다시 시도해주세요.");
+      }
+    },
   });
 
   const confirmMedMutation = useMutation({
