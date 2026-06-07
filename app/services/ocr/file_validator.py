@@ -5,7 +5,7 @@ from pypdf import PdfReader
 
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "application/pdf"}
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
-MAX_FILES = 5
+MAX_FILES = 1
 
 # MIME 타입별 허용 확장자 (REQ-OCR-002 이중 검증)
 _MIME_TO_EXTENSIONS: dict[str, set[str]] = {

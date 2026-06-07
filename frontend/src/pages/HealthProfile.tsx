@@ -1,6 +1,8 @@
 import {
   ActivityIcon,
+  ArrowRightIcon,
   BeakerIcon,
+  BookOpenIcon,
   CalendarIcon,
   CigaretteIcon,
   GlassWaterIcon,
@@ -14,6 +16,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchHealthProfile, updateHealthProfile } from "@/api/healthProfile";
 import { Badge } from "@/components/ui/badge";
@@ -29,9 +32,11 @@ import {
 import { type MedicalProfile, useAuthStore } from "@/store/authStore";
 
 export default function HealthProfile() {
+  const navigate = useNavigate();
   const medicalProfile = useAuthStore((s) => s.medicalProfile);
   const setMedicalProfile = useAuthStore((s) => s.setMedicalProfile);
   const [editing, setEditing] = useState(false);
+  const [showGuideBanner, setShowGuideBanner] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: serverProfile } = useQuery({
@@ -93,6 +98,7 @@ export default function HealthProfile() {
 
     setMedicalProfile(toMedicalProfile(values));
     setEditing(false);
+    setShowGuideBanner(true);
     toast.success("내 건강정보를 저장했어요.");
   };
 
@@ -106,6 +112,20 @@ export default function HealthProfile() {
           입력하신 정보는 AI 가이드와 챗봇 답변의 정확도를 높이는 데 사용됩니다.
         </p>
       </header>
+
+      {showGuideBanner && (
+        <button
+          type="button"
+          onClick={() => navigate("/health-guide")}
+          className="flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-sm text-blue-800 transition-colors hover:bg-blue-100"
+        >
+          <BookOpenIcon className="size-4 shrink-0 text-blue-500" />
+          <span className="flex-1">
+            건강정보가 변경됐어요. 최신 정보로 가이드를 다시 받아보세요.
+          </span>
+          <ArrowRightIcon className="size-4 shrink-0 text-blue-500" />
+        </button>
+      )}
 
       {showForm ? (
         <Card className="rounded-2xl">

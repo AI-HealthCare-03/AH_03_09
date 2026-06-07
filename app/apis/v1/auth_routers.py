@@ -10,6 +10,21 @@ from app.services.jwt import JwtService
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
+_COOKIE_OPTS = {
+    "httponly": True,
+    "samesite": "lax",
+}
+
+
+def _set_access_cookie(resp: Response, access_token: object) -> None:
+    resp.set_cookie(
+        key="access_token",
+        value=str(access_token),
+        secure=config.ENV == Env.PROD,
+        domain=config.COOKIE_DOMAIN or None,
+        **_COOKIE_OPTS,
+    )
+
 
 @auth_router.get("/kakao/login", status_code=status.HTTP_200_OK)
 async def kakao_login_url(
@@ -26,17 +41,17 @@ async def kakao_callback(
 ) -> Response:
     tokens = await auth_service.kakao_login(code)
     resp = Response(
-        content={"access_token": str(tokens["access_token"]), "is_onboarded": tokens["is_onboarded"]},
+        content={"is_onboarded": tokens["is_onboarded"]},
         status_code=status.HTTP_200_OK,
     )
+    _set_access_cookie(resp, tokens["access_token"])
     resp.set_cookie(
         key="refresh_token",
         value=str(tokens["refresh_token"]),
-        httponly=True,
         secure=config.ENV == Env.PROD,
         domain=config.COOKIE_DOMAIN or None,
         expires=tokens["refresh_token"].payload["exp"],
-        samesite="lax",
+        **_COOKIE_OPTS,
     )
     return resp
 
@@ -49,7 +64,26 @@ async def token_refresh(
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token이 없습니다.")
     access_token = jwt_service.refresh_jwt(refresh_token)
-    return Response(
-        content={"access_token": str(access_token)},
-        status_code=status.HTTP_200_OK,
+    resp = Response(content={"ok": True}, status_code=status.HTTP_200_OK)
+    _set_access_cookie(resp, access_token)
+    return resp
+
+
+@auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout() -> Response:
+    resp = Response(status_code=status.HTTP_204_NO_CONTENT)
+    resp.delete_cookie(
+        "access_token",
+        httponly=True,
+        samesite="lax",
+        secure=config.ENV == Env.PROD,
+        domain=config.COOKIE_DOMAIN or None,
     )
+    resp.delete_cookie(
+        "refresh_token",
+        httponly=True,
+        samesite="lax",
+        secure=config.ENV == Env.PROD,
+        domain=config.COOKIE_DOMAIN or None,
+    )
+    return resp

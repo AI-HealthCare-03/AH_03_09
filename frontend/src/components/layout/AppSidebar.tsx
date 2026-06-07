@@ -3,16 +3,29 @@ import {
   FileTextIcon,
   HeartPulseIcon,
   HomeIcon,
+  LogOutIcon,
   MessageCircleIcon,
   PanelLeftIcon,
   PillIcon,
   ScanSearchIcon,
-  SettingsIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { logout } from "@/api/auth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -23,6 +36,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuthStore } from "@/store/authStore";
 
 const mainNav = [
   { to: "/home", label: "홈", icon: HomeIcon },
@@ -32,11 +46,35 @@ const mainNav = [
   { to: "/health-profile", label: "내 건강정보", icon: HeartPulseIcon },
   { to: "/pharmacy", label: "약국 재고", icon: PillIcon },
   { to: "/chat", label: "챗봇", icon: MessageCircleIcon },
-  { to: "/settings", label: "설정", icon: SettingsIcon },
 ];
 
 export default function AppSidebar() {
+  const navigate = useNavigate();
+  const clear = useAuthStore((s) => s.clear);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    clear();
+    navigate("/");
+  };
+
   return (
+    <>
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>로그아웃 하시겠어요?</AlertDialogTitle>
+          <AlertDialogDescription>
+            로그아웃 후 다시 카카오 로그인이 필요합니다.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction onClick={handleLogout}>로그아웃</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-2">
         <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1">
@@ -71,7 +109,22 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="px-2 pb-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="로그아웃"
+              onClick={() => setConfirmOpen(true)}
+              className="h-10 gap-3 rounded-lg px-3 text-sm font-medium text-slate-500 hover:text-destructive [&>svg]:size-5"
+            >
+              <LogOutIcon />
+              <span>로그아웃</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
+    </>
   );
 }
 

@@ -107,7 +107,7 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
 규칙:
 - medications: 약봉투, 처방전 모두 추출. 없으면 빈 배열. 처방전에 기재된 약품을 하나도 빠뜨리지 말 것.
 - edi_code: 9자리 숫자만 추출. "1,642105020"처럼 앞에 번호가 붙으면 뒤 9자리만 사용. "(64900.1871)"처럼 괄호 안에 있으면 점 제거 후 9자리 사용. 없으면 null.
-- disease_codes: ICD-10 형식 상병코드(예: J45.0, M75.3, H04.11)가 텍스트에 있으면 모두 추출. 없으면 빈 배열.
+- disease_codes: 처방전(PRESCRIPTION)에만 해당. ICD-10 형식 상병코드(예: J45.0, M75.3, H04.11)가 텍스트에 있으면 모두 추출. 없으면 빈 배열. 약봉투(DRUG_BAG)는 반드시 빈 배열 [].
 - disease_name: ICD-10 코드에 해당하는 한국어 질병명을 알고 있으면 채움. 모르면 null. 텍스트에 없어도 코드로 알 수 있으면 채워도 됨.
 - duration_days: 정수만. "30일" → 30. 없으면 null.
 - time_of_day: 문서에 '아침', '점심', '저녁' 등 시간대가 직접 명시된 경우에만 해당 배열 추출. '1일 3회', '하루 3번' 등 횟수만 있고 시간대 미명시 → null. frequency 값만으로 추론하지 말 것. 약봉투(DRUG_BAG)는 시간대가 거의 적히지 않으므로 null이 기본값.
@@ -119,23 +119,33 @@ _SYSTEM_PROMPT = """당신은 한국 의료 문서(처방전, 약봉투)에서 �
 - "※ 아침 식사 후 복용하십시오"처럼 ※로 시작하는 복용 지시문이 N번 반복될 경우, 문서에 등장한 약물 순서 기준으로 1번째 지시문 → 1번째 약물, 2번째 지시문 → 2번째 약물 순으로 timing을 매핑할 것."""
 
 
-async def parse_medications_and_diseases(raw_text: str, doc_type: str) -> dict:
+def _build_corrections_hint(corrections: list[dict]) -> str:
+    """이전 수정 이력을 GPT few-shot 힌트 문자열로 변환합니다."""
+    lines = ["[이전 수정 이력 — 동일 오류가 반복되지 않도록 참고하세요]"]
+    for c in corrections:
+        lines.append(f'- {c["field_name"]}: "{c["original_value"]}" → "{c["corrected_value"]}"')
+    return "\n".join(lines)
+
+
+async def parse_medications_and_diseases(raw_text: str, doc_type: str, corrections: list[dict] | None = None) -> dict:
     """OCR raw_text에서 약물 정보와 질병분류기호를 GPT로 추출합니다."""
     if not config.OPENAI_API_KEY:
         logger.warning("OPENAI_API_KEY 미설정 — OCR 파싱 건너뜀")
         return {"medications": [], "disease_codes": []}
 
     cleaned_text = _restore_icd10_periods(_collapse_spaced_icd10(_clean_ocr_text(raw_text)))
+    user_content = f"문서 유형: {doc_type}\n\n"
+    if corrections:
+        user_content += _build_corrections_hint(corrections) + "\n\n"
+    user_content += f"OCR 텍스트:\n{cleaned_text[:3000]}"
+
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = await client.chat.completions.create(
             model=config.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"문서 유형: {doc_type}\n\nOCR 텍스트:\n{cleaned_text[:3000]}",
-                },
+                {"role": "user", "content": user_content},
             ],
             response_format={"type": "json_object"},
             temperature=0,

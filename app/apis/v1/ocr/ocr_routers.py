@@ -22,7 +22,6 @@ from app.dtos.ocr.document_dtos import (
     OcrDocumentResponse,
     OcrDocumentUpdateRequest,
     OcrJobStatusResponse,
-    OcrPreviewResponse,
     OcrResultResponse,
     OcrUploadResponse,
     UploadedFileItem,
@@ -103,7 +102,7 @@ async def search_drugs(
 async def upload_documents(
     current_user: _AUTH,
     session: _SESSION,
-    files: Annotated[list[UploadFile], File(description="처방전·약봉투 파일 (최대 5개, JPEG·PNG·PDF)")],
+    files: Annotated[list[UploadFile], File(description="처방전·약봉투 파일 (1개, JPEG·PNG·PDF)")],
 ) -> OcrUploadResponse:
     """처방전·약봉투 파일을 S3에 업로드하고 OCR 처리 작업을 생성합니다. (REQ-OCR-002/003)"""
     validate_file_count(files)
@@ -148,31 +147,6 @@ async def upload_documents(
         )
 
     return OcrUploadResponse(uploaded_files=uploaded)
-
-
-@ocr_router.post("/preview", response_model=OcrPreviewResponse, status_code=status.HTTP_200_OK)
-async def preview_file(
-    current_user: _AUTH,  # noqa: ARG001
-    file: UploadFile,
-) -> OcrPreviewResponse:
-    """파일을 DB·S3 저장 없이 유효성만 검사합니다. (REQ-OCR-003)"""
-    try:
-        content = await validate_upload(file)
-        return OcrPreviewResponse(
-            filename=file.filename or "",
-            file_size=len(content),
-            mime_type=file.content_type or "",
-            is_valid=True,
-            message="업로드 가능한 파일입니다.",
-        )
-    except HTTPException as exc:
-        return OcrPreviewResponse(
-            filename=file.filename or "",
-            file_size=0,
-            mime_type=file.content_type or "",
-            is_valid=False,
-            message=str(exc.detail),
-        )
 
 
 # ── Job status ────────────────────────────────────────────────────────────────

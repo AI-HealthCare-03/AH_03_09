@@ -1,5 +1,4 @@
 import { request } from "@/lib/api";
-import { useAuthStore } from "@/store/authStore";
 import type {
   ChatMessageListResponse,
   ChatSessionResponse,
@@ -52,12 +51,10 @@ export const streamMessage = async (
   onError: (detail: string) => void,
   onDelay?: (detail: string) => void,
 ): Promise<void> => {
-  const token = useAuthStore.getState().accessToken;
   const res = await fetch(`/api/v1/chat/sessions/${sessionId}/messages/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: "include",
     body: JSON.stringify({ content, guide_id: guideId ?? null }),

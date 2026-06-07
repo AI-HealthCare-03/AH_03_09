@@ -5,6 +5,7 @@ import ChatWindow from "../components/ChatWindow";
 import ChatInput from "../components/ChatInput";
 import { fetchMessages, streamMessage } from "../api/chat";
 import { logout } from "../api/auth";
+import { useAuthStore } from "@/store/authStore";
 import type { ChatSessionResponse, ChatMessageResponse } from "@/types/api";
 
 const EMERGENCY_KEYWORDS = ["응급", "119", "심정지", "의식 없", "숨 못 쉬"];
@@ -78,6 +79,7 @@ export default function ChatPage() {
 
   const handleLogout = async () => {
     await logout();
+    useAuthStore.getState().clear();
     navigate("/");
   };
 

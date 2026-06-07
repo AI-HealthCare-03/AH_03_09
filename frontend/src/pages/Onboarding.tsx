@@ -19,6 +19,7 @@ type Step = "consent" | "health-profile";
 export default function Onboarding() {
   const navigate = useNavigate();
   const setMedicalProfile = useAuthStore((s) => s.setMedicalProfile);
+  const setIsOnboarded = useAuthStore((s) => s.setIsOnboarded);
 
   const [step, setStep] = useState<Step>("consent");
   const [termsChecked, setTermsChecked] = useState(false);
@@ -29,6 +30,7 @@ export default function Onboarding() {
 
   const finishOnboarding = async () => {
     await completeMutation.mutateAsync();
+    setIsOnboarded(true);
     navigate("/home", { replace: true });
   };
 
@@ -39,12 +41,12 @@ export default function Onboarding() {
     const hasBp = !!values.systolic && !!values.diastolic;
 
     await profileMutation.mutateAsync({
-      gender: values.gender,
-      birth_date: values.birthDate || undefined,
-      height_cm: Number(values.heightCm) || undefined,
-      weight_kg: Number(values.weightKg) || undefined,
-      blood_pressure_systolic: hasBp ? Number(values.systolic) : undefined,
-      blood_pressure_diastolic: hasBp ? Number(values.diastolic) : undefined,
+      gender: values.gender ?? null,
+      birth_date: values.birthDate || null,
+      height_cm: Number(values.heightCm) || null,
+      weight_kg: Number(values.weightKg) || null,
+      blood_pressure_systolic: hasBp ? Number(values.systolic) : null,
+      blood_pressure_diastolic: hasBp ? Number(values.diastolic) : null,
       primary_conditions: diagnoses,
       allergies: values.allergies,
       current_medications: values.currentMedications,

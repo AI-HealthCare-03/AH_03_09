@@ -3,6 +3,7 @@ import { AlertTriangleIcon, CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIco
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 import {
   type MedicationCreateBody,
   type MedicationUpdateBody,
@@ -32,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { DocType } from "@/types/api";
 
 const DOC_TYPE_LABEL: Record<DocType, string> = {
@@ -185,7 +187,13 @@ export default function UploadResult() {
   const reanalyzeMutation = useMutation({
     mutationFn: () => reanalyzeDocument(recordId),
     onSuccess: (data) => navigate(`/upload/processing/${data.job_id}`, { state: { recordId } }),
-    onError: () => toast.error("재추출에 실패했습니다. 다시 시도해주세요."),
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 429) {
+        toast.error("이 문서는 재추출 횟수(5회)를 모두 사용했습니다.");
+      } else {
+        toast.error("재추출에 실패했습니다. 다시 시도해주세요.");
+      }
+    },
   });
 
   const confirmMedMutation = useMutation({
@@ -403,13 +411,21 @@ export default function UploadResult() {
               <table className="w-full text-sm">
                 <thead className="border-b">
                   <tr>
-                    {["약물명", "EDI 코드", "성분명", "용량", "복약 횟수", "기간", ""].map((h) => (
+                    {[
+                      { label: "약물명", className: "w-45 max-w-45" },
+                      { label: "EDI 코드", className: "whitespace-nowrap" },
+                      { label: "성분명", className: "" },
+                      { label: "용량", className: "whitespace-nowrap" },
+                      { label: "복약 횟수", className: "whitespace-nowrap" },
+                      { label: "기간", className: "whitespace-nowrap" },
+                      { label: "", className: "" },
+                    ].map((h) => (
                       <th
-                        key={h}
+                        key={h.label}
                         scope="col"
-                        className="pb-2 text-left text-xs font-medium text-muted-foreground"
+                        className={`pb-2 text-left text-xs font-medium text-muted-foreground ${h.className}`}
                       >
-                        {h}
+                        {h.label}
                       </th>
                     ))}
                   </tr>
@@ -461,7 +477,15 @@ export default function UploadResult() {
                               </span>
                             </button>
                           </td>
-                          <td className="py-2.5 text-muted-foreground">{m.dosage ?? "-"}</td>
+                          <td className="py-1.5 pr-2">
+                            <input
+                              className="w-20 rounded border px-2 py-1 text-sm"
+                              value={editForm.dosage ?? ""}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, dosage: e.target.value || null }))
+                              }
+                            />
+                          </td>
                           <td className="py-1.5 pr-2">
                             <input
                               className="w-24 rounded border px-2 py-1 text-sm"
@@ -496,6 +520,7 @@ export default function UploadResult() {
                                     body: {
                                       medication_name: editForm.medication_name,
                                       generic_name: editForm.generic_name,
+                                      dosage: editForm.dosage,
                                       frequency: editForm.frequency,
                                       duration_days: editForm.duration_days,
                                       is_db_matched: editForm.is_db_matched,
@@ -521,19 +546,24 @@ export default function UploadResult() {
 
                     return (
                       <tr key={m.id} className="transition-colors hover:bg-muted/20">
-                        <td className="py-2.5 font-medium">
-                          <span className="flex items-center gap-1">
-                            {m.is_confirmed && (
-                              <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
-                            )}
-                            {m.is_db_matched === false && (
-                              <AlertTriangleIcon
-                                className="size-3.5 shrink-0 text-amber-500"
-                                aria-label="약물명 미확인 — 직접 확인 후 수정해 주세요"
-                              />
-                            )}
-                            {m.medication_name}
-                          </span>
+                        <td className="w-45 max-w-45 py-2.5 font-medium">
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <span className="flex min-w-0 items-center gap-1">
+                                {m.is_confirmed && (
+                                  <CheckCircle2Icon className="size-3.5 shrink-0 text-green-500" aria-label="확인됨" />
+                                )}
+                                {m.is_db_matched === false && (
+                                  <AlertTriangleIcon
+                                    className="size-3.5 shrink-0 text-amber-500"
+                                    aria-label="약물명 미확인 — 직접 확인 후 수정해 주세요"
+                                  />
+                                )}
+                                <span className="truncate">{m.medication_name}</span>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{m.medication_name}</TooltipContent>
+                          </Tooltip>
                         </td>
                         <td className="py-2.5 font-mono text-muted-foreground">
                           {m.edi_code ?? "-"}
@@ -555,6 +585,7 @@ export default function UploadResult() {
                                 setEditForm({
                                   medication_name: m.medication_name,
                                   generic_name: m.generic_name,
+                                  dosage: m.dosage,
                                   frequency: m.frequency,
                                   duration_days: m.duration_days,
                                 });

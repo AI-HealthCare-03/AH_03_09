@@ -85,34 +85,28 @@ class TestOcrUpload:
         assert "job_id" in data["uploaded_files"][0]
 
     def test_upload_multiple_files(self, client, mock_db, auth_headers):
-        """다중 파일 업로드 (최대 5개) → 202 (REQ-OCR-002)"""
-        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
-
-        with patch("app.apis.v1.ocr.ocr_routers.OcrDocumentService") as mock_svc:
-            mock_svc.return_value.repo.count_today_uploads = AsyncMock(return_value=0)
-            mock_svc.return_value.upload_document = AsyncMock(side_effect=[_mock_doc(i) for i in range(1, 4)])
-            response = client.post(
-                "/api/v1/ocr/upload",
-                headers=auth_headers,
-                files=[
-                    ("files", ("a.jpg", b"content-a", "image/jpeg")),
-                    ("files", ("b.png", b"content-b", "image/png")),
-                    ("files", ("c.pdf", b"content-c", "application/pdf")),
-                ],
-            )
-
-        assert response.status_code == 202
-        data = response.json()
-        assert len(data["uploaded_files"]) == 3
-
-    def test_upload_too_many_files(self, client, mock_db, auth_headers):
-        """6개 파일 업로드 시도 → 422 (REQ-OCR-002 최대 5개)"""
+        """2개 파일 업로드 시도 → 422 (1개 제한)"""
         mock_db.execute.return_value.fetchone.return_value = _USER_ROW
 
         response = client.post(
             "/api/v1/ocr/upload",
             headers=auth_headers,
-            files=[("files", (f"f{i}.jpg", b"x", "image/jpeg")) for i in range(6)],
+            files=[
+                ("files", ("a.jpg", b"content-a", "image/jpeg")),
+                ("files", ("b.png", b"content-b", "image/png")),
+            ],
+        )
+
+        assert response.status_code == 422
+
+    def test_upload_too_many_files(self, client, mock_db, auth_headers):
+        """2개 파일 업로드 시도 → 422 (1개 제한)"""
+        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
+
+        response = client.post(
+            "/api/v1/ocr/upload",
+            headers=auth_headers,
+            files=[("files", (f"f{i}.jpg", b"x", "image/jpeg")) for i in range(2)],
         )
 
         assert response.status_code == 422
@@ -232,37 +226,6 @@ class TestOcrUpload:
             )
 
         assert response.status_code == 409
-
-
-class TestOcrPreview:
-    def test_preview_valid_file(self, client, mock_db, auth_headers):
-        """유효한 파일 미리보기 → 200, is_valid=True (REQ-OCR-003)"""
-        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
-
-        response = client.post(
-            "/api/v1/ocr/preview",
-            headers=auth_headers,
-            files={"file": ("test.jpg", b"fake-jpeg-content", "image/jpeg")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["is_valid"] is True
-        assert data["filename"] == "test.jpg"
-
-    def test_preview_invalid_file(self, client, mock_db, auth_headers):
-        """유효하지 않은 파일 미리보기 → 200, is_valid=False (REQ-OCR-003)"""
-        mock_db.execute.return_value.fetchone.return_value = _USER_ROW
-
-        response = client.post(
-            "/api/v1/ocr/preview",
-            headers=auth_headers,
-            files={"file": ("test.txt", b"text content", "text/plain")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["is_valid"] is False
 
 
 class TestOcrRecordFile:

@@ -5,12 +5,13 @@ import { useChatStore } from "@/store/chatStore";
 
 import {
   getGuide,
-  getGuideContext,
+  getGuideFeedbackStatus,
   getGuideStatus,
   submitGuideFeedback,
-  type GuideContextResponse,
   type GuideResponse,
 } from "@/api/guides";
+import { MessageCircle } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -59,17 +60,13 @@ function StarRating({
 }
 
 export default function HealthGuide() {
-  const [contextLoading, setContextLoading] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const [status, setStatus] = useState("");
-  const [contextStatus, setContextStatus] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("");
 
   const [guide, setGuide] = useState<GuideResponse | null>(null);
-  const [guideContext, setGuideContext] =
-    useState<GuideContextResponse | null>(null);
   const [guideId, setGuideId] = useState("");
   const navigate = useNavigate();
   const setStoreGuideId = useChatStore((s) => s.setGuideId);
@@ -125,27 +122,18 @@ export default function HealthGuide() {
     };
   }, []); // initialJobIdRef는 마운트 시 한 번만 읽음
 
-  async function handleLoadContext() {
-    if (!guideId) {
-      setContextStatus("가이드 생성 후 컨텍스트를 조회할 수 있습니다.");
-      return;
-    }
-
-    try {
-      setContextLoading(true);
-      setContextStatus("가이드 컨텍스트 조회 중...");
-
-      const contextResult = await getGuideContext(guideId);
-
-      setGuideContext(contextResult);
-      setContextStatus("가이드 컨텍스트 조회 완료");
-    } catch (error) {
-      console.error(error);
-      setContextStatus("가이드 컨텍스트 조회 중 에러가 발생했습니다.");
-    } finally {
-      setContextLoading(false);
-    }
-  }
+  // guideId 설정 후 서버의 피드백 제출 여부를 동기화한다.
+  useEffect(() => {
+    if (!guideId) return;
+    (async () => {
+      try {
+        const result = await getGuideFeedbackStatus(guideId);
+        setFeedbackSubmitted(result.is_submitted);
+      } catch {
+        // 조회 실패 시 feedbackSubmitted = false 유지 (기존 동작)
+      }
+    })();
+  }, [guideId]);
 
   async function handleSubmitFeedback() {
     if (!guideId) {
@@ -188,21 +176,14 @@ export default function HealthGuide() {
             복약 정보를 바탕으로 맞춤 건강 가이드를 생성합니다.
           </p>
 
-          {guideId && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setStoreGuideId(guideId);
-                setCurrentSessionId(null);
-                navigate("/chat");
-              }}
-            >
-              챗봇에서 상담하기
-            </Button>
-          )}
-
           {status && <p className="text-sm text-muted-foreground">{status}</p>}
+
+          {guide && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+              본 가이드는 사용자가 업로드한 문서(처방전, 약봉투 등)를 바탕으로 AI가 생성한 참고용 안내입니다.
+              정확한 진단·치료 및 복약 방법은 담당 의료진의 안내를 우선적으로 따라주시기 바랍니다.
+            </div>
+          )}
 
           {guide?.medication_guide && (
             <div className="space-y-4">
@@ -373,77 +354,6 @@ export default function HealthGuide() {
     </CardContent>
   </Card>
 )}
-          {guideId && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">챗봇 연동용 가이드 컨텍스트</CardTitle>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleLoadContext}
-                  disabled={contextLoading}
-                >
-                  {contextLoading ? "조회 중..." : "컨텍스트 조회"}
-                </Button>
-
-                {contextStatus && (
-                  <p className="text-sm text-muted-foreground">{contextStatus}</p>
-                )}
-
-                {guideContext && (
-                  <div className="space-y-3 rounded-md border p-4 text-sm">
-
-
-                    <div>
-                      <p className="font-medium">약물</p>
-                      {guideContext.medications.length > 0 ? (
-                        <ul className="list-disc pl-5">
-                          {guideContext.medications.map((medication) => (
-                            <li key={medication}>{medication}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-muted-foreground">약물 정보가 없습니다.</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="font-medium">질병 코드</p>
-                      {guideContext.disease_codes.length > 0 ? (
-                        <ul className="list-disc pl-5">
-                          {guideContext.disease_codes.map((code) => (
-                            <li key={code}>{code}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-muted-foreground">
-                          질병 코드 정보가 없습니다.
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="font-medium">핵심 지침</p>
-                      {guideContext.key_instructions.length > 0 ? (
-                        <ul className="list-disc pl-5">
-                          {guideContext.key_instructions.map((instruction) => (
-                            <li key={instruction}>{instruction}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-muted-foreground">
-                          핵심 지침 정보가 없습니다.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
 {(guide?.lifestyle_guide?.tips?.length ?? 0) > 0 && (
   <Card>
     <CardHeader>
@@ -459,12 +369,12 @@ export default function HealthGuide() {
         ))}
       </ul>
       {guide?.diet_guide && (
-  <div className="mt-6">
-    <h3 className="mb-2 font-medium">식사 안내</h3>
+  <div className="mt-6 border-t border-gray-200 pt-4">
+    <h3 className="mb-3 text-base font-semibold text-gray-800">식사 안내</h3>
 
-    <div className="space-y-2 text-sm">
+    <div className="space-y-3 text-sm">
       <div>
-        <p className="font-medium">권장 음식</p>
+        <p className="mb-1 font-medium text-gray-700">권장 음식</p>
         <ul className="list-disc pl-5">
           {guide.diet_guide.recommended.map((item: string) => (
             <li key={item}>{item}</li>
@@ -473,7 +383,7 @@ export default function HealthGuide() {
       </div>
 
       <div>
-        <p className="font-medium">주의 음식</p>
+        <p className="mb-1 font-medium text-gray-700">주의 음식</p>
         <ul className="list-disc pl-5">
           {guide.diet_guide.forbidden.map((item: string) => (
             <li key={item}>{item}</li>
@@ -482,7 +392,7 @@ export default function HealthGuide() {
       </div>
 
       <div>
-        <p className="font-medium">수분 섭취</p>
+        <p className="mb-1 font-medium text-gray-700">수분 섭취</p>
         <p>{guide.diet_guide.hydration}</p>
       </div>
     </div>
@@ -490,27 +400,27 @@ export default function HealthGuide() {
 )}
 
 {guide?.exercise_guide && (
-  <div className="mt-6">
-    <h3 className="mb-2 font-medium">운동 안내</h3>
+  <div className="mt-6 border-t border-gray-200 pt-4">
+    <h3 className="mb-3 text-base font-semibold text-gray-800">운동 안내</h3>
 
     <div className="space-y-2 text-sm">
       <p>
-        <span className="font-medium">운동 강도:</span>{" "}
+        <span className="font-medium text-gray-700">운동 강도:</span>{" "}
         {guide.exercise_guide.intensity}
       </p>
 
       <p>
-        <span className="font-medium">운동 빈도:</span>{" "}
+        <span className="font-medium text-gray-700">운동 빈도:</span>{" "}
         {guide.exercise_guide.frequency}
       </p>
 
       <p>
-        <span className="font-medium">운동 시간:</span>{" "}
+        <span className="font-medium text-gray-700">운동 시간:</span>{" "}
         {guide.exercise_guide.duration}
       </p>
 
       <div>
-        <p className="font-medium">주의사항</p>
+        <p className="mb-1 font-medium text-gray-700">주의사항</p>
         <ul className="list-disc pl-5">
           {guide.exercise_guide.cautions.map((item: string) => (
             <li key={item}>{item}</li>
@@ -581,6 +491,28 @@ export default function HealthGuide() {
                 )}
               </CardContent>
             </Card>
+          )}
+          {guideId && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-5">
+              <p className="mb-1 text-sm font-medium text-blue-800">
+                가이드를 읽으신 후 더 궁금하신 점이 있으신가요?
+              </p>
+              <p className="mb-4 text-xs text-blue-700">
+                복약 방법, 질병코드, 생활관리 안내 등 추가 질문은 챗봇에서 상담하실 수 있습니다.
+              </p>
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setStoreGuideId(guideId);
+                  setCurrentSessionId(null);
+                  navigate("/chat");
+                }}
+              >
+                <MessageCircle className="mr-2 h-4 w-4" />
+                챗봇에서 상담하기
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
