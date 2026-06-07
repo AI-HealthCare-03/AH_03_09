@@ -26,9 +26,13 @@ export default function Chat() {
     feedbackGiven,
     feedbackError,
     setFeedbackError,
+    submitError,
+    setSubmitError,
+    retryCount,
     busy,
     streamMut,
     handleSubmit,
+    handleRetry,
     handleFeedback,
     handleLogout,
   } = useChat();
@@ -64,7 +68,29 @@ export default function Chat() {
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
             {currentSessionId && isLoading ? (
-              <p className="text-sm text-slate-500">불러오는 중…</p>
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-1 size-8 shrink-0 animate-pulse rounded-full bg-slate-200" />
+                  <div className="space-y-2 pt-1">
+                    <div className="h-3 w-48 animate-pulse rounded bg-slate-200" />
+                    <div className="h-3 w-64 animate-pulse rounded bg-slate-200" />
+                    <div className="h-3 w-40 animate-pulse rounded bg-slate-200" />
+                  </div>
+                </div>
+                <div className="flex flex-row-reverse items-start gap-2.5">
+                  <div className="mt-1 size-8 shrink-0 animate-pulse rounded-full bg-slate-200" />
+                  <div className="space-y-2 pt-1">
+                    <div className="h-3 w-32 animate-pulse rounded bg-slate-200" />
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-1 size-8 shrink-0 animate-pulse rounded-full bg-slate-200" />
+                  <div className="space-y-2 pt-1">
+                    <div className="h-3 w-56 animate-pulse rounded bg-slate-200" />
+                    <div className="h-3 w-44 animate-pulse rounded bg-slate-200" />
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="space-y-4">
                 {!optimisticUserMsg && !streamMut.isPending && !streamMut.streamingContent && (!currentSessionId || messages.length === 0) ? (
@@ -156,13 +182,25 @@ export default function Chat() {
                 {streamMut.error && (
                   <div className="flex items-center gap-3 rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">
                     <span>⚠️ {streamMut.error}</span>
-                    <button
-                      type="button"
-                      onClick={streamMut.retry}
-                      className="ml-auto shrink-0 rounded border border-red-300 px-2 py-1 text-xs hover:bg-red-100"
-                    >
-                      다시 시도
-                    </button>
+                    {retryCount >= 3 ? (
+                      <span className="ml-auto shrink-0 text-xs text-red-400">잠시 후 다시 시도해주세요.</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        disabled={streamMut.isPending}
+                        className="ml-auto shrink-0 rounded border border-red-300 px-2 py-1 text-xs hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        다시 시도 ({retryCount}/3)
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {submitError && (
+                  <div className="flex items-center justify-between rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">
+                    <span>⚠️ {submitError}</span>
+                    <button type="button" onClick={() => setSubmitError(null)} className="ml-4 shrink-0 text-red-400 hover:text-red-600">✕</button>
                   </div>
                 )}
               </div>

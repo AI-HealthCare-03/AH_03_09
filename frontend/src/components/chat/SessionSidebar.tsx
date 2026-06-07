@@ -24,6 +24,7 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
+    if (!window.confirm("이 대화를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.")) return;
     await deleteMut.mutateAsync(sessionId);
     if (currentSessionId === sessionId) {
       setCurrentSessionId(null);

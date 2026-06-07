@@ -74,7 +74,7 @@ export default function MessageBubble({ message, onFeedback, feedbackGiven }: Pr
         <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
 
         {!isUser && !isSafetyMessage && onFeedback && (
-          <div className="flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
             <button
               type="button"
               onClick={() => !feedbackGiven && onFeedback(message.id, "good")}
