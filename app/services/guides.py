@@ -1002,7 +1002,8 @@ async def _run_mock_worker(
             GuideGenerationResult(guide_type=gt, status=GuideGenerationStatus.DONE) for gt in guide_types
         ]
 
-        health_profile = await _fetch_health_profile_for_guide(_jobs[job_id].get("patient_id"))
+        job = await _get_job(job_id)
+        health_profile = await _fetch_health_profile_for_guide((job or {}).get("patient_id"))
 
         if GuideType.LIFESTYLE in guide_types:
             try:
