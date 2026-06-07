@@ -64,7 +64,13 @@ export const streamMessage = async (
   });
 
   if (!res.ok || !res.body) {
-    onError("서버 연결에 실패했습니다.");
+    const STATUS_MESSAGES: Record<number, string> = {
+      401: "로그인이 필요합니다.",
+      403: "접근 권한이 없습니다.",
+      429: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+      500: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+    };
+    onError(STATUS_MESSAGES[res.status] ?? `서버 연결에 실패했습니다. (${res.status})`);
     return;
   }
 
@@ -97,8 +103,8 @@ export const streamMessage = async (
         } else if (data.type === "delay") {
           onDelay?.(data.detail);
         }
-      } catch {
-        // ignore malformed lines
+      } catch (e) {
+        console.warn("[stream] JSON 파싱 실패:", line, e);
       }
     }
   }
