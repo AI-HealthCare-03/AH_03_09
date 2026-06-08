@@ -3,7 +3,6 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import ChatLayout from "@/components/layout/ChatLayout";
 import Chat from "@/pages/chatbot/Chat";
-import ChatPage from "@/pages/ChatPage";
 import GuideDemo from "@/pages/GuideDemo";
 import HealthGuide from "@/pages/HealthGuide";
 import HealthProfile from "@/pages/HealthProfile";
@@ -53,7 +52,6 @@ export const router = createBrowserRouter([
         children: [
           { path: "/chat", element: <Chat /> },
           { path: "/chat/:sessionId", element: <Chat /> },
-          { path: "/chat-v2", element: <ChatPage /> },
         ],
       },
     ],

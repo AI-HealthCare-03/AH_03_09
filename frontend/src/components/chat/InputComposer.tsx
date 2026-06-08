@@ -24,7 +24,7 @@ export default function InputComposer({ onSubmit, disabled }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="sticky bottom-0 border-t border-slate-200 bg-white p-4"
+      className="shrink-0 border-t border-slate-200 bg-white p-4"
       style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
     >
       <div className="flex gap-2">
@@ -40,7 +40,7 @@ export default function InputComposer({ onSubmit, disabled }: Props) {
             }
           }}
           placeholder={disabled ? "AI가 답변 중입니다…" : "메시지를 입력하세요…"}
-          rows={2}
+          rows={1}
           className="flex-1 resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
         />
         <button
