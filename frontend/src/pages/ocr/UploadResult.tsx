@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangleIcon, CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, InfoIcon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import {
   fetchDocument,
   fetchDocumentFile,
   fetchOcrResult,
+  patchDocument,
   reanalyzeDocument,
   searchDrugs,
   unconfirmDiseaseCodes,
@@ -42,11 +43,8 @@ const DOC_TYPE_LABEL: Record<DocType, string> = {
   OTHER: "기타",
 };
 
-const DOC_TYPE_VARIANT: Record<DocType, "default" | "secondary" | "outline"> = {
-  PRESCRIPTION: "default",
-  DRUG_BAG: "secondary",
-  OTHER: "outline",
-};
+
+const ALL_DOC_TYPES: DocType[] = ["PRESCRIPTION", "DRUG_BAG", "OTHER"];
 
 function ConfidenceBadge({ score }: { score: number | null }) {
   if (score === null) return null;
@@ -177,6 +175,15 @@ export default function UploadResult() {
     addMedMutation.mutate(addForm);
   };
 
+  const patchDocTypeMutation = useMutation({
+    mutationFn: (docType: DocType) => patchDocument(recordId, { doc_type: docType }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      toast.success("문서 유형이 변경되었습니다.");
+    },
+    onError: () => toast.error("문서 유형 변경에 실패했습니다."),
+  });
+
   const confirmMutation = useMutation({
     mutationFn: (jobId: string) =>
       confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
@@ -288,7 +295,6 @@ export default function UploadResult() {
               size="sm"
               onClick={() => confirmMutation.mutate(doc.job_id)}
               disabled={confirmMutation.isPending || !allMedsConfirmed}
-              title={!allMedsConfirmed ? "약물 목록을 먼저 전체 확인해주세요" : undefined}
             >
               {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
             </Button>
@@ -296,14 +302,39 @@ export default function UploadResult() {
         </div>
       </div>
 
+      {/* 가이드 생성 안내 */}
+      {doc?.job_id && !allMedsConfirmed && (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <InfoIcon className="size-4 shrink-0 text-blue-500" />
+          <span>
+            약물 목록을 검토한 후 <strong>전체 확인</strong> 버튼을 누르고,{" "}
+            <strong>복약 가이드 생성</strong> 버튼을 누르면 복약 및 생활 가이드를 받아볼 수 있어요.
+          </span>
+        </div>
+      )}
+
       {/* Document info */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">문서 정보</CardTitle>
-            {doc.doc_type && (
-              <Badge variant={DOC_TYPE_VARIANT[doc.doc_type]}>{DOC_TYPE_LABEL[doc.doc_type]}</Badge>
-            )}
+            <div className="flex gap-1">
+              {ALL_DOC_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  disabled={patchDocTypeMutation.isPending}
+                  onClick={() => { if (type !== doc.doc_type) patchDocTypeMutation.mutate(type); }}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    doc.doc_type === type
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted-foreground/20 text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {DOC_TYPE_LABEL[type]}
+                </button>
+              ))}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

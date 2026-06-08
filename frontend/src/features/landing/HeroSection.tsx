@@ -1,6 +1,6 @@
+import { motion, type Variants } from "framer-motion";
 import {
-  ActivityIcon,
-  ArrowRightIcon,
+  BookOpenIcon,
   FileTextIcon,
   MessageCircleHeartIcon,
   PillIcon,
@@ -8,7 +8,17 @@ import {
   SparklesIcon,
   UploadCloudIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { KakaoLoginButton } from "@/features/auth/KakaoLoginButton";
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 28 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.65, ease: "easeOut", delay: 0.15 + i * 0.15 },
+  }),
+};
 
 export function HeroSection() {
   return (
@@ -18,39 +28,74 @@ export function HeroSection() {
         <Nav />
 
         <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:py-14">
+          {/* 히어로 텍스트 */}
           <div className="flex flex-col gap-6 text-center lg:text-left">
-            <span className="inline-flex w-fit items-center gap-2 self-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary lg:self-start">
-              <SparklesIcon className="size-3.5" />
-              의료 AI 어시스턴트 · Medi-Mate
-            </span>
-            <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.5rem]">
-              복잡한 의료 문서,
-              <br />
-              <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                AI가 한 번에
-              </span>{" "}
-              정리합니다.
-            </h1>
-            <p className="max-w-xl self-center text-base leading-relaxed text-muted-foreground sm:text-lg lg:self-start">
-              처방전·진단서·건강검진 결과지를 올리면 AI가 자동으로 분류·요약하고, 궁금한 점은 챗봇이
-              답해드려요. 카카오 계정으로 3초만에 시작하세요.
-            </p>
-
-            <div className="flex w-full max-w-sm flex-col gap-3 self-center lg:self-start">
-              <KakaoLoginButton label="카카오로 시작하기" size="lg" />
-              <p className="text-xs text-muted-foreground">
-                별도 가입 없이 카카오 계정 정보로 즉시 시작합니다.
-              </p>
-            </div>
-
-            <ul className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground lg:justify-start">
-              {["OCR 자동 분석", "24시간 AI 챗봇", "개인정보 암호화", "무료로 시작"].map((item) => (
-                <li key={item} className="flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-primary" />
-                  {item}
-                </li>
-              ))}
-            </ul>
+            {[
+              <motion.span
+                key="badge"
+                custom={0}
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                className="inline-flex w-fit items-center gap-2 self-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary lg:self-start"
+              >
+                <SparklesIcon className="size-3.5" />
+                의료 AI 어시스턴트 · Medi-Mate
+              </motion.span>,
+              <motion.h1
+                key="title"
+                custom={1}
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.5rem]"
+              >
+                처방전·약봉투를 찍으면,
+                <br />
+                <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  AI가 다 알아서
+                </span>
+              </motion.h1>,
+              <motion.p
+                key="desc"
+                custom={2}
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                className="max-w-xl self-center text-base leading-relaxed text-muted-foreground sm:text-lg lg:self-start"
+              >
+                처방받은 약이 어떤 약인지 몰라도 괜찮아요. AI가 약물 정보를 한눈에 정리하고,
+                맞춤 복약 및 생활 가이드와 AI 챗봇으로 건강을 도와드려요.
+              </motion.p>,
+              <motion.div
+                key="cta"
+                custom={3}
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                className="flex w-full max-w-sm flex-col gap-3 self-center lg:self-start"
+              >
+                <KakaoLoginButton label="카카오로 시작하기" size="lg" />
+                <p className="text-xs text-muted-foreground">
+                  별도 가입 없이 카카오 계정 정보로 즉시 시작합니다.
+                </p>
+              </motion.div>,
+              <motion.ul
+                key="bullets"
+                custom={4}
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground lg:justify-start"
+              >
+                {["OCR 자동 분석", "맞춤형 복약 가이드", "AI 건강 챗봇", "무료로 시작"].map((item) => (
+                  <li key={item} className="flex items-center gap-1.5">
+                    <span className="size-1.5 rounded-full bg-primary" />
+                    {item}
+                  </li>
+                ))}
+              </motion.ul>,
+            ]}
           </div>
 
           <BentoPreview />
@@ -69,7 +114,12 @@ export function HeroSection() {
 
 function Nav() {
   return (
-    <header className="flex items-center justify-between">
+    <motion.header
+      className="flex items-center justify-between"
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+    >
       <span className="flex items-center gap-2 text-base font-semibold tracking-tight sm:text-lg">
         <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
           M
@@ -82,7 +132,7 @@ function Nav() {
       >
         로그인
       </a>
-    </header>
+    </motion.header>
   );
 }
 
@@ -90,92 +140,163 @@ function BentoPreview() {
   return (
     <div className="relative hidden lg:block">
       <div className="grid grid-cols-6 grid-rows-5 gap-3">
-        {/* 큰 카드: 업로드 mock */}
-        <div className="col-span-4 row-span-3 rounded-2xl border bg-card p-5 shadow-sm">
+
+        {/* 큰 카드: 업로드 */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.4, ease: "easeOut" }}
+          className="col-span-4 row-span-3 rounded-2xl border bg-card p-5 shadow-sm"
+        >
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <UploadCloudIcon className="size-3.5 text-primary" />
             문서 업로드
           </div>
           <div className="mt-3 grid gap-2.5">
-            <MockFile name="처방전.pdf" status="분석 완료" tone="success" />
-            <MockFile name="혈액검사.png" status="요약 중" tone="warning" />
-            <MockFile name="진단서.pdf" status="대기 중" tone="muted" />
+            <MockFile name="처방전.pdf" status="완료" tone="success" />
+            <MockFile name="약봉투.jpg" status="처리 중" tone="warning" />
           </div>
-          <div className="mt-4 rounded-lg bg-primary/8 p-3">
-            <p className="text-[11px] font-medium text-primary">AI 요약</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-foreground/80">
-              총 3건의 의료 문서가 분석되었어요. 가장 최근 처방은 5/18 내과 진료입니다.
-            </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">처방전</span>
+            <span className="rounded-full bg-success/10 px-2.5 py-1 text-[10px] font-medium text-success">신뢰도 94%</span>
+            <span className="text-[10px] text-muted-foreground">약물 3종 추출</span>
           </div>
-        </div>
+        </motion.div>
 
-        {/* 중간 카드: 혈압 */}
-        <div className="col-span-2 row-span-2 rounded-2xl border bg-card p-4 shadow-sm">
+        {/* 복약 가이드 */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.52, ease: "easeOut" }}
+          className="col-span-2 row-span-2 rounded-2xl border bg-card p-4 shadow-sm"
+        >
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <ActivityIcon className="size-3 text-success" />
-            혈압
+            <BookOpenIcon className="size-3 text-primary" />
+            복약 가이드
           </div>
-          <div className="mt-2 text-xl font-semibold tabular-nums">
-            118<span className="text-base font-normal text-muted-foreground">/76</span>
+          <div className="mt-2 space-y-1.5">
+            <div className="rounded-lg bg-primary/8 px-2.5 py-1.5">
+              <p className="text-[11px] font-semibold text-primary">💊 복약</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-foreground/80">하루 1회 식후 복용</p>
+            </div>
+            <div className="rounded-lg bg-success/8 px-2.5 py-1.5">
+              <p className="text-[11px] font-semibold text-success">🏃 생활</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-foreground/80">규칙적 운동 권장</p>
+            </div>
           </div>
-          <div className="mt-3 flex items-end gap-1 h-10">
-            {[
-              { day: "월", h: 40 },
-              { day: "화", h: 65 },
-              { day: "수", h: 55 },
-              { day: "목", h: 80 },
-              { day: "금", h: 70 },
-              { day: "토", h: 90 },
-              { day: "일", h: 60 },
-            ].map(({ day, h }) => (
-              <div
-                key={day}
-                className="flex-1 rounded-sm bg-primary/30"
-                style={{ height: `${h}%` }}
-              />
-            ))}
-          </div>
-        </div>
+        </motion.div>
 
-        {/* 중간 카드: 복약 */}
-        <div className="col-span-2 row-span-3 rounded-2xl border bg-card p-4 shadow-sm">
+        {/* 약물 목록 */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.6, ease: "easeOut" }}
+          className="col-span-2 row-span-3 rounded-2xl border bg-card p-4 shadow-sm"
+        >
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <PillIcon className="size-3 text-warning" />
-            오늘의 복약
+            약물 목록
           </div>
-          <div className="mt-3 space-y-2.5">
+          <div className="mt-3 space-y-2">
             {[
-              { name: "타이레놀", time: "08:00", done: true },
-              { name: "오메가-3", time: "09:00", done: true },
-              { name: "비타민D", time: "20:00", done: false },
-            ].map((m) => (
-              <div key={m.name} className="flex items-center gap-2">
-                <span className={`size-2 rounded-full ${m.done ? "bg-success" : "bg-border"}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium">{m.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{m.time}</p>
-                </div>
+              { name: "암로디핀정 5mg", detail: "1일 1회 · 식후 30분" },
+              { name: "메트포르민 500mg", detail: "1일 2회 · 식후" },
+              { name: "아스피린 100mg", detail: "1일 1회 · 아침" },
+            ].map(({ name, detail }) => (
+              <div key={name} className="rounded-lg border bg-background/50 px-2.5 py-2">
+                <p className="truncate text-xs font-medium">{name}</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">{detail}</p>
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
-        {/* 큰 카드: 챗봇 mock */}
-        <div className="col-span-4 row-span-2 rounded-2xl border bg-card p-4 shadow-sm">
+        {/* AI 챗봇 */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.68, ease: "easeOut" }}
+          className="col-span-4 row-span-2 rounded-2xl border bg-card p-4 shadow-sm"
+        >
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <MessageCircleHeartIcon className="size-3 text-primary" />
             AI 챗봇
           </div>
-          <div className="mt-2.5 space-y-1.5">
-            <div className="max-w-[80%] rounded-lg rounded-bl-sm bg-muted px-3 py-1.5 text-xs">
-              처방받은 약 부작용이 뭔가요?
-            </div>
-            <div className="ml-auto max-w-[85%] rounded-lg rounded-br-sm bg-primary px-3 py-1.5 text-xs text-primary-foreground">
-              타이레놀(아세트아미노펜)은 일반적으로 안전하나 과량 복용 시 간 손상…
-            </div>
-          </div>
-        </div>
+          <ChatMock />
+        </motion.div>
       </div>
+    </div>
+  );
+}
+
+const USER_MSG = "이 약은 언제 먹어야 하나요?";
+const AI_MSG = "암로디핀은 하루 1회 식후에 복용하세요. 규칙적으로 복용하는 것이 중요해요.";
+
+type ChatPhase = "typing-user" | "loading" | "typing-ai" | "pause";
+
+function ChatMock() {
+  const [phase, setPhase] = useState<ChatPhase>("typing-user");
+  const [userText, setUserText] = useState("");
+  const [aiText, setAiText] = useState("");
+
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+
+    if (phase === "typing-user") {
+      if (userText.length < USER_MSG.length) {
+        t = setTimeout(() => setUserText(USER_MSG.slice(0, userText.length + 1)), 55);
+      } else {
+        t = setTimeout(() => setPhase("loading"), 500);
+      }
+    } else if (phase === "loading") {
+      t = setTimeout(() => setPhase("typing-ai"), 1400);
+    } else if (phase === "typing-ai") {
+      if (aiText.length < AI_MSG.length) {
+        t = setTimeout(() => setAiText(AI_MSG.slice(0, aiText.length + 1)), 28);
+      } else {
+        t = setTimeout(() => setPhase("pause"), 3000);
+      }
+    } else if (phase === "pause") {
+      t = setTimeout(() => {
+        setUserText("");
+        setAiText("");
+        setPhase("typing-user");
+      }, 800);
+    }
+
+    return () => clearTimeout(t);
+  }, [phase, userText, aiText]);
+
+  return (
+    <div className="mt-2.5 min-h-13 space-y-1.5">
+      {userText && (
+        <div className="ml-auto max-w-[80%] rounded-lg rounded-br-sm bg-primary px-3 py-1.5 text-xs text-primary-foreground">
+          {userText}
+          {phase === "typing-user" && <span className="ml-px animate-pulse">|</span>}
+        </div>
+      )}
+      {phase === "loading" && <LoadingDots />}
+      {aiText && (
+        <div className="max-w-[85%] rounded-lg rounded-bl-sm bg-muted px-3 py-1.5 text-xs">
+          {aiText}
+          {phase === "typing-ai" && <span className="ml-px animate-pulse">|</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadingDots() {
+  return (
+    <div className="flex max-w-15 items-center gap-1 rounded-lg rounded-bl-sm bg-muted px-3 py-2">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="size-1.5 rounded-full bg-muted-foreground/50"
+          animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+          transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+        />
+      ))}
     </div>
   );
 }
@@ -201,7 +322,14 @@ function MockFile({
         <FileTextIcon className="size-4" />
       </span>
       <span className="flex-1 truncate text-xs font-medium">{name}</span>
-      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${toneClass}`}>
+      <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${toneClass}`}>
+        {tone === "warning" && (
+          <motion.span
+            className="size-1 rounded-full bg-warning"
+            animate={{ opacity: [1, 0.2, 1] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+          />
+        )}
         {status}
       </span>
     </div>
@@ -211,8 +339,8 @@ function MockFile({
 const FEATURES = [
   {
     icon: FileTextIcon,
-    title: "의료 문서 자동 정리",
-    description: "처방전·진단서·검진 결과를 업로드하면 AI가 분류·요약·구조화합니다.",
+    title: "처방전·약봉투 자동 분석",
+    description: "처방전·약봉투를 업로드하면 AI가 약물 정보를 자동으로 추출하고 구조화합니다.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
@@ -220,7 +348,7 @@ const FEATURES = [
   {
     icon: MessageCircleHeartIcon,
     title: "AI 건강 챗봇",
-    description: "약 복용, 검사 수치, 증상까지 한국어로 자연스럽게.",
+    description: "약 복용, 부작용, 건강 궁금증을 한국어로 자연스럽게 물어보세요.",
     accent: "from-success/15 to-success/0",
     iconBg: "bg-success/10 text-success",
     span: "",
@@ -234,9 +362,9 @@ const FEATURES = [
     span: "",
   },
   {
-    icon: ArrowRightIcon,
-    title: "복용·검사 일정 관리",
-    description: "분석된 처방 정보로 복약 시간과 다음 진료를 알려드려요.",
+    icon: BookOpenIcon,
+    title: "맞춤형 복약 가이드",
+    description: "처방 내용과 건강정보를 바탕으로 복약·생활·식사·운동 가이드를 제공해요.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
@@ -246,10 +374,14 @@ const FEATURES = [
 function FeatureBento() {
   return (
     <section aria-label="주요 기능" className="grid gap-3 sm:grid-cols-3">
-      {FEATURES.map(({ icon: Icon, title, description, accent, iconBg, span }) => (
-        <article
+      {FEATURES.map(({ icon: Icon, title, description, accent, iconBg, span }, i) => (
+        <motion.article
           key={title}
-          className={`group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm transition hover:shadow-md ${span}`}
+          initial={{ opacity: 0, y: 28 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: i * 0.1, ease: "easeOut" }}
+          className={`group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm transition-transform duration-150 hover:-translate-y-1.5 hover:shadow-md ${span}`}
         >
           <div
             className={`pointer-events-none absolute inset-0 -z-10 bg-linear-to-br ${accent} opacity-70`}
@@ -259,7 +391,7 @@ function FeatureBento() {
           </span>
           <h2 className="mt-4 text-base font-semibold">{title}</h2>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
-        </article>
+        </motion.article>
       ))}
     </section>
   );
@@ -268,9 +400,21 @@ function FeatureBento() {
 function BackgroundDecoration() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      <div className="absolute -top-40 -left-40 size-128 rounded-full bg-primary/10 blur-3xl" />
-      <div className="absolute top-1/3 -right-32 size-112 rounded-full bg-success/8 blur-3xl" />
-      <div className="absolute -bottom-32 left-1/3 size-96 rounded-full bg-primary/5 blur-3xl" />
+      <motion.div
+        className="absolute -top-40 -left-40 h-150 w-150 rounded-full bg-primary/20 blur-3xl"
+        animate={{ x: [0, 24, 0], y: [0, -20, 0] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute top-1/3 -right-32 h-130 w-130 rounded-full bg-success/12 blur-3xl"
+        animate={{ x: [0, -18, 0], y: [0, 28, 0] }}
+        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+      />
+      <motion.div
+        className="absolute -bottom-32 left-1/3 h-110 w-110 rounded-full bg-primary/12 blur-3xl"
+        animate={{ x: [0, 14, 0], y: [0, -18, 0] }}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 4 }}
+      />
     </div>
   );
 }

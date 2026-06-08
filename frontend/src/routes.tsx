@@ -12,12 +12,11 @@ import KakaoCallback from "@/pages/KakaoCallback";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Onboarding from "@/pages/Onboarding";
-import MyDocuments from "@/pages/MyDocuments";
+import MyDocuments from "@/pages/ocr/MyDocuments";
 import NotFound from "@/pages/NotFound";
 import Upload from "@/pages/ocr/Upload";
 import UploadProcessing from "@/pages/ocr/UploadProcessing";
 import UploadResult from "@/pages/ocr/UploadResult";
-import UploadReview from "@/pages/ocr/UploadReview";
 import Pharmacy from "@/pages/Pharmacy";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
@@ -37,7 +36,6 @@ export const router = createBrowserRouter([
           { path: "/home", element: <Home /> },
           { path: "/upload", element: <Upload /> },
           { path: "/upload/processing/:jobId", element: <UploadProcessing /> },
-          { path: "/upload/review/:jobId", element: <UploadReview /> },
           { path: "/upload/result/:recordId", element: <UploadResult /> },
           { path: "/documents", element: <MyDocuments /> },
           { path: "/health-guide", element: <HealthGuide /> },
