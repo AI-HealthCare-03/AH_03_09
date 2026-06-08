@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangleIcon, CheckCircle2Icon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, InfoIcon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -288,13 +288,23 @@ export default function UploadResult() {
               size="sm"
               onClick={() => confirmMutation.mutate(doc.job_id)}
               disabled={confirmMutation.isPending || !allMedsConfirmed}
-              title={!allMedsConfirmed ? "약물 목록을 먼저 전체 확인해주세요" : undefined}
             >
               {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
             </Button>
           )}
         </div>
       </div>
+
+      {/* 가이드 생성 안내 */}
+      {doc?.job_id && !allMedsConfirmed && (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <InfoIcon className="size-4 shrink-0 text-blue-500" />
+          <span>
+            약물 목록을 확인한 후 <strong>전체 확인</strong> 버튼을 눌러 최종 확인하고,{" "}
+            <strong>복약 가이드 생성</strong> 버튼을 누르면 복약 및 생활 가이드를 받아볼 수 있어요.
+          </span>
+        </div>
+      )}
 
       {/* Document info */}
       <Card>
