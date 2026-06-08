@@ -25,6 +25,8 @@ htmlcov/
 기획문서/
 node_modules/
 frontend/dist/
+docker-compose.override.yml
+frontend/.env.local
 docs/progress.md
 docs/ocr/progress.md
 app/data/*.csv

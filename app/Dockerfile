@@ -2,14 +2,9 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    python3-dev \
-    libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# 1. uv 설치
-RUN pip install uv --no-cache-dir
+# 1. uv 바이너리 직접 복사 (네트워크 없이 설치)
+COPY ai_worker/uv /usr/local/bin/uv
+RUN chmod +x /usr/local/bin/uv
 
 # 2. 의존성 패키지 관리 파일을 컨테이너 내부에 복사합니다.
 COPY pyproject.toml uv.lock ./

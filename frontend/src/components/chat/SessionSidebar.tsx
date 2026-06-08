@@ -32,7 +32,7 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
   };
 
   return (
-    <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
+    <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white md:flex">
       <div className="border-b border-slate-200 p-4">
         <button
           type="button"

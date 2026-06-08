@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, BotIcon } from "lucide-react";
+import { ArrowLeftIcon, BotIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import Markdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import MessageBubble from "@/components/chat/MessageBubble";
 import SessionSidebar from "@/components/chat/SessionSidebar";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/hooks/useChat";
+import { useChatStore } from "@/store/chatStore";
 
 const SUGGESTED_QUESTIONS = [
   "이 약의 부작용이 있나요?",
@@ -17,6 +18,7 @@ const SUGGESTED_QUESTIONS = [
 
 export default function Chat() {
   const navigate = useNavigate();
+  const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
   const {
     messages,
     isLoading,
@@ -63,6 +65,17 @@ export default function Chat() {
             >
               <ArrowLeftIcon className="size-4" />
               홈으로
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setCurrentSessionId(null)}
+              aria-label="새 대화"
+              className="md:hidden ml-auto"
+            >
+              <PlusIcon className="size-4" />
+              새 대화
             </Button>
           </header>
 

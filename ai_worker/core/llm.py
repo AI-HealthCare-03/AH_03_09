@@ -61,7 +61,13 @@ _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
 - 모든 답변은 한국어로, 친근하고 이해하기 쉽게 작성합니다.
 - 핵심 정보를 먼저 전달하고 세부 내용을 이어서 설명합니다.
 - 의학적 진단이나 처방은 제공할 수 없으며, 심각한 증상에는 즉시 전문의 상담을 권합니다.
-- 불확실한 정보는 반드시 명시하고, 필요시 의사·약사 확인을 권장합니다.""",
+- 불확실한 정보는 반드시 명시하고, 필요시 의사·약사 확인을 권장합니다.
+
+질병 정보 답변 규칙:
+- 건강 프로필의 질환 정보는 "사용자께서 입력하신 건강정보에 따르면"으로 출처를 명시합니다.
+- 처방전의 질병코드는 "처방전에서 인식된 참고 코드"임을 명시하고, 확정 진단처럼 표현하지 않습니다.
+- 약물명만으로 특정 질환을 단정적으로 추정하지 않습니다.
+- "귀하의 질병은 X입니다"처럼 확정 진단 형태의 표현은 절대 사용하지 않습니다.""",
 }
 
 # TODO: 식약처 공식 약품명 매핑 — ILIKE 퍼지 매칭 대신 EDI 코드 기반 표준 약품명으로 스킬 정확도 향상
@@ -174,8 +180,16 @@ def _build_guide_section(guide_context: dict) -> str:
         lines.append("- 주요 지시사항:\n" + "\n".join(instruction_lines))
 
     disease_codes = guide_context.get("disease_codes") or []
+    disease_names = guide_context.get("disease_names") or []
     if disease_codes:
-        lines.append(f"- OCR/가이드에서 인식된 질병코드(참고): {', '.join(disease_codes)}")
+        if disease_names:
+            pairs = [f"{c}({n})" if n else c for c, n in zip(disease_codes, disease_names, strict=False)]
+        else:
+            pairs = disease_codes
+        lines.append(
+            f"- 처방전에서 인식된 질병코드(참고): {', '.join(pairs)}\n"
+            "  ※ 이 코드는 의료문서에 기재된 분류 참고정보이며 확정 진단이 아닙니다."
+        )
 
     if not lines:
         return ""
@@ -239,7 +253,29 @@ def _build_profile_section(health_profile: dict) -> str:
 
     if not lines:
         return ""
-    return "\n\n[사용자 건강 프로필 — 답변 시 반드시 반영하세요]\n" + "\n".join(lines)
+    return (
+        "\n\n[사용자가 직접 입력한 건강정보 — 답변 시 반드시 반영하되, 출처를 '사용자께서 입력하신 건강정보에 따르면'으로 명시하세요]\n"
+        + "\n".join(lines)
+    )
+
+
+_SOURCE_RULES = """
+
+[출처 구분 및 진단 표현 규칙 — 모든 답변에 적용]
+사용자가 자신의 질병이나 건강 상태를 물어볼 때 반드시 아래 형식으로 출처를 구분하여 답변하세요.
+
+1. 건강 프로필(사용자 직접 입력) 정보가 있을 때:
+   → "귀하께서 입력하신 건강정보에는 [질환명] 정보가 포함되어 있습니다."
+
+2. 처방전/복약정보(OCR 인식) 정보가 있을 때:
+   → "올려주신 처방전/복약정보에서 인식된 질병코드는 [코드(병명)] 입니다. 이 코드는 의료문서에 기재된 분류 참고정보이며, 정확한 진단 및 치료 계획은 담당 의료진의 설명을 참고하시기 바랍니다."
+
+3. 두 정보가 모두 있을 때: 위 두 문장을 순서대로 모두 안내합니다.
+
+절대 하지 말아야 할 표현:
+- "귀하의 질병은 X입니다" 형태의 확정 진단
+- 약물명만으로 특정 질환을 단정 추정하는 표현
+- 출처를 구분하지 않고 모든 정보를 하나의 사실처럼 제시하는 표현"""
 
 
 def _build_system_prompt(
@@ -252,6 +288,7 @@ def _build_system_prompt(
         result += _build_profile_section(health_profile)
     if guide_context:
         result += _build_guide_section(guide_context)
+    result += _SOURCE_RULES
     return result
 
 
