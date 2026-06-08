@@ -4,14 +4,14 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph UPLOAD["① 파일 업로드 (/upload)"]
         direction TB
-        U1["파일 선택\n(드래그 앤 드롭 또는 버튼 클릭)"]
+        U1["파일 선택\n(드래그 앤 드롭 또는 버튼 클릭)\n1개 파일만 업로드 가능"]
         U1 --> U2{"클라이언트 사전 검사\n(MIME 타입·확장자·크기)"}
         U2 -->|"JPEG·PNG·PDF 아닌 형식"| UE1["❌ 형식 오류 토스트\n업로드 버튼 비활성"]
         U2 -->|"10MB 초과"| UE2["❌ 용량 초과 토스트\n업로드 버튼 비활성"]
         U2 -->|"통과"| U3["업로드 버튼 활성화"]
-        U3 --> U4["POST /ocr/upload 요청"]
+        U3 --> U4["POST /ocr/upload 요청\n(1개 파일)"]
         U4 --> U5{"서버 응답"}
-        U5 -->|"422\n형식·크기 서버 재검증 실패"| UE3["❌ 서버 측 형식 오류 안내"]
+        U5 -->|"422\n형식·크기 서버 재검증 실패\n또는 2개 이상 파일"| UE3["❌ 서버 측 형식 오류 안내"]
         U5 -->|"409\n동일 파일 SHA-256 중복"| UE4["❌ 중복 파일 안내\n'기존 문서 보기' 버튼 → /upload/result/:id"]
         U5 -->|"429\n일일 업로드 한도 초과"| UE5["❌ '오늘 업로드 한도에 도달했습니다'\n(일일 최대 20건)"]
         U5 -->|"202 성공\njob_id 수신"| U6["→ /upload/processing/:jobId 자동 이동"]
@@ -68,12 +68,20 @@ flowchart TD
         direction TB
         R0["약물 목록 표시\n(필드별 신뢰도 색상 표시)"]
 
-        R0 --> R_re{"결과 화면에서\n'재추출' 버튼 클릭?"}
+        R0 --> RDB{"DB 미매칭 약물 존재?"}
+        RDB -->|"있음"| RDB1["⚠ 'DB에서 확인되지 않은 약물' 경고 배너\n약물명·성분명 직접 확인 권고"]
+        RDB -->|"없음"| R_re
+        RDB1 --> R_re
+
+        R_re{"결과 화면에서\n'재추출' 버튼 클릭?"}
         R_re -->|"클릭 (5회 이내)"| R_re2["POST /records/:id/reanalyze\n→ /upload/processing/:jobId 이동"]
         R_re -->|"5회 초과"| R_re3["❌ '재추출 횟수(5회)를 모두\n사용했습니다' 토스트"]
+        R_re3 --> R1
         R_re -->|"클릭 안 함"| R1{"약물 수정 필요?"}
 
-        R1 -->|"✏ 편집 버튼 클릭"| R2["편집 모드 진입\n수정 가능 필드:\n약물명 · EDI코드 · 용량\n복약횟수 · 기간 · 복약시기"]
+        R1 -->|"✏ 편집 버튼 클릭"| R2["편집 모드 진입\n수정 가능 필드:\n용량·복약횟수·기간·복약시기"]
+        R2 -->|"약물명·성분명 수정"| R2m["약물명/성분명 모달 열림\nDB 검색 자동완성 또는 직접 입력\nDB 선택 시 미매칭 경고 해제"]
+        R2m -->|"선택/입력 완료"| R2
         R2 -->|"'저장' 클릭"| R2a["PATCH /medications/:id\n수정 이력 → ocr_corrections 저장"]
         R2 -->|"'취소' 클릭"| R2b["편집 종료 (변경 없음)"]
 
@@ -82,29 +90,37 @@ flowchart TD
         R1 -->|"+ 약물 추가 버튼 클릭"| R4["약품명 검색\n(GET /ocr/drugs/search)\n자동완성 목록 제공"]
         R4 --> R4a["약물 선택 또는 직접 입력\n→ POST /medications"]
 
-        R1 -->|"수정 없음"| R5{"문서 유형"}
+        R1 -->|"수정 없음"| R5{"문서 유형 변경 필요?"}
         R2a & R2b & R3 & R4a --> R5
 
-        R5 -->|"DRUG_BAG / OTHER"| R6["'약물 전체 확인' 버튼 클릭\nPOST /medications/confirm"]
-        R5 -->|"PRESCRIPTION"| R7["질병분류기호 섹션 표시\n(ICD-10 코드)"]
+        R5 -->|"문서 유형 버튼 클릭\n(처방전·약봉투·기타 중 선택)"| R5a["PATCH /records/:id\n→ 즉시 변경 (재처리 없음)\n'문서 유형이 변경됐습니다' 토스트"]
+        R5a --> R5
+        R5 -->|"변경 없음"| R6{"약물 전체 확인?"}
 
-        R7 --> R8{"질병코드 수정 필요?"}
-        R8 -->|"코드 직접 수정"| R9["PATCH /disease-codes/:id\n수정 이력 → ocr_corrections 저장"]
-        R8 -->|"이상 없음"| R10["'질병코드 확인' 버튼 클릭\nPOST /disease-codes/confirm"]
-        R9 --> R10
-        R10 --> R6
+        R6 -->|"'전체 확인' 버튼 클릭"| R6a["POST /medications/confirm\n→ 편집 잠금\n'확인 취소' 버튼 표시"]
+        R6a --> R7
+        R6 -->|"'확인 취소' 클릭\n(전체 확인 완료 상태)"| R6b["POST /medications/unconfirm\n→ 편집 잠금 해제"]
+        R6b --> R6
 
-        R6 --> R11{"문서 유형 오분류?"}
-        R11 -->|"PATCH /records/:id\ndoc_type 수동 변경"| R12["오분류 수정 후\n→ /upload/processing/:jobId 이동\n(재분류 자동 실행)"]
-        R11 -->|"정확함"| R_end["결과 최종 확인 완료"]
+        R7{"문서 유형"}
+        R7 -->|"DRUG_BAG / OTHER"| R_end["약물 전체 확인 완료\n복약 가이드 생성 버튼 활성화"]
+        R7 -->|"PRESCRIPTION"| R8["질병분류기호 섹션 표시\n(ICD-10 코드)"]
+
+        R8 --> R9{"질병코드 수정 필요?"}
+        R9 -->|"코드 직접 수정"| R9a["PATCH /disease-codes/:id\n수정 이력 → ocr_corrections 저장"]
+        R9 -->|"이상 없음"| R10["'질병코드 확인' 버튼 클릭\nPOST /disease-codes/confirm"]
+        R9a --> R10
+        R10 --> R_end
     end
 
     %% ────────────────────────────────────────────────────────────────
     %% ⑤ 가이드 생성 요청
     %% ────────────────────────────────────────────────────────────────
-    subgraph CONFIRM["⑤ 가이드 생성 (결과 화면 하단 버튼)"]
+    subgraph CONFIRM["⑤ 복약 가이드 생성 (결과 화면 상단 버튼)"]
         direction TB
-        C1["'가이드 생성하기' 버튼 클릭\nPOST /ocr/jobs/:jobId/confirm\n{ trigger_guide: true }"]
+        C0["약물 전체 확인 전:\n안내 배너 표시\n'복약 가이드 생성' 버튼 비활성"]
+        C0 --> C0a["약물 목록을 검토한 후\n전체 확인 버튼을 누르고,\n복약 가이드 생성 버튼 클릭"]
+        C0a --> C1["POST /ocr/jobs/:jobId/confirm\n{ trigger_guide: true }"]
         C1 --> C2["현재 문서 약물명 추출\n→ POST /guides/generate 호출"]
         C2 --> C3{"응답"}
         C3 -->|"guide_job_id 수신"| C4["/health-guide로 이동\n(가이드 생성 대기 화면)"]
@@ -135,8 +151,7 @@ flowchart TD
     WF --> P2
     P3c --> R0
     R_re2 --> P1
-    R12 --> P1
-    R_end --> C1
+    R_end --> C0
 
     %% ────────────────────────────────────────────────────────────────
     %% 신뢰도 표시 기준
