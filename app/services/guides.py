@@ -514,7 +514,7 @@ def _build_schedule_table(medications: list[MedicationDetail]) -> list[dict]:
             for slot in med.time_of_day:
                 schedule.setdefault(str(slot), []).append(name)
         else:
-            schedule.setdefault("복용 시간 확인 필요", []).append(name)
+            schedule.setdefault("처방전/약봉투 안내 참고", []).append(name)
     return [{"time": t, "medications": names} for t, names in schedule.items()]
 
 
@@ -1048,7 +1048,9 @@ async def _run_mock_worker(
             schedule_table=(
                 _build_schedule_table(medications)
                 if medications
-                else ([{"time": "복용 시간 확인 필요", "medications": medication_names}] if medication_names else None)
+                else (
+                    [{"time": "처방전/약봉투 안내 참고", "medications": medication_names}] if medication_names else None
+                )
             ),
             lifestyle_guide=lifestyle_guide,
             diet_guide=diet_guide,
