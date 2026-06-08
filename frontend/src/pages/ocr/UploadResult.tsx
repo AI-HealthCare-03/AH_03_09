@@ -307,7 +307,7 @@ export default function UploadResult() {
         <div className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           <InfoIcon className="size-4 shrink-0 text-blue-500" />
           <span>
-            약물 목록을 확인한 후 <strong>전체 확인</strong> 버튼을 눌러 최종 확인하고,{" "}
+            약물 목록을 검토한 후 <strong>전체 확인</strong> 버튼을 누르고,{" "}
             <strong>복약 가이드 생성</strong> 버튼을 누르면 복약 및 생활 가이드를 받아볼 수 있어요.
           </span>
         </div>
