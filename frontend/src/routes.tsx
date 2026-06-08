@@ -13,7 +13,7 @@ import KakaoCallback from "@/pages/KakaoCallback";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Onboarding from "@/pages/Onboarding";
-import MyDocuments from "@/pages/MyDocuments";
+import MyDocuments from "@/pages/ocr/MyDocuments";
 import NotFound from "@/pages/NotFound";
 import Upload from "@/pages/ocr/Upload";
 import UploadProcessing from "@/pages/ocr/UploadProcessing";
