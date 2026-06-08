@@ -1,6 +1,5 @@
 import {
-  ActivityIcon,
-  ArrowRightIcon,
+  BookOpenIcon,
   FileTextIcon,
   MessageCircleHeartIcon,
   PillIcon,
@@ -24,7 +23,7 @@ export function HeroSection() {
               의료 AI 어시스턴트 · Medi-Mate
             </span>
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.5rem]">
-              복잡한 의료 문서,
+              복잡한 처방전,
               <br />
               <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                 AI가 한 번에
@@ -32,8 +31,8 @@ export function HeroSection() {
               정리합니다.
             </h1>
             <p className="max-w-xl self-center text-base leading-relaxed text-muted-foreground sm:text-lg lg:self-start">
-              처방전·진단서·건강검진 결과지를 올리면 AI가 자동으로 분류·요약하고, 궁금한 점은 챗봇이
-              답해드려요. 카카오 계정으로 3초만에 시작하세요.
+              처방전·약봉투를 올리면 AI가 약물 정보를 자동으로 분석하고, 맞춤형 복약 가이드와 AI
+              챗봇이 건강을 도와드려요. 카카오 계정으로 3초만에 시작하세요.
             </p>
 
             <div className="flex w-full max-w-sm flex-col gap-3 self-center lg:self-start">
@@ -44,7 +43,7 @@ export function HeroSection() {
             </div>
 
             <ul className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground lg:justify-start">
-              {["OCR 자동 분석", "24시간 AI 챗봇", "개인정보 암호화", "무료로 시작"].map((item) => (
+              {["OCR 자동 분석", "맞춤형 복약 가이드", "AI 건강 챗봇", "무료로 시작"].map((item) => (
                 <li key={item} className="flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-primary" />
                   {item}
@@ -97,64 +96,48 @@ function BentoPreview() {
             문서 업로드
           </div>
           <div className="mt-3 grid gap-2.5">
-            <MockFile name="처방전.pdf" status="분석 완료" tone="success" />
-            <MockFile name="혈액검사.png" status="요약 중" tone="warning" />
-            <MockFile name="진단서.pdf" status="대기 중" tone="muted" />
+            <MockFile name="처방전.pdf" status="완료" tone="success" />
+            <MockFile name="약봉투.jpg" status="처리 중" tone="warning" />
           </div>
-          <div className="mt-4 rounded-lg bg-primary/8 p-3">
-            <p className="text-[11px] font-medium text-primary">AI 요약</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-foreground/80">
-              총 3건의 의료 문서가 분석되었어요. 가장 최근 처방은 5/18 내과 진료입니다.
-            </p>
-          </div>
-        </div>
-
-        {/* 중간 카드: 혈압 */}
-        <div className="col-span-2 row-span-2 rounded-2xl border bg-card p-4 shadow-sm">
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <ActivityIcon className="size-3 text-success" />
-            혈압
-          </div>
-          <div className="mt-2 text-xl font-semibold tabular-nums">
-            118<span className="text-base font-normal text-muted-foreground">/76</span>
-          </div>
-          <div className="mt-3 flex items-end gap-1 h-10">
-            {[
-              { day: "월", h: 40 },
-              { day: "화", h: 65 },
-              { day: "수", h: 55 },
-              { day: "목", h: 80 },
-              { day: "금", h: 70 },
-              { day: "토", h: 90 },
-              { day: "일", h: 60 },
-            ].map(({ day, h }) => (
-              <div
-                key={day}
-                className="flex-1 rounded-sm bg-primary/30"
-                style={{ height: `${h}%` }}
-              />
+          <div className="mt-4 space-y-1.5">
+            {["암로디핀정 5mg", "메트포르민 500mg", "아스피린 100mg"].map((drug) => (
+              <div key={drug} className="flex items-center gap-2 rounded-lg border bg-background/50 px-3 py-2">
+                <span className="size-1.5 shrink-0 rounded-full bg-success" />
+                <span className="text-xs font-medium">{drug}</span>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* 중간 카드: 복약 */}
+        {/* 중간 카드: 복약 가이드 타입 */}
+        <div className="col-span-2 row-span-2 rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <BookOpenIcon className="size-3 text-primary" />
+            복약 가이드
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-1.5">
+            {["복약", "생활", "식사", "운동"].map((type) => (
+              <div
+                key={type}
+                className="flex items-center justify-center rounded-lg bg-primary/8 py-1.5 text-[10px] font-medium text-primary"
+              >
+                {type}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 중간 카드: 약물 목록 */}
         <div className="col-span-2 row-span-3 rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <PillIcon className="size-3 text-warning" />
-            오늘의 복약
+            약물 목록
           </div>
           <div className="mt-3 space-y-2.5">
-            {[
-              { name: "타이레놀", time: "08:00", done: true },
-              { name: "오메가-3", time: "09:00", done: true },
-              { name: "비타민D", time: "20:00", done: false },
-            ].map((m) => (
-              <div key={m.name} className="flex items-center gap-2">
-                <span className={`size-2 rounded-full ${m.done ? "bg-success" : "bg-border"}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium">{m.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{m.time}</p>
-                </div>
+            {["암로디핀정 5mg", "메트포르민 500mg", "아스피린 100mg"].map((name) => (
+              <div key={name} className="flex items-center gap-2">
+                <span className="size-1.5 shrink-0 rounded-full bg-primary/40" />
+                <p className="truncate text-xs font-medium">{name}</p>
               </div>
             ))}
           </div>
@@ -167,11 +150,11 @@ function BentoPreview() {
             AI 챗봇
           </div>
           <div className="mt-2.5 space-y-1.5">
-            <div className="max-w-[80%] rounded-lg rounded-bl-sm bg-muted px-3 py-1.5 text-xs">
-              처방받은 약 부작용이 뭔가요?
+            <div className="ml-auto max-w-[80%] rounded-lg rounded-br-sm bg-primary px-3 py-1.5 text-xs text-primary-foreground">
+              이 약은 언제 먹어야 하나요?
             </div>
-            <div className="ml-auto max-w-[85%] rounded-lg rounded-br-sm bg-primary px-3 py-1.5 text-xs text-primary-foreground">
-              타이레놀(아세트아미노펜)은 일반적으로 안전하나 과량 복용 시 간 손상…
+            <div className="max-w-[85%] rounded-lg rounded-bl-sm bg-muted px-3 py-1.5 text-xs">
+              암로디핀은 하루 1회 식후에 복용하세요. 규칙적으로 복용하는 것이 중요해요.
             </div>
           </div>
         </div>
@@ -211,8 +194,8 @@ function MockFile({
 const FEATURES = [
   {
     icon: FileTextIcon,
-    title: "의료 문서 자동 정리",
-    description: "처방전·진단서·검진 결과를 업로드하면 AI가 분류·요약·구조화합니다.",
+    title: "처방전·약봉투 자동 분석",
+    description: "처방전·약봉투를 업로드하면 AI가 약물 정보를 자동으로 추출하고 구조화합니다.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
@@ -220,7 +203,7 @@ const FEATURES = [
   {
     icon: MessageCircleHeartIcon,
     title: "AI 건강 챗봇",
-    description: "약 복용, 검사 수치, 증상까지 한국어로 자연스럽게.",
+    description: "약 복용, 부작용, 건강 궁금증을 한국어로 자연스럽게 물어보세요.",
     accent: "from-success/15 to-success/0",
     iconBg: "bg-success/10 text-success",
     span: "",
@@ -234,9 +217,9 @@ const FEATURES = [
     span: "",
   },
   {
-    icon: ArrowRightIcon,
-    title: "복용·검사 일정 관리",
-    description: "분석된 처방 정보로 복약 시간과 다음 진료를 알려드려요.",
+    icon: BookOpenIcon,
+    title: "맞춤형 복약 가이드",
+    description: "처방 내용과 건강정보를 바탕으로 복약·생활·식사·운동 가이드를 제공해요.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
