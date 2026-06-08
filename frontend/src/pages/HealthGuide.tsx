@@ -152,7 +152,7 @@ export default function HealthGuide() {
         comment,
       });
 
-      setFeedbackStatus("피드백이 제출되었습니다.");
+      setFeedbackStatus("소중한 의견 감사합니다.\n더 나은 건강 가이드 제공에 반영하겠습니다.");
       setFeedbackSubmitted(true);
     } catch (error) {
       console.error(error);
