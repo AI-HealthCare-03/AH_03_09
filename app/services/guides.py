@@ -968,11 +968,13 @@ async def _persist_guide(
     patient_id: str | None,
     guide: GuideResponse,
     disease_codes: list[str],
+    disease_names: list[str] | None = None,
 ) -> None:
     """가이드를 DB에 저장한다. 실패해도 _guides fallback이 유지되므로 예외를 삼키지 않고 로그만 남긴다."""
     try:
         guide_data = guide.model_dump(mode="json")
         guide_data["disease_codes"] = disease_codes
+        guide_data["disease_names"] = disease_names or []
         async with _AsyncSessionFactory() as db_session:
             db_guide = Guide(guide_id=guide_id, patient_id=patient_id, guide_data=guide_data)
             db_session.add(db_guide)
@@ -1060,8 +1062,9 @@ async def _run_mock_worker(
 
         _guides[guide_id] = guide.model_dump()
         _guides[guide_id]["disease_codes"] = disease_codes
+        _guides[guide_id]["disease_names"] = disease_names
         job = await _get_job(job_id)
-        await _persist_guide(guide_id, (job or {}).get("patient_id"), guide, disease_codes)
+        await _persist_guide(guide_id, (job or {}).get("patient_id"), guide, disease_codes, disease_names)
         await _update_job(job_id, status=JobStatus.DONE, guide_id=guide_id)
 
     except FileNotFoundError as e:
@@ -1231,4 +1234,5 @@ class GuideService:
             schedule=schedule,
             key_instructions=key_instructions,
             disease_codes=guide_dict.get("disease_codes", []),
+            disease_names=guide_dict.get("disease_names", []),
         )
