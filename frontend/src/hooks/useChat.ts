@@ -16,6 +16,8 @@ export function useChat() {
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [optimisticUserMsg, setOptimisticUserMsg] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
   const streamMut = useStreamMessage();
@@ -27,6 +29,7 @@ export function useChat() {
 
   useEffect(() => {
     setOptimisticUserMsg(null);
+    setRetryCount(0);
   }, [messages.length]);
 
   const handleLogout = () => {
@@ -36,14 +39,27 @@ export function useChat() {
 
   const handleSubmit = async (content: string) => {
     setOptimisticUserMsg(content);
+    setSubmitError(null);
     let sessionId = currentSessionId;
     if (!sessionId) {
-      const title = content.length > 20 ? content.slice(0, 20) + "…" : content;
-      const session = await createMut.mutateAsync(title);
-      sessionId = session.id;
-      setCurrentSessionId(sessionId);
+      try {
+        const title = content.length > 20 ? content.slice(0, 20) + "…" : content;
+        const session = await createMut.mutateAsync(title);
+        sessionId = session.id;
+        setCurrentSessionId(sessionId);
+      } catch {
+        setOptimisticUserMsg(null);
+        setSubmitError("대화를 시작할 수 없습니다. 다시 시도해주세요.");
+        return;
+      }
     }
     await streamMut.mutate({ sessionId, content, guideId });
+  };
+
+  const handleRetry = () => {
+    if (retryCount >= 3) return;
+    setRetryCount((prev) => prev + 1);
+    streamMut.retry();
   };
 
   const handleFeedback = async (messageId: number, feedback: "good" | "bad") => {
@@ -65,9 +81,13 @@ export function useChat() {
     feedbackGiven,
     feedbackError,
     setFeedbackError,
+    submitError,
+    setSubmitError,
+    retryCount,
     busy,
     streamMut,
     handleSubmit,
+    handleRetry,
     handleFeedback,
     handleLogout,
   };

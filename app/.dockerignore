@@ -10,6 +10,7 @@ envs/
 .vscode
 nginx/
 ai_worker/
+!ai_worker/uv
 frontend/
 docker-compose.yml
 Dockerfile

@@ -24,6 +24,7 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
+    if (!window.confirm("이 대화를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.")) return;
     await deleteMut.mutateAsync(sessionId);
     if (currentSessionId === sessionId) {
       setCurrentSessionId(null);
@@ -31,7 +32,7 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
   };
 
   return (
-    <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
+    <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white md:flex">
       <div className="border-b border-slate-200 p-4">
         <button
           type="button"
