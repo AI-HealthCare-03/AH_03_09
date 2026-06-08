@@ -41,13 +41,29 @@ export default function Chat() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (messages.length === 0 && !streamMut.streamingContent) return;
+  const scrollToBottom = (smooth = false) => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+      behavior: smooth ? "smooth" : "auto",
     });
-  }, [messages.length, streamMut.streamingContent]);
+  };
+
+  // 메시지 전송 직후 즉시 스크롤 (입력창 겹침 방지)
+  useEffect(() => {
+    if (optimisticUserMsg) scrollToBottom();
+  }, [optimisticUserMsg]);
+
+  // 스트리밍 중 자동 스크롤 (instant — smooth는 청크마다 튀어서 겹침 발생)
+  useEffect(() => {
+    if (!streamMut.streamingContent) return;
+    scrollToBottom();
+  }, [streamMut.streamingContent]);
+
+  // 응답 완료 후 최종 스크롤 (부드럽게)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    scrollToBottom(true);
+  }, [messages.length]);
 
   return (
     <div className="flex h-dvh flex-col bg-slate-50 text-slate-900">
