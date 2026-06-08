@@ -149,9 +149,19 @@ _ALCOHOL_LABEL = {"NONE": "", "MODERATE": "가끔 (주 1~2회)", "HEAVY": "자�
 
 _SUMMARY_THRESHOLD = 12
 _RECENT_KEEP = 8
-_MEDICAL_DISCLAIMER = (
-    "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다."
-)
+_MEDICAL_DISCLAIMERS: dict[ChatSkill, str] = {
+    ChatSkill.MEDICATION_GUIDE: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다.",
+    ChatSkill.DRUG_INTERACTION: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 약물 상호작용에 대한 정확한 확인은 담당 의사·약사와 상담하시기 바랍니다.",
+    ChatSkill.SIDE_EFFECT: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 부작용이 지속되거나 심각한 경우 즉시 의사·약사와 상담하시기 바랍니다.",
+    ChatSkill.EMERGENCY: "\n\n🚨 응급 상황이라면 즉시 119에 신고하세요. 본 AI 답변에만 의존하지 마시기 바랍니다.",
+    ChatSkill.GENERAL: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 진단 및 치료는 담당 의사와 상담하시기 바랍니다.",
+}
+
+
+def _strip_disclaimers(content: str) -> str:
+    for d in _MEDICAL_DISCLAIMERS.values():
+        content = content.replace(d, "")
+    return content.rstrip()
 
 
 def detect_skill(user_message: str) -> ChatSkill:
@@ -278,7 +288,10 @@ _SOURCE_RULES = """
 - "귀하의 질병은 X입니다" / "당신이 가지고 있는 질병은 X입니다" 등 확정 진단 형태
 - "당신이 언급한/말씀하신 질병코드" → 질병코드는 사용자가 직접 언급한 것이 아니라 의료문서에서 인식된 것
 - 약물명만으로 "이 약은 X 질환에 처방되므로 귀하는 X 질환입니다" 형태의 단정 추정
-- 출처를 구분하지 않고 모든 정보를 하나의 확정된 사실처럼 제시하는 표현"""
+- 출처를 구분하지 않고 모든 정보를 하나의 확정된 사실처럼 제시하는 표현
+
+[면책 문구 규칙]
+답변 끝에 ⚠️ 또는 🚨로 시작하는 주의·면책 문구를 직접 생성하지 마세요. 시스템이 자동으로 적절한 문구를 추가합니다."""
 
 
 def _build_system_prompt(
@@ -342,9 +355,7 @@ async def stream_chat(
         trimmed_history = history
 
     cleaned_history = [
-        {**msg, "content": msg["content"].replace(_MEDICAL_DISCLAIMER, "").rstrip()}
-        if msg.get("role") == "assistant"
-        else msg
+        {**msg, "content": _strip_disclaimers(msg["content"])} if msg.get("role") == "assistant" else msg
         for msg in trimmed_history
     ]
 
@@ -361,4 +372,4 @@ async def stream_chat(
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta
-    yield _MEDICAL_DISCLAIMER
+    yield _MEDICAL_DISCLAIMERS[skill]
