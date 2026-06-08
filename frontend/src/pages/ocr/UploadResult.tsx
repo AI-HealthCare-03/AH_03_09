@@ -15,6 +15,7 @@ import {
   fetchDocument,
   fetchDocumentFile,
   fetchOcrResult,
+  patchDocument,
   reanalyzeDocument,
   searchDrugs,
   unconfirmDiseaseCodes,
@@ -42,11 +43,8 @@ const DOC_TYPE_LABEL: Record<DocType, string> = {
   OTHER: "기타",
 };
 
-const DOC_TYPE_VARIANT: Record<DocType, "default" | "secondary" | "outline"> = {
-  PRESCRIPTION: "default",
-  DRUG_BAG: "secondary",
-  OTHER: "outline",
-};
+
+const ALL_DOC_TYPES: DocType[] = ["PRESCRIPTION", "DRUG_BAG", "OTHER"];
 
 function ConfidenceBadge({ score }: { score: number | null }) {
   if (score === null) return null;
@@ -176,6 +174,15 @@ export default function UploadResult() {
     }
     addMedMutation.mutate(addForm);
   };
+
+  const patchDocTypeMutation = useMutation({
+    mutationFn: (docType: DocType) => patchDocument(recordId, { doc_type: docType }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] });
+      toast.success("문서 유형이 변경되었습니다.");
+    },
+    onError: () => toast.error("문서 유형 변경에 실패했습니다."),
+  });
 
   const confirmMutation = useMutation({
     mutationFn: (jobId: string) =>
@@ -311,9 +318,23 @@ export default function UploadResult() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">문서 정보</CardTitle>
-            {doc.doc_type && (
-              <Badge variant={DOC_TYPE_VARIANT[doc.doc_type]}>{DOC_TYPE_LABEL[doc.doc_type]}</Badge>
-            )}
+            <div className="flex gap-1">
+              {ALL_DOC_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  disabled={patchDocTypeMutation.isPending}
+                  onClick={() => { if (type !== doc.doc_type) patchDocTypeMutation.mutate(type); }}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    doc.doc_type === type
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted-foreground/20 text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {DOC_TYPE_LABEL[type]}
+                </button>
+              ))}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

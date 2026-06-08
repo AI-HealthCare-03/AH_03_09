@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { fetchJobStatus, reanalyzeDocument } from "@/api/ocr";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,6 @@ import { Progress } from "@/components/ui/progress";
 export default function UploadProcessing() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
-  const skipReview = (location.state as { skipReview?: boolean } | null)?.skipReview ?? false;
   const queryClient = useQueryClient();
   const [displayPct, setDisplayPct] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -77,13 +75,7 @@ export default function UploadProcessing() {
     const status = data?.status;
     if (status !== "DONE" || !data?.record_id) return;
     const timer = setTimeout(() => {
-      if (skipReview) {
-        navigate(`/upload/result/${data.record_id}`);
-      } else {
-        navigate(`/upload/review/${jobId}`, {
-          state: { recordId: data.record_id, retakeRecommended: data.retake_recommended },
-        });
-      }
+      navigate(`/upload/result/${data.record_id}`);
     }, 1000);
     return () => clearTimeout(timer);
   }, [displayPct, data, jobId, navigate]);
