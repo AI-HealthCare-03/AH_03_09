@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, status
-from fastapi.responses import JSONResponse as Response
+from fastapi.responses import JSONResponse as Response, Response as PlainResponse
 
 from app.core import config
 from app.core.config import Env
@@ -70,8 +70,8 @@ async def token_refresh(
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout() -> Response:
-    resp = Response(status_code=status.HTTP_204_NO_CONTENT)
+async def logout() -> PlainResponse:
+    resp = PlainResponse(status_code=status.HTTP_204_NO_CONTENT)
     resp.delete_cookie(
         "access_token",
         httponly=True,
