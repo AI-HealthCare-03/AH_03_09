@@ -19,6 +19,7 @@ const SUGGESTED_QUESTIONS = [
 export default function Chat() {
   const navigate = useNavigate();
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
+  const guideId = useChatStore((s) => s.guideId);
   const {
     messages,
     isLoading,
@@ -137,6 +138,22 @@ export default function Chat() {
                         </p>
                       </div>
                     </div>
+                    {guideId ? (
+                      <div className="w-full max-w-md rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                        처방전 가이드가 연동되어 있습니다. 처방약·복약 정보에 대해 질문해 보세요.
+                      </div>
+                    ) : (
+                      <div className="w-full max-w-md rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-600">
+                        처방전 가이드와 연동하면 OCR 인식된 처방약 정보를 기반으로 답변받을 수 있어요.{" "}
+                        <button
+                          type="button"
+                          onClick={() => navigate("/health-guide")}
+                          className="font-medium underline underline-offset-2 hover:text-blue-800"
+                        >
+                          가이드 페이지로 이동
+                        </button>
+                      </div>
+                    )}
                     <div className="grid w-full max-w-md grid-cols-2 gap-2">
                       {SUGGESTED_QUESTIONS.map((q) => (
                         <button
