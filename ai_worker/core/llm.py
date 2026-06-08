@@ -291,7 +291,12 @@ _SOURCE_RULES = """
 - 출처를 구분하지 않고 모든 정보를 하나의 확정된 사실처럼 제시하는 표현
 
 [면책 문구 규칙]
-답변 본문 어디에도 ⚠️ 또는 🚨 이모티콘을 직접 사용하지 마세요. 시스템이 자동으로 적절한 문구를 추가합니다."""
+답변 본문 어디에도 ⚠️ 또는 🚨 이모티콘을 직접 사용하지 마세요. 시스템이 자동으로 적절한 문구를 추가합니다.
+
+[대화 순서 참조 규칙]
+사용자가 "첫 번째/두 번째로 물어봤던 질문" 등 대화 순서를 물어볼 때는
+대화 기록에서 사용자(user) 메시지를 위에서부터 순서대로 세어 정확히 답변하세요.
+추측하거나 다른 대화창의 내용과 혼동하지 마세요."""
 
 
 def _build_system_prompt(
@@ -316,21 +321,30 @@ def get_openai_client() -> AsyncOpenAI:
 
 
 async def _compress_history(old_messages: list[dict], client: AsyncOpenAI) -> str:
-    """오래된 대화를 짧게 요약해 컨텍스트로 유지한다."""
-    text = "\n".join(f"{'사용자' if m['role'] == 'user' else 'AI'}: {m['content']}" for m in old_messages)
+    """오래된 대화를 요약해 컨텍스트로 유지한다. 질문 순서를 보존한다."""
+    q_idx = 0
+    lines = []
+    for m in old_messages:
+        if m["role"] == "user":
+            q_idx += 1
+            lines.append(f"[질문 {q_idx}] {m['content']}")
+        else:
+            lines.append(f"[AI 답변] {m['content'][:300]}")
+    text = "\n".join(lines)
     resp = await client.chat.completions.create(
         model=config.OPENAI_CHAT_MODEL,
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "아래 대화를 3~5문장으로 핵심만 요약하세요. "
-                    "사용자가 물어본 약물명, 중요한 복약 정보, 주요 결론을 포함하세요."
+                    "아래 대화를 요약하되, 각 질문의 순서(몇 번째 질문인지)와 핵심 내용을 반드시 보존하세요. "
+                    "형식: '1번째 질문: [질문 내용] → AI: [핵심 답변], 2번째 질문: ...' 식으로 작성하세요. "
+                    "약물명, 질문 내용, 주요 결론을 포함하세요."
                 ),
             },
             {"role": "user", "content": text},
         ],
-        max_tokens=250,
+        max_tokens=400,
         temperature=0.2,
     )
     return resp.choices[0].message.content or ""
