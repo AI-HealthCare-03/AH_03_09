@@ -96,7 +96,6 @@ export default function UploadProcessing() {
   }
 
   if (data?.status === "DONE" && data.retake_recommended) {
-    const isExhausted = (data.reanalyze_count ?? 0) >= 5;
     return (
       <Card>
         <CardHeader>
@@ -105,27 +104,15 @@ export default function UploadProcessing() {
         <CardContent className="space-y-4">
           <Alert>
             <AlertDescription>
-              이미지 인식률이 낮습니다. 더 선명하게 재촬영하면 정확도가 높아져요.
+              이미지 인식률이 낮습니다. 결과가 불만족스러우면 결과 화면에서 더 선명한 사진으로 새 파일을 업로드해 보세요.
             </AlertDescription>
           </Alert>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/upload/result/${data.record_id}`)}
-            >
-              그냥 결과 보기
-            </Button>
-            {isExhausted ? (
-              <Button disabled>재추출 횟수 초과</Button>
-            ) : (
-              <Button
-                onClick={() => reanalyzeMutation.mutate()}
-                disabled={reanalyzeMutation.isPending}
-              >
-                {reanalyzeMutation.isPending ? "요청 중..." : "재추출하기"}
-              </Button>
-            )}
-          </div>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/upload/result/${data.record_id}`)}
+          >
+            결과 확인하기
+          </Button>
         </CardContent>
       </Card>
     );
@@ -143,7 +130,7 @@ export default function UploadProcessing() {
             <AlertDescription>
               {isExhausted
                 ? "파일에 문제가 있어 처리할 수 없습니다. 다른 파일로 재업로드해 주세요."
-                : (data.message ?? "OCR 처리 중 오류가 발생했습니다.")}
+                : "OCR 처리 중 오류가 발생했습니다. OCR 서비스의 일시적 오류일 수 있으니 재시도해 주세요."}
             </AlertDescription>
           </Alert>
           {isExhausted ? (

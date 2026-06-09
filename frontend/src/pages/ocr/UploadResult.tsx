@@ -3,7 +3,6 @@ import { AlertTriangleIcon, CheckCircle2Icon, InfoIcon, Maximize2Icon, PencilIco
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ApiError } from "@/lib/api";
 import {
   type MedicationCreateBody,
   type MedicationUpdateBody,
@@ -16,7 +15,6 @@ import {
   fetchDocumentFile,
   fetchOcrResult,
   patchDocument,
-  reanalyzeDocument,
   searchDrugs,
   unconfirmDiseaseCodes,
   unconfirmMedications,
@@ -192,18 +190,6 @@ export default function UploadResult() {
     onError: () => toast.error("가이드 생성에 실패했습니다. 다시 시도해주세요."),
   });
 
-  const reanalyzeMutation = useMutation({
-    mutationFn: () => reanalyzeDocument(recordId),
-    onSuccess: (data) => navigate(`/upload/processing/${data.job_id}`, { state: { recordId } }),
-    onError: (error) => {
-      if (error instanceof ApiError && error.status === 429) {
-        toast.error("이 문서는 재추출 횟수(5회)를 모두 사용했습니다.");
-      } else {
-        toast.error("재추출에 실패했습니다. 다시 시도해주세요.");
-      }
-    },
-  });
-
   const confirmMedMutation = useMutation({
     mutationFn: () => confirmMedications(recordId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ocr-document", recordId] }),
@@ -277,17 +263,16 @@ export default function UploadResult() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">분석 결과</h1>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => reanalyzeMutation.mutate()}
-            disabled={reanalyzeMutation.isPending}
-          >
-            {reanalyzeMutation.isPending ? "요청 중..." : "재추출"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/upload")}>
-            새 업로드
-          </Button>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => navigate("/upload")}>
+                새 업로드
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              결과가 불만족스러우면 더 선명한 사진으로 새 파일을 업로드해 보세요.
+            </TooltipContent>
+          </Tooltip>
           <Button variant="outline" size="sm" onClick={() => navigate("/documents")}>
             목록으로
           </Button>
