@@ -64,10 +64,11 @@ _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
 - 불확실한 정보는 반드시 명시하고, 필요시 의사·약사 확인을 권장합니다.
 
 질병 정보 답변 규칙:
-- 건강 프로필의 질환 정보는 "사용자께서 입력하신 건강정보에 따르면"으로 출처를 명시합니다.
-- 처방전의 질병코드는 "처방전에서 인식된 참고 코드"임을 명시하고, 확정 진단처럼 표현하지 않습니다.
-- 약물명만으로 특정 질환을 단정적으로 추정하지 않습니다.
-- "귀하의 질병은 X입니다"처럼 확정 진단 형태의 표현은 절대 사용하지 않습니다.""",
+- 건강 프로필 질환 정보 → "귀하께서 입력하신 건강정보에는 [질환명] 정보가 포함되어 있습니다."로 출처 명시.
+- 처방전 질병코드 → "올려주신 처방전/복약정보에서 인식된 질병코드는 ..." 형식으로, 확정 진단처럼 표현하지 않습니다.
+- 처방전 코드 언급 후 "이 코드는 의료문서에 기재된 분류코드이며, 정확한 진단 및 치료 계획은 담당 의료진의 설명을 참고하시기 바랍니다."를 반드시 추가합니다.
+- 약물명만으로 "이 약이 처방되었으니 귀하는 X 질환입니다"처럼 특정 질환을 단정 추정하지 않습니다.
+- "귀하의 질병은 X입니다" / "당신이 가지고 있는 질병은 X입니다" 형태의 확정 진단 표현은 절대 사용하지 않습니다.""",
 }
 
 # TODO: 식약처 공식 약품명 매핑 — ILIKE 퍼지 매칭 대신 EDI 코드 기반 표준 약품명으로 스킬 정확도 향상
@@ -148,9 +149,19 @@ _ALCOHOL_LABEL = {"NONE": "", "MODERATE": "가끔 (주 1~2회)", "HEAVY": "자�
 
 _SUMMARY_THRESHOLD = 12
 _RECENT_KEEP = 8
-_MEDICAL_DISCLAIMER = (
-    "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다."
-)
+_MEDICAL_DISCLAIMERS: dict[ChatSkill, str] = {
+    ChatSkill.MEDICATION_GUIDE: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다.",
+    ChatSkill.DRUG_INTERACTION: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 약물 상호작용에 대한 정확한 확인은 담당 의사·약사와 상담하시기 바랍니다.",
+    ChatSkill.SIDE_EFFECT: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 부작용이 지속되거나 심각한 경우 즉시 의사·약사와 상담하시기 바랍니다.",
+    ChatSkill.EMERGENCY: "\n\n🚨 응급 상황이라면 즉시 119에 신고하세요. 본 AI 답변에만 의존하지 마시기 바랍니다.",
+    ChatSkill.GENERAL: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 진단 및 치료는 담당 의사와 상담하시기 바랍니다.",
+}
+
+
+def _strip_disclaimers(content: str) -> str:
+    for d in _MEDICAL_DISCLAIMERS.values():
+        content = content.replace(d, "")
+    return content.rstrip()
 
 
 def detect_skill(user_message: str) -> ChatSkill:
@@ -254,28 +265,38 @@ def _build_profile_section(health_profile: dict) -> str:
     if not lines:
         return ""
     return (
-        "\n\n[사용자가 직접 입력한 건강정보 — 답변 시 반드시 반영하되, 출처를 '사용자께서 입력하신 건강정보에 따르면'으로 명시하세요]\n"
+        "\n\n[사용자가 직접 입력한 건강정보 — 질병·건강 상태 관련 답변 시 반드시 이 내용을 언급하고, 출처를 '귀하께서 입력하신 건강정보에는 ...'으로 명시하세요]\n"
         + "\n".join(lines)
     )
 
 
 _SOURCE_RULES = """
 
-[출처 구분 및 진단 표현 규칙 — 모든 답변에 적용]
-사용자가 자신의 질병이나 건강 상태를 물어볼 때 반드시 아래 형식으로 출처를 구분하여 답변하세요.
+[출처 구분 및 진단 표현 규칙 — 건강 정보가 포함된 모든 답변에 반드시 적용]
 
-1. 건강 프로필(사용자 직접 입력) 정보가 있을 때:
-   → "귀하께서 입력하신 건강정보에는 [질환명] 정보가 포함되어 있습니다."
+■ 건강 프로필(사용자 직접 입력) 정보가 있을 때:
+   반드시 → "귀하께서 입력하신 건강정보에는 [질환명/건강수치] 정보가 포함되어 있습니다."
+   (예: "귀하께서 입력하신 건강정보에는 고혈압 정보가 포함되어 있습니다.")
 
-2. 처방전/복약정보(OCR 인식) 정보가 있을 때:
-   → "올려주신 처방전/복약정보에서 인식된 질병코드는 [코드(병명)] 입니다. 이 코드는 의료문서에 기재된 분류 참고정보이며, 정확한 진단 및 치료 계획은 담당 의료진의 설명을 참고하시기 바랍니다."
+■ 처방전/복약정보(OCR 인식) 질병코드가 있을 때:
+   반드시 → "올려주신 처방전/복약정보에서 인식된 질병코드는 다음과 같습니다: [코드 목록]"
+   이어서 → "이 코드는 의료문서에 기재된 분류코드이며, 정확한 진단 및 치료 계획은 담당 의료진의 설명을 참고하시기 바랍니다."
 
-3. 두 정보가 모두 있을 때: 위 두 문장을 순서대로 모두 안내합니다.
+■ 두 정보가 모두 있을 때: 건강 프로필 안내를 먼저, 처방전 코드 안내를 두 번째로 반드시 모두 포함합니다.
 
-절대 하지 말아야 할 표현:
-- "귀하의 질병은 X입니다" 형태의 확정 진단
-- 약물명만으로 특정 질환을 단정 추정하는 표현
-- 출처를 구분하지 않고 모든 정보를 하나의 사실처럼 제시하는 표현"""
+절대 금지 표현:
+- "귀하의 질병은 X입니다" / "당신이 가지고 있는 질병은 X입니다" 등 확정 진단 형태
+- "당신이 언급한/말씀하신 질병코드" → 질병코드는 사용자가 직접 언급한 것이 아니라 의료문서에서 인식된 것
+- 약물명만으로 "이 약은 X 질환에 처방되므로 귀하는 X 질환입니다" 형태의 단정 추정
+- 출처를 구분하지 않고 모든 정보를 하나의 확정된 사실처럼 제시하는 표현
+
+[면책 문구 규칙]
+답변 본문 어디에도 ⚠️ 또는 🚨 이모티콘을 직접 사용하지 마세요. 시스템이 자동으로 적절한 문구를 추가합니다.
+
+[대화 순서 참조 규칙]
+사용자가 "첫 번째/두 번째로 물어봤던 질문" 등 대화 순서를 물어볼 때는
+대화 기록에서 사용자(user) 메시지를 위에서부터 순서대로 세어 정확히 답변하세요.
+추측하거나 다른 대화창의 내용과 혼동하지 마세요."""
 
 
 def _build_system_prompt(
@@ -300,21 +321,30 @@ def get_openai_client() -> AsyncOpenAI:
 
 
 async def _compress_history(old_messages: list[dict], client: AsyncOpenAI) -> str:
-    """오래된 대화를 짧게 요약해 컨텍스트로 유지한다."""
-    text = "\n".join(f"{'사용자' if m['role'] == 'user' else 'AI'}: {m['content']}" for m in old_messages)
+    """오래된 대화를 요약해 컨텍스트로 유지한다. 질문 순서를 보존한다."""
+    q_idx = 0
+    lines = []
+    for m in old_messages:
+        if m["role"] == "user":
+            q_idx += 1
+            lines.append(f"[질문 {q_idx}] {m['content']}")
+        else:
+            lines.append(f"[AI 답변] {m['content'][:300]}")
+    text = "\n".join(lines)
     resp = await client.chat.completions.create(
         model=config.OPENAI_CHAT_MODEL,
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "아래 대화를 3~5문장으로 핵심만 요약하세요. "
-                    "사용자가 물어본 약물명, 중요한 복약 정보, 주요 결론을 포함하세요."
+                    "아래 대화를 요약하되, 각 질문의 순서(몇 번째 질문인지)와 핵심 내용을 반드시 보존하세요. "
+                    "형식: '1번째 질문: [질문 내용] → AI: [핵심 답변], 2번째 질문: ...' 식으로 작성하세요. "
+                    "약물명, 질문 내용, 주요 결론을 포함하세요."
                 ),
             },
             {"role": "user", "content": text},
         ],
-        max_tokens=250,
+        max_tokens=400,
         temperature=0.2,
     )
     return resp.choices[0].message.content or ""
@@ -339,9 +369,7 @@ async def stream_chat(
         trimmed_history = history
 
     cleaned_history = [
-        {**msg, "content": msg["content"].replace(_MEDICAL_DISCLAIMER, "").rstrip()}
-        if msg.get("role") == "assistant"
-        else msg
+        {**msg, "content": _strip_disclaimers(msg["content"])} if msg.get("role") == "assistant" else msg
         for msg in trimmed_history
     ]
 
@@ -358,4 +386,4 @@ async def stream_chat(
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta
-    yield _MEDICAL_DISCLAIMER
+    yield _MEDICAL_DISCLAIMERS[skill]
