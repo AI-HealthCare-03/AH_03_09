@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { deleteDocument, fetchDocuments } from "@/api/ocr";
+import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -359,8 +360,14 @@ export default function MyDocuments() {
                   toast.success("문서가 삭제되었습니다.");
                   setDeleteTarget(null);
                   queryClient.invalidateQueries({ queryKey: ["ocr-documents"] });
-                } catch {
-                  toast.error("삭제에 실패했습니다. 다시 시도해주세요.");
+                } catch (e) {
+                  if (e instanceof ApiError && e.status === 409) {
+                    toast.error("처리 중인 문서는 삭제할 수 없습니다.", {
+                      description: "OCR 처리가 완료된 후 삭제해 주세요.",
+                    });
+                  } else {
+                    toast.error("삭제에 실패했습니다. 다시 시도해주세요.");
+                  }
                 } finally {
                   setDeleting(false);
                 }
