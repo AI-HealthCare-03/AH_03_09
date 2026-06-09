@@ -78,6 +78,7 @@ async def main() -> None:
                 asyncio.create_task(process_ocr(payload, redis_client))
             elif channel.startswith("guide:"):
                 payload = GuideJobPayload.model_validate(data)
+                logger.info("guide task dispatched job_id=%s", payload.job_id)
                 asyncio.create_task(process_guide_task(payload))
             else:
                 logger.warning("Unknown channel pattern: %s", channel)
