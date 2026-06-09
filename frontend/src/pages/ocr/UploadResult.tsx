@@ -189,6 +189,7 @@ export default function UploadResult() {
       confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
     onSuccess: (data) =>
       navigate("/health-guide", { state: { guide_job_id: data.guide_job_id } }),
+    onError: () => toast.error("가이드 생성에 실패했습니다. 다시 시도해주세요."),
   });
 
   const reanalyzeMutation = useMutation({
@@ -302,8 +303,8 @@ export default function UploadResult() {
         </div>
       </div>
 
-      {/* 가이드 생성 안내 */}
-      {doc?.job_id && !allMedsConfirmed && (
+      {/* 가이드 생성 안내 — 약물이 1개 이상 있는데 아직 미확인인 경우만 표시 */}
+      {doc?.job_id && medications.length > 0 && !allMedsConfirmed && (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           <InfoIcon className="size-4 shrink-0 text-blue-500" />
           <span>
