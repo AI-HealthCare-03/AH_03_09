@@ -149,9 +149,19 @@ _ALCOHOL_LABEL = {"NONE": "", "MODERATE": "가끔 (주 1~2회)", "HEAVY": "자�
 
 _SUMMARY_THRESHOLD = 12
 _RECENT_KEEP = 8
-_MEDICAL_DISCLAIMER = (
-    "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다."
-)
+_MEDICAL_DISCLAIMERS: dict[ChatSkill, str] = {
+    ChatSkill.MEDICATION_GUIDE: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다.",
+    ChatSkill.DRUG_INTERACTION: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 약물 상호작용에 대한 정확한 확인은 담당 의사·약사와 상담하시기 바랍니다.",
+    ChatSkill.SIDE_EFFECT: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 부작용이 지속되거나 심각한 경우 즉시 의사·약사와 상담하시기 바랍니다.",
+    ChatSkill.EMERGENCY: "\n\n🚨 응급 상황이라면 즉시 119에 신고하세요. 본 AI 답변에만 의존하지 마시기 바랍니다.",
+    ChatSkill.GENERAL: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 진단 및 치료는 담당 의사와 상담하시기 바랍니다.",
+}
+
+
+def _strip_disclaimers(content: str) -> str:
+    for d in _MEDICAL_DISCLAIMERS.values():
+        content = content.replace(d, "")
+    return content.rstrip()
 
 
 def detect_skill(user_message: str) -> ChatSkill:
@@ -278,7 +288,15 @@ _SOURCE_RULES = """
 - "귀하의 질병은 X입니다" / "당신이 가지고 있는 질병은 X입니다" 등 확정 진단 형태
 - "당신이 언급한/말씀하신 질병코드" → 질병코드는 사용자가 직접 언급한 것이 아니라 의료문서에서 인식된 것
 - 약물명만으로 "이 약은 X 질환에 처방되므로 귀하는 X 질환입니다" 형태의 단정 추정
-- 출처를 구분하지 않고 모든 정보를 하나의 확정된 사실처럼 제시하는 표현"""
+- 출처를 구분하지 않고 모든 정보를 하나의 확정된 사실처럼 제시하는 표현
+
+[면책 문구 규칙]
+답변 본문 어디에도 ⚠️ 또는 🚨 이모티콘을 직접 사용하지 마세요. 시스템이 자동으로 적절한 문구를 추가합니다.
+
+[대화 순서 참조 규칙]
+사용자가 "첫 번째/두 번째로 물어봤던 질문" 등 대화 순서를 물어볼 때는
+대화 기록에서 사용자(user) 메시지를 위에서부터 순서대로 세어 정확히 답변하세요.
+추측하거나 다른 대화창의 내용과 혼동하지 마세요."""
 
 
 def _build_system_prompt(
@@ -303,21 +321,30 @@ def get_openai_client() -> AsyncOpenAI:
 
 
 async def _compress_history(old_messages: list[dict], client: AsyncOpenAI) -> str:
-    """오래된 대화를 짧게 요약해 컨텍스트로 유지한다."""
-    text = "\n".join(f"{'사용자' if m['role'] == 'user' else 'AI'}: {m['content']}" for m in old_messages)
+    """오래된 대화를 요약해 컨텍스트로 유지한다. 질문 순서를 보존한다."""
+    q_idx = 0
+    lines = []
+    for m in old_messages:
+        if m["role"] == "user":
+            q_idx += 1
+            lines.append(f"[질문 {q_idx}] {m['content']}")
+        else:
+            lines.append(f"[AI 답변] {m['content'][:300]}")
+    text = "\n".join(lines)
     resp = await client.chat.completions.create(
         model=config.OPENAI_CHAT_MODEL,
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "아래 대화를 3~5문장으로 핵심만 요약하세요. "
-                    "사용자가 물어본 약물명, 중요한 복약 정보, 주요 결론을 포함하세요."
+                    "아래 대화를 요약하되, 각 질문의 순서(몇 번째 질문인지)와 핵심 내용을 반드시 보존하세요. "
+                    "형식: '1번째 질문: [질문 내용] → AI: [핵심 답변], 2번째 질문: ...' 식으로 작성하세요. "
+                    "약물명, 질문 내용, 주요 결론을 포함하세요."
                 ),
             },
             {"role": "user", "content": text},
         ],
-        max_tokens=250,
+        max_tokens=400,
         temperature=0.2,
     )
     return resp.choices[0].message.content or ""
@@ -342,9 +369,7 @@ async def stream_chat(
         trimmed_history = history
 
     cleaned_history = [
-        {**msg, "content": msg["content"].replace(_MEDICAL_DISCLAIMER, "").rstrip()}
-        if msg.get("role") == "assistant"
-        else msg
+        {**msg, "content": _strip_disclaimers(msg["content"])} if msg.get("role") == "assistant" else msg
         for msg in trimmed_history
     ]
 
@@ -361,4 +386,4 @@ async def stream_chat(
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta
-    yield _MEDICAL_DISCLAIMER
+    yield _MEDICAL_DISCLAIMERS[skill]

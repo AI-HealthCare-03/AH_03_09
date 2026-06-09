@@ -19,6 +19,7 @@ const SUGGESTED_QUESTIONS = [
 export default function Chat() {
   const navigate = useNavigate();
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
+  const guideId = useChatStore((s) => s.guideId);
   const {
     messages,
     isLoading,
@@ -41,13 +42,29 @@ export default function Chat() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (messages.length === 0 && !streamMut.streamingContent) return;
+  const scrollToBottom = (smooth = false) => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+      behavior: smooth ? "smooth" : "auto",
     });
-  }, [messages.length, streamMut.streamingContent]);
+  };
+
+  // 메시지 전송 직후 즉시 스크롤 (입력창 겹침 방지)
+  useEffect(() => {
+    if (optimisticUserMsg) scrollToBottom();
+  }, [optimisticUserMsg]);
+
+  // 스트리밍 중 자동 스크롤 (instant — smooth는 청크마다 튀어서 겹침 발생)
+  useEffect(() => {
+    if (!streamMut.streamingContent) return;
+    scrollToBottom();
+  }, [streamMut.streamingContent]);
+
+  // 응답 완료 후 최종 스크롤 (부드럽게)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    scrollToBottom(true);
+  }, [messages.length]);
 
   return (
     <div className="flex h-dvh flex-col bg-slate-50 text-slate-900">
@@ -121,6 +138,22 @@ export default function Chat() {
                         </p>
                       </div>
                     </div>
+                    {guideId ? (
+                      <div className="w-full max-w-md rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                        처방전 가이드가 연동되어 있습니다. 처방약·복약 정보에 대해 질문해 보세요.
+                      </div>
+                    ) : (
+                      <div className="w-full max-w-md rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-600">
+                        처방전 가이드와 연동하면 OCR 인식된 처방약 정보를 기반으로 답변받을 수 있어요.{" "}
+                        <button
+                          type="button"
+                          onClick={() => navigate("/health-guide")}
+                          className="font-medium underline underline-offset-2 hover:text-blue-800"
+                        >
+                          가이드 페이지로 이동
+                        </button>
+                      </div>
+                    )}
                     <div className="grid w-full max-w-md grid-cols-2 gap-2">
                       {SUGGESTED_QUESTIONS.map((q) => (
                         <button
