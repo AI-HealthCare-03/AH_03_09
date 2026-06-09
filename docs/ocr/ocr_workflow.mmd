@@ -5,38 +5,40 @@ flowchart TD
     subgraph UPLOAD["① 파일 업로드 (/upload)"]
         direction TB
         U1["파일 선택\n(드래그 앤 드롭 또는 버튼 클릭)\n1개 파일만 업로드 가능"]
-        U1 --> U2{"클라이언트 사전 검사\n(MIME 타입·확장자·크기)"}
-        U2 -->|"JPEG·PNG·PDF 아닌 형식"| UE1["❌ 형식 오류 토스트\n업로드 버튼 비활성"]
-        U2 -->|"10MB 초과"| UE2["❌ 용량 초과 토스트\n업로드 버튼 비활성"]
+        U1 --> U2{"파일 형식 · 크기 확인\n(업로드 전 브라우저에서 검사)"}
+        U2 -->|"JPEG·PNG·PDF 아닌 형식"| UE1["❌ 형식 오류 안내\n업로드 버튼 비활성"]
+        U2 -->|"10MB 초과"| UE2["❌ 용량 초과 안내\n업로드 버튼 비활성"]
         U2 -->|"통과"| U3["업로드 버튼 활성화"]
         U3 --> U4["POST /ocr/upload 요청\n(1개 파일)"]
-        U4 --> U5{"서버 응답"}
+        U4 --> U4b["서버 검증\n① 파일 형식·크기 재확인\n② 중복 확인: 파일 내용 전체를 수학적으로 계산해\n고유한 지문(SHA-256 해시) 생성 후 DB와 비교\n→ 파일명과 무관, 내용이 같으면 동일 파일로 판단"]
+        U4b --> U5{"서버 응답"}
         U5 -->|"422\n형식·크기 서버 재검증 실패\n또는 2개 이상 파일"| UE3["❌ 서버 측 형식 오류 안내"]
-        U5 -->|"409\n동일 파일 SHA-256 중복"| UE4["❌ 중복 파일 안내\n'기존 문서 보기' 버튼 → /upload/result/:id"]
-        U5 -->|"429\n일일 업로드 한도 초과"| UE5["❌ '오늘 업로드 한도에 도달했습니다'\n(일일 최대 20건)"]
+        U5 -->|"409\n동일 내용의 파일 이미 존재"| UE4["❌ 중복 파일 안내\n'기존 문서 보기' 액션 버튼\n→ /upload/result/:id"]
+        U5 -->|"429\n일일 업로드 한도 초과\n(일일 최대 20건)"| UE5["❌ '오늘 업로드 한도에\n도달했습니다' 안내"]
         U5 -->|"202 성공\njob_id 수신"| U6["→ /upload/processing/:jobId 자동 이동"]
     end
 
     %% ────────────────────────────────────────────────────────────────
     %% ② AI 자동 처리 (백그라운드)
     %% ────────────────────────────────────────────────────────────────
-    subgraph WORKER["② AI 처리 — ai_worker (백그라운드)"]
+    subgraph WORKER["② AI 처리 — ai_worker (백그라운드 비동기)\n업로드 직후 자동 시작 → 완료 시 ③ 폴링이 DONE·FAILED 감지"]
         direction TB
         W1["Redis 채널에서 작업 수신\n(ocr:request:{job_id})"]
         W1 --> W2["상태 PROCESSING으로 변경"]
-        W2 --> W3["Clova OCR API 호출\n→ raw_text + 필드별 confidence 추출"]
+        W2 --> W3["Clova OCR API 호출\n→ 이미지 전체 텍스트 인식 (레이아웃 무관)\n→ raw_text 생성 + 블록별 confidence 평균 → 단일 confidence_score 저장"]
         W3 --> W4{"Clova 응답 성공?"}
-        W4 -->|"실패"| WF["상태 FAILED로 변경"]
-        W4 -->|"성공"| W5["문서 유형 분류\n(PRESCRIPTION / DRUG_BAG / OTHER)"]
-        W5 --> W6{"재추출 요청이며\n이전 수정 이력 존재?"}
-        W6 -->|"있음\n(ocr_corrections 조회)"| W7["수정 이력을 few-shot 힌트로\nGPT 프롬프트에 주입\n(동일 오류 반복 방지)"]
-        W6 -->|"없음 (최초 추출)"| W8["GPT 파싱 요청"]
+        W4 -->|"실패\n(API 장애·네트워크 오류·처리 불가 파일)"| WF["상태 FAILED로 변경\n(에러 내용 DB 저장)"]
+        W4 -->|"성공"| W5["문서 유형 분류\n① 키워드 룰 기반 (처방전·약봉투 특징 키워드 점수 비교)\n② 키워드로 불명확 시 GPT 폴백 분류\n→ PRESCRIPTION / DRUG_BAG / OTHER"]
+        W5 --> W6{"이전 수정 이력 존재?\n(ocr_corrections 조회)"}
+        W6 -->|"있음\n(코드 로직은 존재하나 현재 실질적 미사용:\nFAILED 재추출 경로에만 수정 이력이 없으므로\nW7 경로는 사실상 dead code)"| W7["수정 이력을 few-shot 힌트로\nGPT 프롬프트에 주입\n(동일 오류 반복 방지)"]
+        W6 -->|"없음\n(초기 업로드 또는 FAILED 재추출)"| W8["GPT 파싱 요청\n(raw_text 전달 → 약물명·용량·복약횟수·기간·\nICD-10 코드 등 구조화 JSON 추출)"]
         W7 --> W8
-        W8 --> W9{"문서 유형"}
-        W9 -->|"PRESCRIPTION"| W10["약물 정보 파싱\n+ 질병분류기호 ICD-10 파싱"]
-        W9 -->|"DRUG_BAG"| W11["약물 정보만 파싱\n(질병코드는 반드시 빈 배열)"]
-        W9 -->|"OTHER"| W12["텍스트만 저장\n(GPT 파싱 생략)"]
-        W10 & W11 & W12 --> W13["medications / disease_codes\nDB 저장 (ocr_results 갱신)"]
+        W8 --> W9{"문서 유형별 파싱 분기\n(W5에서 이미 결정된 doc_type 기반\n새로 분류하는 게 아님)"}
+
+        W9 -->|"PRESCRIPTION"| W10["약물 정보 파싱 + 질병분류기호 ICD-10 파싱\nICD-10 코드 정규화 처리:\n  · 표 셀 분리 공백 복원 (예: 'H 1 6 1 8' → 'H1618')\n  · 점 누락 복원 (예: 'H0411' → 'H04.11')\n  · 형식 불일치 코드 자동 필터링"]
+        W9 -->|"DRUG_BAG"| W11["약물 정보만 파싱\n약봉투에는 질병분류기호 없음 (의료 도메인 규칙)\n→ 3중 방어로 질병코드 완전 차단:\n  ① ai_worker: 파싱 시 disease_codes = 빈 배열 강제\n  ② API 응답: DRUG_BAG이면 disease_codes = [] 재강제\n  ③ FE: 질병코드 섹션 자체 미표시"]
+        W9 -->|"OTHER"| W12["GPT 파싱 생략 — raw_text만 저장\n→ medications = 빈 배열\n→ 결과 화면에서 약물 0개: 전체 확인 불가 → 가이드 생성 불가\n→ 수동으로 약물을 추가해야만 가이드 생성 가능"]
+        W10 & W11 & W12 --> W13["DB 저장\n· ocr_results: raw_text + processed_text(개인정보 마스킹) + confidence_score + 처리시간\n· medications: GPT 파싱 약물 목록\n· disease_codes: GPT 파싱 질병코드 (처방전만)\n· ai_performance_metrics: 처리 시간(LATENCY) 기록"]
         W13 --> W14{"전체 인식 신뢰도\n70% 이상?"}
         W14 -->|"미달"| W15["retake_recommended = true\n(재촬영 권고 플래그)"]
         W14 -->|"이상 없음"| W16["상태 DONE으로 변경"]
@@ -48,17 +50,21 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph POLL["③ 처리 대기 화면 (/upload/processing/:jobId)"]
         direction TB
-        P1["2초마다 상태 폴링\n(GET /ocr/jobs/:jobId/status)"]
+        PE{"job_id 조회 실패?"}
+        PE -->|"isError (404 등)"| PE1["❌ '문서를 찾을 수 없습니다'\n'다시 업로드' 링크 → /upload"]
+        PE -->|"정상"| P1["2초마다 상태 폴링\n(GET /ocr/jobs/:jobId/status)"]
         P1 --> P2{"현재 상태"}
-        P2 -->|"PENDING / PROCESSING"| P1
-        P2 -->|"DONE\n재촬영 권고 없음"| P3["'결과 확인' 버튼 표시"]
-        P2 -->|"DONE\n재촬영 권고 있음\n(confidence < 0.7)"| P3b["⚠ 재촬영 권고 배너 표시\n'결과 확인' 버튼 함께 표시"]
-        P3 & P3b --> P3c["버튼 클릭 → /upload/result/:recordId"]
-        P2 -->|"FAILED"| P4{"재추출 가능?\n(문서당 최대 5회)"}
-        P4 -->|"가능"| P5["'재추출' 버튼 클릭\nPOST /records/:id/reanalyze"]
-        P5 --> P5a["이전 수정 이력 few-shot 반영 후\nAI 재처리 시작"]
-        P5a --> W1
-        P4 -->|"5회 초과 (429)"| P6["❌ '재추출 횟수(5회)를 모두\n사용했습니다' 토스트\n새 파일 업로드 안내"]
+        P2 -->|"PENDING / PROCESSING"| P_DELAY{"30초 이상 경과?\n(경과 시간 기반 애니메이션,\n실제 진행률 아님)"}
+        P_DELAY -->|"예"| P_MSG["⚠ '처리 시간이 길어지고 있습니다'\n안내 메시지 표시 (계속 폴링 → DONE·FAILED 대기)"]
+        P_DELAY -->|"아니오\n(계속 폴링 → DONE·FAILED 대기)"| P1
+        P_MSG --> P1
+        P2 -->|"DONE\nretake_recommended = false\n(confidence ≥ 0.7, 정상 추출)"| P3["1초 후 자동 이동\n→ /upload/result/:recordId"]
+        P2 -->|"DONE\nretake_recommended = true\n(confidence < 0.7, 인식률 낮음)"| P3b["재촬영 권고 선택지 화면\n⚠ '이미지 인식률이 낮습니다'"]
+        P3b -->|"'결과 확인하기' 클릭"| P3c["→ /upload/result/:recordId\n※ 결과 화면의 '새 업로드' 버튼으로\n   더 선명한 파일 재업로드 가능"]
+        P2 -->|"FAILED\n(Clova API 장애 또는 파일 처리 불가)"| P4{"재추출 가능?\n(reanalyze_count < 5)"}
+        P4 -->|"가능"| P5b["❌ 'OCR 처리 중 오류가 발생했습니다.\nOCR 서비스의 일시적 오류일 수 있으니\n재시도해 주세요.' 안내\n'재추출' 버튼 클릭\n→ POST /records/:id/reanalyze\n→ 상태 PENDING으로 변경 + Redis PUBLISH\n→ ai_worker 재처리 (W1부터 동일 흐름)\n→ 재처리 후 또 FAILED 시 이 분기 반복\n(최대 5회까지)"]
+        P5b --> W1
+        P4 -->|"5회 초과 (reanalyze_count >= 5)"| P6["❌ '파일에 문제가 있어\n처리할 수 없습니다'\n'재업로드' 버튼 → /upload"]
     end
 
     %% ────────────────────────────────────────────────────────────────
@@ -66,65 +72,76 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph REVIEW["④ 결과 확인 및 수정 (/upload/result/:recordId)"]
         direction TB
-        R0["약물 목록 표시\n(필드별 신뢰도 색상 표시)"]
 
-        R0 --> RDB{"DB 미매칭 약물 존재?"}
-        RDB -->|"있음"| RDB1["⚠ 'DB에서 확인되지 않은 약물' 경고 배너\n약물명·성분명 직접 확인 권고"]
-        RDB -->|"없음"| R_re
-        RDB1 --> R_re
+        R_BTN["상단 액션 버튼:\n[새 업로드 → /upload]\n  (툴팁: 결과가 불만족스러우면 더 선명한 사진으로 새 파일을 업로드해 보세요)\n[목록으로 → /documents]\n[복약 가이드 생성 — 조건부 활성 (⑤ 참고)]"]
+        R_BTN --> R0
 
-        R_re{"결과 화면에서\n'재추출' 버튼 클릭?"}
-        R_re -->|"클릭 (5회 이내)"| R_re2["POST /records/:id/reanalyze\n→ /upload/processing/:jobId 이동"]
-        R_re -->|"5회 초과"| R_re3["❌ '재추출 횟수(5회)를 모두\n사용했습니다' 토스트"]
-        R_re3 --> R1
-        R_re -->|"클릭 안 함"| R1{"약물 수정 필요?"}
+        R0["약물 목록 표시\n· ✓ 아이콘: is_confirmed = true (전체 확인 버튼 클릭 후 표시)\n· ⚠ 아이콘: is_db_matched = false (DB 미매칭 약물)\n전체 문서 신뢰도는 문서 정보 카드에서 색상 뱃지로 표시"]
 
-        R1 -->|"✏ 편집 버튼 클릭"| R2["편집 모드 진입\n수정 가능 필드:\n용량·복약횟수·기간·복약시기"]
-        R2 -->|"약물명·성분명 수정"| R2m["약물명/성분명 모달 열림\nDB 검색 자동완성 또는 직접 입력\nDB 선택 시 미매칭 경고 해제"]
-        R2m -->|"선택/입력 완료"| R2
-        R2 -->|"'저장' 클릭"| R2a["PATCH /medications/:id\n수정 이력 → ocr_corrections 저장"]
+        R0 --> RDB{"is_db_matched = false인 약물 존재?\n(DB 매칭 방식: GPT 추출 약물명 → drug_master ILIKE 검색\n→ 성분명 검증 → 실패 시 원문 유지 + is_db_matched = false)"}
+        RDB -->|"있음"| RDB1["⚠ 'DB에서 확인되지 않은 약물' 경고 배너\n약물명·성분명 직접 확인 권고\n(수정 모달에서 DB 선택 시 경고 해제)"]
+        RDB -->|"없음"| RBAN
+        RDB1 --> RBAN
+
+        RBAN{"약물 1개 이상 &\n미확인 항목 존재?\n(medications.length > 0 && !allMedsConfirmed)\n※ '미확인' = is_confirmed = false\n   OCR 추출 직후 모든 약물의 기본 상태\n   is_db_matched 경고와 무관"}
+        RBAN -->|"해당"| RBAN1["🔵 '약물 목록 검토 후 전체 확인 →\n복약 가이드 생성' 안내 배너\n→ 전체 확인 완료(allMedsConfirmed = true) 시 배너 자동 소멸"]
+        RBAN -->|"해당 없음\n(약물 없거나 전체 확인됨)"| R1
+        RBAN1 --> R1
+
+        R1{"약물 수정 필요?\n※ isLocked = '전체 확인' 버튼 클릭 후 활성화되는 편집 잠금 상태\n   (allMedsConfirmed = true)\n   잠금 시 편집·삭제·추가 버튼 모두 비활성"}
+
+        R1 -->|"✏ 편집 버튼 클릭\n(isLocked = false일 때만 활성)"| R2["편집 모드 진입\n인라인 수정 가능 필드: 용량·복약횟수·기간\n약물명·성분명은 해당 필드 클릭 시 모달 열림"]
+        R2 -->|"약물명 필드 클릭\n→ 모달 열림 (약물명 입력창에 커서)"| R2m["약물명/성분명 수정 모달\n· 약물명: drug_master DB 검색 (ILIKE 자동완성)\n  DB 선택 시 미매칭 경고 ⚠ 해제\n· 성분명: 직접 입력만 가능\n  (drug_master에 성분명 컬럼 없음)"]
+        R2 -->|"성분명 필드 클릭\n→ 모달 열림 (성분명 입력창에 커서)"| R2m
+        R2m -->|"확인 클릭"| R2
+        R2 -->|"'저장' 클릭"| R2a["PATCH /medications/:id\n수정 이력 → ocr_corrections 저장\nonError: '수정에 실패했습니다' 토스트"]
         R2 -->|"'취소' 클릭"| R2b["편집 종료 (변경 없음)"]
 
-        R1 -->|"🗑 삭제 버튼 클릭"| R3["DELETE /medications/:id\n'약물이 삭제됐습니다' 토스트"]
+        R1 -->|"🗑 삭제 버튼 클릭\n(isLocked = false일 때만 활성)"| R3["DELETE /medications/:id (소프트 삭제)\n'약물이 삭제되었습니다' 토스트\nonError: '삭제에 실패했습니다' 토스트"]
 
-        R1 -->|"+ 약물 추가 버튼 클릭"| R4["약품명 검색\n(GET /ocr/drugs/search)\n자동완성 목록 제공"]
-        R4 --> R4a["약물 선택 또는 직접 입력\n→ POST /medications"]
+        R1 -->|"+ 약물 추가 클릭\n(isLocked = false일 때만 활성)"| R4["약물 추가 모달\n필드: 약물명(필수·DB 검색), 복약횟수(선택), 기간(선택)\n※ 수동 추가 약물은 is_db_matched = null\n   (⚠ 경고 없음 — ai_worker OCR 추출 약물만 해당)"]
+        R4 --> R4dup{"기존 목록에 중복 약물명 존재?"}
+        R4dup -->|"중복 없음"| R4a["POST /medications\n→ 약물 신규 생성 (is_db_matched = null)\n→ 목록 즉시 갱신\nonError: '추가에 실패했습니다' 토스트"]
+        R4dup -->|"중복 있음"| R4b["⚠ 중복 경고 표시\n'그래도 추가' / '취소' 선택"]
+        R4b -->|"'그래도 추가' 클릭"| R4a
+        R4b -->|"'취소' 클릭"| R1
 
-        R1 -->|"수정 없음"| R5{"문서 유형 변경 필요?"}
+        R1 -->|"수정 없음"| R5{"문서 유형 변경 필요?\n(상단 문서 정보 카드의\n처방전·약봉투·기타 버튼)"}
         R2a & R2b & R3 & R4a --> R5
 
-        R5 -->|"문서 유형 버튼 클릭\n(처방전·약봉투·기타 중 선택)"| R5a["PATCH /records/:id\n→ 즉시 변경 (재처리 없음)\n'문서 유형이 변경됐습니다' 토스트"]
+        R5 -->|"문서 유형 버튼 클릭"| R5a["PATCH /records/:id { doc_type }\n→ 즉시 변경 (재처리 없음)\n'문서 유형이 변경됐습니다' 토스트\nonError: '변경에 실패했습니다' 토스트"]
         R5a --> R5
-        R5 -->|"변경 없음"| R6{"약물 전체 확인?"}
+        R5 -->|"변경 없음"| R6{"약물 전체 확인?\n(medications.length > 0일 때 '전체 확인' 버튼 표시)\n약물 0개면 버튼 없음 → 가이드 생성 불가"}
 
-        R6 -->|"'전체 확인' 버튼 클릭"| R6a["POST /medications/confirm\n→ 편집 잠금\n'확인 취소' 버튼 표시"]
+        R6 -->|"'전체 확인' 버튼 클릭"| R6a["POST /medications/confirm\n→ 모든 약물 is_confirmed = true\n→ isLocked = true (편집 잠금)\n→ '전체 확인' 버튼이 '확인 취소' 버튼으로 전환"]
         R6a --> R7
-        R6 -->|"'확인 취소' 클릭\n(전체 확인 완료 상태)"| R6b["POST /medications/unconfirm\n→ 편집 잠금 해제"]
+        R6a -->|"'확인 취소' 클릭\n(전체 확인 완료 후에만 이 버튼 표시)"| R6b["DELETE /medications/confirm\n(약물 삭제가 아닌 전체 확인 상태 해제 API)\n→ 모든 약물 is_confirmed = false로 리셋\n→ isLocked = false (편집 잠금 해제)\n→ '확인 취소' 버튼이 '전체 확인' 버튼으로 복귀"]
         R6b --> R6
 
-        R7{"문서 유형"}
-        R7 -->|"DRUG_BAG / OTHER"| R_end["약물 전체 확인 완료\n복약 가이드 생성 버튼 활성화"]
-        R7 -->|"PRESCRIPTION"| R8["질병분류기호 섹션 표시\n(ICD-10 코드)"]
+        R7{"문서 유형\n(질병코드 섹션 표시 여부 결정)"}
+        R7 -->|"DRUG_BAG / OTHER\n→ 질병코드 섹션 없음"| R_end["약물 전체 확인 완료\n→ 복약 가이드 생성 버튼 활성화\n※ 가이드 생성 조건: allMedsConfirmed = true 만으로 충분\n   질병코드 확인 여부는 무관"]
+        R7 -->|"PRESCRIPTION\n→ 질병코드 섹션 표시\n(코드 없으면 '없습니다' 메시지)"| R8["질병분류기호 섹션 표시\n(ICD-10 코드 · 질병명)\n※ 이 섹션 확인 여부는 가이드 생성에 영향 없음"]
 
-        R8 --> R9{"질병코드 수정 필요?"}
-        R9 -->|"코드 직접 수정"| R9a["PATCH /disease-codes/:id\n수정 이력 → ocr_corrections 저장"]
-        R9 -->|"이상 없음"| R10["'질병코드 확인' 버튼 클릭\nPOST /disease-codes/confirm"]
+        R8 --> R9{"질병코드 수정 필요?\n(allDiseasesConfirmed = false일 때만 편집 버튼 활성)\n※ 질병코드는 가이드 생성 시 함께 전달되므로\n   정확도가 가이드 품질에 영향 — 검토 권장\n   단, 확인 버튼 클릭은 가이드 생성 버튼 활성화에 불필요"}
+        R9 -->|"✏ 코드 직접 수정"| R9a["PATCH /disease-codes/:id { icd10_code }\n질병명 자동 갱신\nonError: '수정에 실패했습니다' 토스트"]
+        R9 -->|"이상 없음"| R10["'전체 확인' 버튼 클릭\n(가이드 생성 버튼 활성화에는 불필요,\n 검토 완료 표시 용도)\nPOST /disease-codes/confirm\nonError: '확인 처리에 실패했습니다' 토스트"]
         R9a --> R10
         R10 --> R_end
     end
 
     %% ────────────────────────────────────────────────────────────────
-    %% ⑤ 가이드 생성 요청
+    %% ⑤ 복약 가이드 생성
     %% ────────────────────────────────────────────────────────────────
     subgraph CONFIRM["⑤ 복약 가이드 생성 (결과 화면 상단 버튼)"]
         direction TB
-        C0["약물 전체 확인 전:\n안내 배너 표시\n'복약 가이드 생성' 버튼 비활성"]
-        C0 --> C0a["약물 목록을 검토한 후\n전체 확인 버튼을 누르고,\n복약 가이드 생성 버튼 클릭"]
-        C0a --> C1["POST /ocr/jobs/:jobId/confirm\n{ trigger_guide: true }"]
-        C1 --> C2["현재 문서 약물명 추출\n→ POST /guides/generate 호출"]
+        C0{"복약 가이드 생성 버튼\n활성 조건:\nmedications.length > 0\n&& allMedsConfirmed = true"}
+        C0 -->|"비활성\n(약물 없음 또는 미확인 약물 존재)"| C0a["버튼 disabled\n약물 1개 이상이면 🔵 안내 배너 표시\n→ allMedsConfirmed = true가 되는 순간 배너 소멸·버튼 활성화"]
+        C0 -->|"활성 (모든 약물 확인 완료)"| C1["POST /ocr/jobs/:jobId/confirm { trigger_guide: true }"]
+        C1 --> C2["서버가 해당 문서에서 데이터를 읽어 POST /guides/generate에 전달\n· medications: 약물명·용량·복약횟수·기간·복약시기 등 전체 정보\n· disease_codes + disease_names: 처방전이면 ICD-10 코드+질병명,\n  약봉투·기타면 빈 배열\n→ 가이드 생성 비동기 작업 등록"]
         C2 --> C3{"응답"}
         C3 -->|"guide_job_id 수신"| C4["/health-guide로 이동\n(가이드 생성 대기 화면)"]
-        C3 -->|"실패"| C5["❌ '가이드 생성에 실패했습니다' 토스트"]
+        C3 -->|"실패\n(네트워크 오류·서버 오류·\n문서 없음·가이드 서비스 오류 등\n→ FE에서 에러 유형 구분 없이 동일 처리)"| C5["❌ '가이드 생성에 실패했습니다.\n다시 시도해주세요.' 토스트\n→ 결과 화면에 그대로 유지\n(allMedsConfirmed = true 상태 유지\n버튼 활성화 상태이므로 재시도 가능)"]
+        C5 --> C0
     end
 
     %% ────────────────────────────────────────────────────────────────
@@ -132,33 +149,45 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph DOCS["⑥ 내 문서 관리 (/documents)"]
         direction TB
-        D1["문서 목록\n필터: 문서유형(전체·처방전·약봉투·기타)\n       처리상태(전체·대기·처리중·완료·실패)\n정렬: 최신순·오래된순 / 페이지네이션"]
-        D1 --> D2{"문서 상태별 버튼"}
-        D2 -->|"DONE"| D3["'결과보기'\n→ /upload/result/:id"]
+        D1["문서 목록\n필터: 문서유형(전체·처방전·약봉투·기타)\n       처리상태(전체·대기·처리중·완료·실패)\n정렬: 최신순·오래된순\n페이지네이션: 10개씩"]
+        D1 --> D2{"문서 상태별 관리 버튼"}
+        D2 -->|"DONE"| D3["'결과보기'\n→ /upload/result/:recordId"]
         D2 -->|"PENDING · PROCESSING"| D4["'처리현황'\n→ /upload/processing/:jobId"]
-        D2 -->|"FAILED"| D5["'재시도'\n→ POST /records/:id/reanalyze\n→ /upload/processing/:jobId"]
-        D1 --> D6["'삭제' 버튼 → 삭제 확인 모달"]
-        D6 -->|"확인"| D7["DELETE /records/:id (소프트 삭제)"]
-        D7 -->|"PROCESSING 중 삭제 시도"| D8["❌ 409 삭제 불가\n'처리 완료 후 삭제 가능' 안내"]
-        D7 -->|"성공"| D9["목록에서 즉시 제거"]
+        D2 -->|"FAILED"| D5["'재시도'\n→ /upload/processing/:jobId\n(해당 화면에서 재추출 버튼 제공)"]
+        D1 --> D6["'삭제' 버튼 클릭\n→ 삭제 확인 모달"]
+        D6 -->|"삭제 진행 중\nESC · 배경 클릭"| D6a["모달 닫기 차단\n(deleting 상태 동안 비활성)"]
+        D6 -->|"'삭제 확인' 클릭"| D7["DELETE /records/:id (소프트 삭제)\n30일 후 완전 삭제"]
+        D7 -->|"409\n(PROCESSING 중 삭제 시도)"| D8["❌ '처리 중인 문서는 삭제할 수 없습니다'\n'OCR 처리가 완료된 후 삭제해 주세요' 안내"]
+        D7 -->|"성공"| D9["목록에서 즉시 제거\n(쿼리 캐시 무효화)"]
     end
 
     %% ────────────────────────────────────────────────────────────────
     %% 전체 흐름 연결
     %% ────────────────────────────────────────────────────────────────
-    U6 --> P1
+    U6 -->|"FE: 처리 대기 화면으로 이동"| PE
+    U6 -->|"BE: Redis PUBLISH → ai_worker 자동 시작 (동시)"| W1
     W16 --> P2
     WF --> P2
-    P3c --> R0
-    R_re2 --> P1
+    P3 --> R_BTN
+    P3c --> R_BTN
     R_end --> C0
+
+    %% ────────────────────────────────────────────────────────────────
+    %% 카운터 설명
+    %% ────────────────────────────────────────────────────────────────
+    subgraph COUNTER["업로드·재추출 카운터 구분"]
+        direction LR
+        CT1["📁 일일 업로드 한도 (최대 20건/일)\n파일 1개 업로드 = 1건 차감\n재추출은 포함되지 않음\n※ Clova OCR API 항상 호출"]
+        CT2["🔄 재추출 한도 (문서당 최대 5회)\nFAILED 문서 재추출 시에만 차감\n일일 업로드 한도와 별개로 카운트\n※ FAILED 재추출: Clova OCR 재호출\n   (raw_text 없으므로 전체 재처리)"]
+    end
 
     %% ────────────────────────────────────────────────────────────────
     %% 신뢰도 표시 기준
     %% ────────────────────────────────────────────────────────────────
-    subgraph LEGEND["신뢰도 표시 기준 (필드별 색상)"]
+    subgraph LEGEND["전체 문서 신뢰도 표시 기준 (문서 정보 카드 색상 뱃지)"]
         direction LR
         L1["🟢 높음 (≥ 80%)\n정확도 양호"]
-        L2["🟡 보통 (60 ~ 79%)\n일부 확인 권장"]
-        L3["🔴 낮음 (< 60%)\n직접 확인 필요"]
+        L2["🟡 보통 (60 ~ 79%)\n일부 확인 권장\n※ 60~69%는 재촬영 권고 병행 표시"]
+        L3["🔴 낮음 (< 60%)\n직접 확인 필요\n※ 재촬영 권고 병행 표시"]
+        L4["⚠ 재촬영 권고 기준: confidence < 0.7 (70%)\n색상 뱃지(80/60 기준)와 별도로\n'재촬영 권고' 텍스트 추가 표시됨"]
     end
