@@ -74,6 +74,8 @@ export default function UploadProcessing() {
     if (displayPct < 100) return;
     const status = data?.status;
     if (status !== "DONE" || !data?.record_id) return;
+    // retake_recommended이면 자동이동 없이 선택지 화면 표시
+    if (data.retake_recommended) return;
     const timer = setTimeout(() => {
       navigate(`/upload/result/${data.record_id}`);
     }, 1000);
@@ -90,6 +92,42 @@ export default function UploadProcessing() {
           </Button>
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  if (data?.status === "DONE" && data.retake_recommended) {
+    const isExhausted = (data.reanalyze_count ?? 0) >= 5;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>OCR 처리 완료 — 재촬영 권고</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertDescription>
+              이미지 인식률이 낮습니다. 더 선명하게 재촬영하면 정확도가 높아져요.
+            </AlertDescription>
+          </Alert>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/upload/result/${data.record_id}`)}
+            >
+              그냥 결과 보기
+            </Button>
+            {isExhausted ? (
+              <Button disabled>재추출 횟수 초과</Button>
+            ) : (
+              <Button
+                onClick={() => reanalyzeMutation.mutate()}
+                disabled={reanalyzeMutation.isPending}
+              >
+                {reanalyzeMutation.isPending ? "요청 중..." : "재추출하기"}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
