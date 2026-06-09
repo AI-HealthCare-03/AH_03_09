@@ -1,0 +1,148 @@
+flowchart TB
+      classDef fe     fill:#DAE8FC,stroke:#6C8EBF,color:#333
+      classDef be     fill:#F5F5F5,stroke:#888888,color:#333
+      classDef wk     fill:#EEEEEE,stroke:#888888,color:#333
+      classDef asm    fill:#CCCCCC,stroke:#444444,color:#000
+      classDef nf     fill:#F8CECC,stroke:#B85450,color:#333
+      classDef dec    fill:#FFF2CC,stroke:#D6B656,color:#333
+      classDef rd     fill:#FFE6CC,stroke:#D79B00,color:#333
+      classDef pg     fill:#D5E8D4,stroke:#82B366,color:#333
+      classDef ai     fill:#E1D5E7,stroke:#9673A6,color:#333
+
+      %% ────────────────────────────────────────
+      subgraph FE ["🖥  Frontend"]
+          direction TB
+          f1["OCR 결과 확인·수정\n약물명·질병코드 검토"]
+          f2["가이드 생성 요청"]
+          f3["job_id 수신\n202 Accepted"]
+          f4["상태 폴링\nPENDING → DONE 반복"]
+          f5["가이드 조회 화면\nGuideResponse 렌더링"]
+          f6["피드백 제출\n이해도·유용성·안전성"]
+          f7["챗봇 화면\n가이드 기반 질의응답"]
+      end   
+
+      %% ────────────────────────────────────────
+      subgraph API ["⚙  FastAPI Backend — API Layer"]
+          direction TB
+          b1["POST /guides/generate\n요청 수신 · job_id 반환"]
+          b2["GET /guides/status/{job_id}\nJob 상태 조회"]
+          b3["GET /guides/{guide_id}\n가이드 결과 조회"]
+          b4["POST /feedback\n피드백 저장"]
+          b5["GET /context\nGuideContext 생성"]
+      end   
+
+      %% ────────────────────────────────────────
+      subgraph WK ["⚙  FastAPI Backend — 비동기 Worker"]
+          direction TB
+          w1["Health Profile 조회\n기저질환·혈압·생활습관"]
+          w2["질환 whitelist 확인\n8개 지원 질환 기준"]
+          w3["LLM 입력 준비\n약물명 + 질병코드 + Health Profile"]
+          wd{"drug_master\nDB 매칭?"}
+          w4["복약 정보 추출 + 요약\n용법·주의사항·이상반응"]
+          w5["NOT_FOUND 처리\n약물 정보 없음"]
+          wst{"복용 시간\n정보 있음?"}
+          w6a["시간대별 그룹 구성\n아침·점심·저녁"]
+          w6b["처방전·약봉투 안내 참고"]
+          w7["GuideResponse 조립\n전체 가이드 통합"]
+          w8["Guide DB 저장\nguides 테이블 INSERT"]
+      end
+  
+      %% ────────────────────────────────────────
+      subgraph RD ["🔴  Redis"]
+          direction TB
+          r1["Job PENDING"]
+          r2["Job PROCESSING"]
+          r3["Job DONE + guide_id"]
+      end
+
+      %% ────────────────────────────────────────
+      subgraph PG ["🐘  PostgreSQL"]
+          direction TB
+          p1["health_profiles\n기저질환·혈압·생활습관"]
+          p2["drug_master\n약물 용법·주의사항"]
+          p3["guides 테이블\nJSONB 전체 저장"]
+          p4["guides.feedback_data\n피드백 저장"]
+      end
+
+      %% ────────────────────────────────────────
+      subgraph AI ["🤖  OpenAI GPT-4o-mini"]
+          direction TB
+          l1["생활 가이드 생성\n생활관리 팁 4개"]
+          l2["식사 가이드 생성\n권장·금지식품 + 수분"]
+          l3["운동 가이드 생성\n강도·빈도·주의사항"]
+          l4["복약 요약 LLM 보강\n키워드 기반 → GPT 정제"]
+      end
+  
+      %% ════════════════════════════════════════
+      %% 1. 요청 흐름
+      f1 --> f2
+      f2 --> b1
+      b1 -->|Redis 저장| r1
+      b1 -->|job_id 반환| f3
+      r1 -->|Worker 시작| r2
+
+      %% 2. Worker 비동기 트리거
+      r2 -.->|비동기| w1
+      r2 -.->|비동기| w2
+      r2 -.->|비동기| wd
+      r2 -.->|비동기| wst
+
+      %% 3. Health Profile
+      w1 --> p1
+      w1 --> w3
+      w2 --> w3
+
+      %% 4. LLM 가이드 생성
+      w3 --> l1
+      w3 --> l2
+      w3 --> l3
+      l1 --> w7
+      l2 --> w7
+      l3 --> w7
+
+      %% 5. Medication Guide
+      wd -->|성공| w4
+      wd -->|실패| w5
+      wd -.->|DB 조회| p2
+      w4 --> l4
+      l4 --> w7
+      w5 --> w7
+
+      %% 6. Schedule Table
+      wst -->|있음| w6a
+      wst -->|없음| w6b
+      w6a --> w7
+      w6b --> w7
+
+      %% 7. 조립 & 저장
+      w7 --> w8
+      w8 --> p3
+      w8 --> r3
+
+      %% 8. 폴링 & 조회
+      f3 --> f4
+      f4 --> b2
+      b2 -.->|상태 확인| r3
+      b2 -->|DONE| f5
+
+      %% 9. 가이드 활용
+      f5 --> b3
+      b3 -.->|DB 조회| p3
+      f5 --> f6
+      f6 --> b4
+      b4 -.->|저장| p4
+      f5 --> f7
+      f7 --> b5
+      b5 -.->|DB 조회| p3
+
+      %% ════════════════════════════════════════
+      %% 스타일 적용  
+      class f1,f2,f3,f4,f5,f6,f7 fe
+      class b1,b2,b3,b4,b5 be
+      class w1,w2,w3,w4,w6a,w6b wk
+      class w7,w8 asm
+      class w5 nf
+      class wd,wst dec
+      class r1,r2,r3 rd
+      class p1,p2,p3,p4 pg
+      class l1,l2,l3,l4 ai
