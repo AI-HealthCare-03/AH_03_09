@@ -334,7 +334,7 @@ export default function MyDocuments() {
         </Card>
       </div>
 
-      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && !deleting && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>문서 삭제</DialogTitle>
