@@ -88,8 +88,7 @@ def _build_health_profile_section(health_profile: dict | None) -> str:
         return ""
     return (
         "\n환자 건강 정보 (가이드 작성 시 참고할 정보."
-        " 확정 진단 정보는 아니며 진단·치료·처방 판단에는 사용하지 말 것):\n"
-        + "\n".join(f"- {p}" for p in parts)
+        " 확정 진단 정보는 아니며 진단·치료·처방 판단에는 사용하지 말 것):\n" + "\n".join(f"- {p}" for p in parts)
     )
 
 
@@ -462,10 +461,7 @@ async def _build_medication_guide(conn: asyncpg.Connection, medication_names: li
 
 def _disease_entries(disease_codes: list[str], disease_names: list[str]) -> list[str]:
     if disease_names:
-        return [
-            f"{code} - {name}" if name else code
-            for code, name in zip(disease_codes, disease_names, strict=False)
-        ]
+        return [f"{code} - {name}" if name else code for code, name in zip(disease_codes, disease_names, strict=False)]
     return disease_codes
 
 
@@ -619,15 +615,9 @@ async def _make_exercise_guide(
     duration = data.get("duration")
     cautions = data.get("cautions")
     return {
-        "intensity": intensity
-        if isinstance(intensity, str) and intensity.strip()
-        else _FALLBACK_EXERCISE["intensity"],
-        "frequency": frequency
-        if isinstance(frequency, str) and frequency.strip()
-        else _FALLBACK_EXERCISE["frequency"],
-        "duration": duration
-        if isinstance(duration, str) and duration.strip()
-        else _FALLBACK_EXERCISE["duration"],
+        "intensity": intensity if isinstance(intensity, str) and intensity.strip() else _FALLBACK_EXERCISE["intensity"],
+        "frequency": frequency if isinstance(frequency, str) and frequency.strip() else _FALLBACK_EXERCISE["frequency"],
+        "duration": duration if isinstance(duration, str) and duration.strip() else _FALLBACK_EXERCISE["duration"],
         "cautions": cautions if isinstance(cautions, list) and cautions else _FALLBACK_EXERCISE["cautions"],
     }
 
@@ -723,8 +713,7 @@ async def process_guide_task(payload: GuideJobPayload) -> None:
             "diet_guide": diet_guide,
             "exercise_guide": exercise_guide,
             "generation_results": [
-                {"guide_type": gt, "status": "DONE", "skip_reason": None}
-                for gt in payload.guide_types
+                {"guide_type": gt, "status": "DONE", "skip_reason": None} for gt in payload.guide_types
             ],
             "disease_codes": payload.disease_codes,
             "disease_names": payload.disease_names,

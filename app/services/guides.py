@@ -1115,10 +1115,16 @@ class GuideService:
         try:
             redis = await get_redis()
             await redis.publish(f"guide:request:{job_id}", publish_payload)
-            logger.info("[GuideService] guide:request published job_id=%s guide_types=%s", job_id, [gt.value for gt in req.guide_types])
+            logger.info(
+                "[GuideService] guide:request published job_id=%s guide_types=%s",
+                job_id,
+                [gt.value for gt in req.guide_types],
+            )
         except Exception as e:
             await _update_job(job_id, status=JobStatus.FAILED, error_message=str(e))
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="가이드 생성 요청 발행 실패") from e
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="가이드 생성 요청 발행 실패"
+            ) from e
 
         return GenerateGuideResponse(job_id=job_id)
 
