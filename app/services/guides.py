@@ -1095,17 +1095,37 @@ class GuideService:
         job_id = str(uuid.uuid4())
         guide_id = str(uuid.uuid4())
         await _set_job(job_id, {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id})
-        asyncio.create_task(
-            _run_mock_worker(
-                job_id,
-                guide_id,
-                req.guide_types,
-                req.medication_names,
-                req.medications,
-                req.disease_codes,
-                req.disease_names,
-            )
+
+        # [ROLLBACK] asyncio.create_task(_run_mock_worker(job_id, guide_id, req.guide_types,
+        #     req.medication_names, req.medications, req.disease_codes, req.disease_names))
+
+        publish_payload = json.dumps(
+            {
+                "job_id": job_id,
+                "guide_id": guide_id,
+                "patient_id": req.patient_id,
+                "guide_types": [gt.value for gt in req.guide_types],
+                "medication_names": req.medication_names,
+                "medications": [m.model_dump() for m in req.medications],
+                "disease_codes": req.disease_codes,
+                "disease_names": req.disease_names,
+            },
+            ensure_ascii=False,
         )
+        try:
+            redis = await get_redis()
+            await redis.publish(f"guide:request:{job_id}", publish_payload)
+            logger.info(
+                "[GuideService] guide:request published job_id=%s guide_types=%s",
+                job_id,
+                [gt.value for gt in req.guide_types],
+            )
+        except Exception as e:
+            await _update_job(job_id, status=JobStatus.FAILED, error_message=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="가이드 생성 요청 발행 실패"
+            ) from e
+
         return GenerateGuideResponse(job_id=job_id)
 
     async def get_job_status(self, job_id: str) -> GuideStatusResponse:
