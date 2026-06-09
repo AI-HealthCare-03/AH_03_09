@@ -188,7 +188,7 @@ export default function UploadResult() {
     mutationFn: (jobId: string) =>
       confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
     onSuccess: (data) =>
-      navigate("/health-guide", { state: { guide_job_id: data.guide_job_id } }),
+      navigate(`/health-guide?job_id=${data.guide_job_id}`),
   });
 
   const reanalyzeMutation = useMutation({
