@@ -12,6 +12,7 @@ class ChatSkill(StrEnum):
     DRUG_INTERACTION = "DRUG_INTERACTION"
     SIDE_EFFECT = "SIDE_EFFECT"
     EMERGENCY = "EMERGENCY"
+    DISEASE_INQUIRY = "DISEASE_INQUIRY"
     GENERAL = "GENERAL"
 
 
@@ -50,6 +51,26 @@ _SKILL_SYSTEM_PROMPTS: dict[ChatSkill, str] = {
 - AI 판단에 의존하지 말고 반드시 전문 의료진의 도움을 받도록 강조합니다.
 
 답변 형식: 1) 긴급도 판단 (즉시/주의/경과 관찰) → 2) 즉각 행동 지시 → 3) 주의사항""",
+    ChatSkill.DISEASE_INQUIRY: """당신은 복약 관리 전문 AI 어시스턴트입니다.
+
+사용자가 자신의 질병·건강 상태에 대해 질문했습니다.
+반드시 아래 형식으로만 답변하세요. 두 출처를 절대 한 문장에 합치지 마세요.
+
+[답변 구조 — 해당하는 항목만 포함]
+
+① 사용자가 직접 입력한 건강정보가 있을 경우:
+   "귀하께서 직접 입력하신 건강정보에는 [내용]이 포함되어 있습니다."
+   → 이 항목은 사용자 본인이 입력한 정보임을 반드시 명시합니다.
+
+② 처방전/복약정보에서 인식된 질병코드가 있을 경우:
+   "올려주신 처방전/복약정보에서 인식된 질병코드는 [코드명(질병명)]입니다."
+   이어서 반드시: "이 코드는 의료문서에 기재된 분류 참고정보이며, 확정 진단이 아닙니다. 정확한 진단은 담당 의료진에게 확인하시기 바랍니다."
+
+절대 금지:
+- "귀하의 질병은 X입니다" 형태의 확정 진단
+- 두 출처(건강 프로필 + 처방전 코드)를 한 문장으로 합쳐서 설명
+- 약물명만으로 질환을 단정 추정
+- "제공된 정보에 따르면 X 질환이 있습니다" 형태의 종합 진단""",
     ChatSkill.GENERAL: """당신은 복약 관리 전문 AI 어시스턴트입니다.
 
 역할:
@@ -124,6 +145,22 @@ _SKILL_KEYWORDS: dict[ChatSkill, list[str]] = {
         "먹고 나서",
         "복용 후",
     ],
+    ChatSkill.DISEASE_INQUIRY: [
+        "내 질병",
+        "무슨 병",
+        "어떤 병",
+        "내 병",
+        "질환이 뭐",
+        "어디 아파",
+        "무슨 질환",
+        "내 건강 상태",
+        "어떤 질환",
+        "병명이 뭐",
+        "질병이 뭐",
+        "무슨 병을 앓",
+        "진단명",
+        "내 진단",
+    ],
     ChatSkill.EMERGENCY: [
         "호흡 곤란",
         "숨 못 쉬",
@@ -154,6 +191,7 @@ _MEDICAL_DISCLAIMERS: dict[ChatSkill, str] = {
     ChatSkill.DRUG_INTERACTION: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 약물 상호작용에 대한 정확한 확인은 담당 의사·약사와 상담하시기 바랍니다.",
     ChatSkill.SIDE_EFFECT: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 부작용이 지속되거나 심각한 경우 즉시 의사·약사와 상담하시기 바랍니다.",
     ChatSkill.EMERGENCY: "\n\n🚨 응급 상황이라면 즉시 119에 신고하세요. 본 AI 답변에만 의존하지 마시기 바랍니다.",
+    ChatSkill.DISEASE_INQUIRY: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 진단 및 치료는 반드시 담당 의사와 상담하시기 바랍니다.",
     ChatSkill.GENERAL: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 진단 및 치료는 담당 의사와 상담하시기 바랍니다.",
 }
 
@@ -166,7 +204,13 @@ def _strip_disclaimers(content: str) -> str:
 
 def detect_skill(user_message: str) -> ChatSkill:
     """키워드 기반으로 사용자 메시지 의도를 분류해 적절한 스킬을 반환한다."""
-    for skill in (ChatSkill.EMERGENCY, ChatSkill.DRUG_INTERACTION, ChatSkill.SIDE_EFFECT, ChatSkill.MEDICATION_GUIDE):
+    for skill in (
+        ChatSkill.EMERGENCY,
+        ChatSkill.DRUG_INTERACTION,
+        ChatSkill.SIDE_EFFECT,
+        ChatSkill.MEDICATION_GUIDE,
+        ChatSkill.DISEASE_INQUIRY,
+    ):
         for keyword in _SKILL_KEYWORDS[skill]:
             if keyword in user_message:
                 return skill
@@ -192,20 +236,31 @@ def _build_guide_section(guide_context: dict) -> str:
 
     disease_codes = guide_context.get("disease_codes") or []
     disease_names = guide_context.get("disease_names") or []
+
+    medication_section = (
+        "\n\n[처방 가이드 — 사용자가 올린 처방전·복약정보 기반, 복약 관련 질문에 이 내용을 활용하세요]\n"
+        + "\n".join(lines)
+        if lines
+        else ""
+    )
+
+    disease_section = ""
     if disease_codes:
         if disease_names:
             pairs = [f"{c}({n})" if n else c for c, n in zip(disease_codes, disease_names, strict=False)]
         else:
             pairs = disease_codes
-        lines.append(
-            f"- 처방전에서 인식된 질병코드(참고): {', '.join(pairs)}\n"
-            "  ※ 이 코드는 의료문서에 기재된 분류 참고정보이며 확정 진단이 아닙니다."
+        disease_section = (
+            "\n\n[처방전 인식 질병코드 — 사용자가 올린 의료문서에서 OCR로 인식된 참고 코드입니다. "
+            "절대 확정 진단처럼 표현하지 말고, 반드시 '올려주신 처방전/복약정보에서 인식된 질병코드'라는 출처를 명시하세요]\n"
+            f"- 인식된 코드: {', '.join(pairs)}\n"
+            "- ※ 이 코드는 의료문서 분류 참고정보이며 확정 진단이 아닙니다."
         )
 
-    if not lines:
+    if not medication_section and not disease_section:
         return ""
 
-    return "\n\n[처방 가이드 — 이 내용을 기반으로 정확히 답변하세요]\n" + "\n".join(lines)
+    return medication_section + disease_section
 
 
 def _build_user_info(health_profile: dict) -> list[str]:

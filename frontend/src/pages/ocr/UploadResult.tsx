@@ -186,7 +186,7 @@ export default function UploadResult() {
     mutationFn: (jobId: string) =>
       confirmOcr(jobId, { trigger_guide: true, trigger_chatbot_context: false }),
     onSuccess: (data) =>
-      navigate("/health-guide", { state: { guide_job_id: data.guide_job_id } }),
+      navigate(`/health-guide?job_id=${data.guide_job_id}`),
     onError: () => toast.error("가이드 생성에 실패했습니다. 다시 시도해주세요."),
   });
 
