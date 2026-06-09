@@ -36,11 +36,12 @@ export function useStreamMessage() {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [delayMessage, setDelayMessage] = useState<string | null>(null);
-  const lastParamsRef = { sessionId: "", content: "" };
+  const lastParamsRef = { sessionId: "", content: "", guideId: null as string | null | undefined };
 
   const mutate = async ({ sessionId, content, guideId }: { sessionId: string; content: string; guideId?: string | null }) => {
     lastParamsRef.sessionId = sessionId;
     lastParamsRef.content = content;
+    lastParamsRef.guideId = guideId;
     setIsPending(true);
     setStreamingContent("");
     setError(null);
@@ -70,7 +71,7 @@ export function useStreamMessage() {
 
   const retry = () => {
     if (lastParamsRef.sessionId && lastParamsRef.content) {
-      mutate({ sessionId: lastParamsRef.sessionId, content: lastParamsRef.content });
+      mutate({ sessionId: lastParamsRef.sessionId, content: lastParamsRef.content, guideId: lastParamsRef.guideId });
     }
   };
 

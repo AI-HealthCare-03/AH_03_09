@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatStore } from "@/store/chatStore";
 
 import {
@@ -86,8 +86,11 @@ export default function HealthGuide() {
   const [ratingSafety] = useState(5);
   const [comment, setComment] = useState("");
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const initialJobIdRef = useRef(
-    (location.state as { guide_job_id?: string } | null)?.guide_job_id ?? null,
+    searchParams.get("job_id") ??
+    (location.state as { guide_job_id?: string } | null)?.guide_job_id ??
+    null,
   );
 
   useEffect(() => {
@@ -110,6 +113,7 @@ export default function HealthGuide() {
             if (!cancelled) {
               setGuide(guideResult);
               setGuideId(statusResult.guide_id);
+              setStoreGuideId(statusResult.guide_id);
               setStatus("가이드 생성 완료");
             }
             break;
