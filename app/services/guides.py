@@ -262,6 +262,10 @@ def _make_easy_summary(
 _DEFAULT_SUMMARY_PROMPT = (
     "당신은 복약 정보를 환자 친화적인 한국어로 요약하는 도우미입니다.\n"
     "반드시 아래 규칙을 따르세요:\n"
+    "- 제공된 데이터에 용도 또는 적응증이 명확히 있을 때만 첫 번째 문장에 이 약의 주요 용도를 환자가 이해하기 쉬운 말로 한 문장으로 설명하세요.\n"
+    "  불분명하면 용도를 추론하지 말고, 복약 주의사항 중심으로 작성하세요.\n"
+    "- 용량(mg 등 수치), 복용 횟수(1일 n회), 복용 기간(n주·n개월), 병용요법 용량 등 구체적인 투여 수치는 새로 요약하거나 서술하지 마세요.\n"
+    "- 복용 방법은 구체적인 수치 대신 '처방받은 방법을 지켜 복용하세요' 수준으로 일반화하세요.\n"
     "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
     "- 환자가 실제로 해야 할 복약 행동 중심으로 짧고 명확하게 설명하세요.\n"
     "- '의사와 상담' 또는 '전문가와 상담' 문장이 여러 개 나올 경우 하나로 통합하세요.\n"
@@ -274,9 +278,13 @@ _DEFAULT_SUMMARY_PROMPT = (
 _PATIENT_SUMMARY_PROMPT = (
     "당신은 이미 처방받은 환자가 집에서 약을 올바르게 복용하도록 돕는 도우미입니다.\n"
     "반드시 아래 규칙을 따르세요:\n"
+    "- 제공된 데이터에 용도 또는 적응증이 명확히 있을 때만 첫 번째 문장에 이 약의 주요 용도를 환자가 이해하기 쉬운 말로 한 문장으로 설명하세요.\n"
+    "  불분명하면 용도를 추론하지 말고, 복약 주의사항 중심으로 작성하세요.\n"
+    "- 용량(mg 등 수치), 복용 횟수(1일 n회), 복용 기간(n주·n개월), 병용요법 용량 등 구체적인 투여 수치는 새로 요약하거나 서술하지 마세요.\n"
+    "- 복용 방법은 구체적인 수치 대신 '처방받은 방법을 지켜 복용하세요' 수준으로 일반화하세요.\n"
     "- 이미 처방받은 환자 대상이므로, 처방 여부나 용량을 다시 결정하는 표현은 절대 사용하지 마세요.\n"
     "- 복용 중 주의사항과 실제 복약 행동 중심으로 설명하세요.\n"
-    "- 복용 횟수·방법, 식사 관계, 임신/수유 주의, 간·신장 주의, 어린이 사용 주의를 우선 포함하세요.\n"
+    "- 식사 관계, 임신/수유 주의, 간·신장 주의, 어린이 사용 주의를 우선 포함하세요.\n"
     "- '복용 전 상담' 표현은 사용하지 마세요.\n"
     "- 복용 기간 연장, 병용요법, 용량 조절은 환자가 임의로 결정할 수 있는 것처럼 작성하지 마세요.\n"
     "- 복용 방법·기간에 대해서는 '처방받은 기간과 방법을 지켜 복용하세요' 또는 '의료진 안내를 따르세요' 형태를 우선 사용하세요.\n"
@@ -287,6 +295,7 @@ _PATIENT_SUMMARY_PROMPT = (
     "  * 의사·약사 전용 표현\n"
     "  * 초기 용량 조절 관련 표현\n"
     "  * 환자가 임의로 복용 기간을 연장하거나 병용을 결정하는 표현\n"
+    "  * 구체적인 용량 수치(mg, 1일 n회, n주 등)\n"
     "- 제공된 데이터에 없는 약효, 진단, 처방 정보를 절대 추가하지 마세요.\n"
     "- 3~5개의 독립적인 짧은 문장으로만 작성하세요.\n"
     '- 응답은 반드시 JSON 형식으로: {"sentences": ["문장1", "문장2", ...]}'
@@ -1086,17 +1095,37 @@ class GuideService:
         job_id = str(uuid.uuid4())
         guide_id = str(uuid.uuid4())
         await _set_job(job_id, {"status": JobStatus.PENDING, "guide_id": None, "patient_id": req.patient_id})
-        asyncio.create_task(
-            _run_mock_worker(
-                job_id,
-                guide_id,
-                req.guide_types,
-                req.medication_names,
-                req.medications,
-                req.disease_codes,
-                req.disease_names,
-            )
+
+        # [ROLLBACK] asyncio.create_task(_run_mock_worker(job_id, guide_id, req.guide_types,
+        #     req.medication_names, req.medications, req.disease_codes, req.disease_names))
+
+        publish_payload = json.dumps(
+            {
+                "job_id": job_id,
+                "guide_id": guide_id,
+                "patient_id": req.patient_id,
+                "guide_types": [gt.value for gt in req.guide_types],
+                "medication_names": req.medication_names,
+                "medications": [m.model_dump() for m in req.medications],
+                "disease_codes": req.disease_codes,
+                "disease_names": req.disease_names,
+            },
+            ensure_ascii=False,
         )
+        try:
+            redis = await get_redis()
+            await redis.publish(f"guide:request:{job_id}", publish_payload)
+            logger.info(
+                "[GuideService] guide:request published job_id=%s guide_types=%s",
+                job_id,
+                [gt.value for gt in req.guide_types],
+            )
+        except Exception as e:
+            await _update_job(job_id, status=JobStatus.FAILED, error_message=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="가이드 생성 요청 발행 실패"
+            ) from e
+
         return GenerateGuideResponse(job_id=job_id)
 
     async def get_job_status(self, job_id: str) -> GuideStatusResponse:

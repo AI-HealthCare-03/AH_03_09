@@ -131,6 +131,7 @@ export type GuideContextResponse = {
   guide_id: string;
   medications: string[];
   disease_codes: string[];
+  disease_names?: string[];
   key_instructions: string[];
 };
 

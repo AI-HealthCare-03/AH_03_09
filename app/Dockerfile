@@ -2,9 +2,8 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# 1. uv 바이너리 직접 복사 (네트워크 없이 설치)
-COPY ai_worker/uv /usr/local/bin/uv
-RUN chmod +x /usr/local/bin/uv
+# 1. uv 설치 (공식 이미지에서 복사해오는 가장 깔끔한 방법)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # 2. 의존성 패키지 관리 파일을 컨테이너 내부에 복사합니다.
 COPY pyproject.toml uv.lock ./
@@ -14,6 +13,8 @@ RUN uv sync --group app --no-dev --frozen
 
 # 4. 로컬 소스 코드를 컨테이너 내부로 복사합니다.
 COPY ./app ./app
+COPY ./alembic ./alembic
+COPY alembic.ini .
 
 # 5. 해당 이미지를 활용하여 도커컨테이너 실행시 실행되는 명령어입니다.
 # FastAPI를 uvicorn을 활용하여 비동기 환경으로 서버를 실행합니다.

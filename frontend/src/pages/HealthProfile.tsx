@@ -352,9 +352,9 @@ function computeBmi(heightCm: number, weightKg: number) {
   const m = heightCm / 100;
   const v = weightKg / (m * m);
   const value = v.toFixed(1);
-  if (v < 18.5) return { value, label: "저체중", accent: "text-warning" };
-  if (v < 23) return { value, label: "정상", accent: "text-success" };
-  if (v < 25) return { value, label: "과체중", accent: "text-warning" };
+  if (v < 18.5) return { value, label: "저체중", accent: "text-yellow-600" };
+  if (v < 23) return { value, label: "정상", accent: "text-green-600" };
+  if (v < 25) return { value, label: "과체중", accent: "text-yellow-600" };
   return { value, label: "비만", accent: "text-destructive" };
 }
 

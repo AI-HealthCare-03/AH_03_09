@@ -24,6 +24,8 @@ wheels/
 htmlcov/
 기획문서/
 node_modules/
+*.pem
+*.log
 frontend/dist/
 docker-compose.override.yml
 frontend/.env.local

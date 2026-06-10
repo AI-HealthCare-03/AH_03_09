@@ -1,0 +1,137 @@
+flowchart TB
+      classDef fe     fill:#DAE8FC,stroke:#6C8EBF,color:#333
+      classDef be     fill:#F5F5F5,stroke:#888888,color:#333
+      classDef wk     fill:#EEEEEE,stroke:#888888,color:#333
+      classDef asm    fill:#CCCCCC,stroke:#444444,color:#000
+      classDef nf     fill:#F8CECC,stroke:#B85450,color:#333
+      classDef dec    fill:#FFF2CC,stroke:#D6B656,color:#333
+      classDef rd     fill:#FFE6CC,stroke:#D79B00,color:#333
+      classDef pg     fill:#D5E8D4,stroke:#82B366,color:#333
+      classDef ai     fill:#E1D5E7,stroke:#9673A6,color:#333
+      classDef mem    fill:#FFFDE7,stroke:#F9A825,color:#333
+
+      subgraph FE ["Frontend"]
+          direction TB
+          f1["OCR 결과 확인·수정\n약물명·질병코드 검토"]
+          f2["가이드 생성 요청"]
+          f3["job_id 수신\n202 Accepted"]
+          f4["상태 폴링\nPENDING → DONE / FAILED"]
+          f5["가이드 조회 화면\nGuideResponse 렌더링"]
+          f6["피드백 제출\n이해도·유용성"]
+          f7["챗봇 화면\n가이드 기반 질의응답"]
+          ffail["가이드 생성 실패 표시"]
+      end
+
+      subgraph API ["FastAPI Backend - API Layer"]
+          direction TB
+          b1["POST /guides/generate\n요청 수신 · job_id 반환\nasyncio.create_task 등록"]
+          b2["GET /guides/status/{job_id}\nJob 상태 조회"]
+          b3["GET /guides/{guide_id}\nDB 우선 조회 · _guides fallback"]
+          b4["POST /feedback\n피드백 저장"]
+          b5["GET /context\nGuideContext 생성"]
+      end
+
+      subgraph WK ["FastAPI Backend - 비동기 Worker"]
+          direction TB
+          w1["Health Profile 조회\n기저질환·혈압·생활습관"]
+          w3["LLM 입력\n약물명 + 질병코드 원본 + Health Profile\nwhitelist 필터 미적용"]
+          wd{"drug_master\nDB 매칭?"}
+          w4["복약 정보 추출 + 요약\n용법·주의사항·이상반응"]
+          w5["NOT_FOUND 처리\n약물 정보 없음\nCSV fallback 없음"]
+          wst{"복용 시간\n정보 있음?"}
+          w6a["시간대별 그룹 구성\n아침·점심·저녁"]
+          w6b["처방전·약봉투 안내 참고"]
+          w7["GuideResponse 조립\n전체 가이드 통합"]
+          wmem["_guides 메모리 저장\nin-memory dict"]
+          w8["guides 테이블 저장\nPostgreSQL INSERT"]
+      end
+
+      subgraph RD ["Redis"]
+          direction TB
+          r1["Job PENDING"]
+          r2["Job PROCESSING"]
+          r3["Job DONE + guide_id"]
+          r4["Job FAILED\n+ error_message"]
+      end
+
+      subgraph PG ["PostgreSQL"]
+          direction TB
+          p1["health_profiles\n기저질환·혈압·생활습관"]
+          p2["drug_master\n약물 용법·주의사항"]
+          p3["guides 테이블\nJSONB 전체 저장"]
+          p4["guides.feedback_data\n피드백 저장"]
+      end
+
+      subgraph AI ["OpenAI GPT-4o-mini - 순차 실행"]
+          direction TB
+          l1["1. 생활 가이드 생성\n생활관리 팁 4개"]
+          l2["2. 식사 가이드 생성\n권장·금지식품 + 수분"]
+          l3["3. 운동 가이드 생성\n강도·빈도·주의사항"]
+          l4["복약 요약 LLM 보강\n키워드 기반 → GPT 정제"]
+      end
+
+      f1 --> f2
+      f2 --> b1
+      b1 -->|Redis PENDING 저장| r1
+      b1 -->|job_id 반환| f3
+      b1 -.->|asyncio.create_task| w1
+
+      w1 -->|Redis PROCESSING| r2
+
+      w1 --> p1
+      w1 --> w3
+
+      w3 --> l1
+      l1 --> l2
+      l2 --> l3
+      l3 --> w7
+
+      w3 --> wd
+      wd -->|성공| w4
+      wd -->|실패 NOT_FOUND| w5
+      wd -.->|DB 조회| p2
+      w4 --> l4
+      l4 --> w7
+      w5 --> w7
+
+      w3 --> wst
+      wst -->|있음| w6a
+      wst -->|없음| w6b
+      w6a --> w7
+      w6b --> w7
+
+      w7 --> wmem
+      w7 --> w8
+      w8 --> p3
+      w8 -->|Redis DONE 업데이트| r3
+
+      w7 -.->|예외 발생| r4
+
+      f3 --> f4
+      f4 --> b2
+      b2 -.->|상태 확인| r3
+      b2 -.->|상태 확인| r4
+      b2 -->|DONE| f5
+      b2 -->|FAILED| ffail
+
+      f5 --> b3
+      b3 -.->|1순위 DB 조회| p3
+      b3 -.->|2순위 메모리 fallback| wmem
+
+      f5 --> f6
+      f6 --> b4
+      b4 -.->|저장| p4
+      f5 --> f7
+      f7 --> b5
+      b5 -.->|DB 조회| p3
+
+      class f1,f2,f3,f4,f5,f6,f7,ffail fe
+      class b1,b2,b3,b4,b5 be
+      class w1,w3,w4,w6a,w6b wk
+      class w7,wmem,w8 asm
+      class w5 nf
+      class wd,wst dec
+      class r1,r2,r3 rd
+      class r4 nf
+      class p1,p2,p3,p4 pg
+      class l1,l2,l3,l4 ai

@@ -74,6 +74,8 @@ export default function UploadProcessing() {
     if (displayPct < 100) return;
     const status = data?.status;
     if (status !== "DONE" || !data?.record_id) return;
+    // retake_recommended이면 자동이동 없이 선택지 화면 표시
+    if (data.retake_recommended) return;
     const timer = setTimeout(() => {
       navigate(`/upload/result/${data.record_id}`);
     }, 1000);
@@ -93,6 +95,29 @@ export default function UploadProcessing() {
     );
   }
 
+  if (data?.status === "DONE" && data.retake_recommended) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>OCR 처리 완료 — 재촬영 권고</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertDescription>
+              이미지 인식률이 낮습니다. 결과가 불만족스러우면 결과 화면에서 더 선명한 사진으로 새 파일을 업로드해 보세요.
+            </AlertDescription>
+          </Alert>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/upload/result/${data.record_id}`)}
+          >
+            결과 확인하기
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (data?.status === "FAILED") {
     const isExhausted = (data.reanalyze_count ?? 0) >= 5;
     return (
@@ -105,7 +130,7 @@ export default function UploadProcessing() {
             <AlertDescription>
               {isExhausted
                 ? "파일에 문제가 있어 처리할 수 없습니다. 다른 파일로 재업로드해 주세요."
-                : (data.message ?? "OCR 처리 중 오류가 발생했습니다.")}
+                : "OCR 처리 중 오류가 발생했습니다. OCR 서비스의 일시적 오류일 수 있으니 재시도해 주세요."}
             </AlertDescription>
           </Alert>
           {isExhausted ? (
