@@ -4,7 +4,7 @@ from openai import AsyncOpenAI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import config as app_config
+from app.core import config as app_config
 
 logger = logging.getLogger(__name__)
 
