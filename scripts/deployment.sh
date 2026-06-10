@@ -21,6 +21,8 @@ build_and_push () {
 
   if [[ "$name" == "FastAPI" ]]; then
     tag_base="app"
+  elif [[ "$name" == "Frontend" ]]; then
+    tag_base="frontend"
   else
     tag_base="ai"
   fi
@@ -58,6 +60,7 @@ echo ""
 echo "${COLOR_BLUE}배포 전 빌드 & 푸시할 이미지를 선택하세요(복수선택 가능, 띄어쓰기로 구분)${COLOR_NC}"
 echo "1) fastapi"
 echo "2) ai_worker"
+echo "3) frontend"
 read -p "선택 (예: 1 2): " selections
 echo ""
 
@@ -78,6 +81,12 @@ for choice in $selections; do
       read -p "AI-worker 앱 버젼: " ai_version
       build_and_push ${docker_user} ${docker_repo} "AI Worker" ${ai_version} "ai_worker/Dockerfile" "."
       DEPLOY_SERVICES+=("ai-worker")
+      ;;
+    3)
+      echo "${COLOR_BLUE}Frontend 앱의 배포 버젼을 입력하세요(ex. v1.0.0)${COLOR_NC}"
+      read -p "Frontend 버젼: " frontend_version
+      build_and_push ${docker_user} ${docker_repo} "Frontend" ${frontend_version} "frontend/Dockerfile" "frontend"
+      DEPLOY_SERVICES+=("frontend")
       ;;
     *)
       echo "${COLOR_RED}잘못된 선택입니다: $choice${COLOR_NC}"
