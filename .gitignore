@@ -30,3 +30,9 @@ frontend/.env.local
 docs/progress.md
 docs/ocr/progress.md
 app/data/*.csv
+
+# ai_worker build artifacts
+ai_worker/packages/
+ai_worker/uv
+ai_worker/uv-x86_64-unknown-linux-musl/
+*.xlsx

@@ -1,61 +1,78 @@
 flowchart TD
 
-    %% ── 진입 ─────────────────────────────────────────────────────
-    START([👤 사용자 메시지 입력\nchatStore에서 세션·가이드 ID 로드]) --> FE1
+    %% ── 가이드 연동 (사전 설정) ───────────────────────────────────────
+    subgraph GUIDE["📋 가이드 연동 (사전 설정)"]
+        G1([OCR 처방전 확인]) --> G2["POST /guides/jobs\n가이드 생성 요청"]
+        G2 --> G3["navigate('/health-guide?job_id=xxx')\n※ URL 파라미터 → 새로고침해도 유지"]
+        G3 --> G4["폴링\nGET /guides/jobs/{job_id}/status"]
+        G4 --> G5{status === DONE?}
+        G5 -- NO --> G4
+        G5 -- YES --> G6["GET /guides/{guide_id}\n가이드 로드"]
+        G6 --> G7["✅ chatStore.guideId 즉시 저장\n버튼 클릭 없이도 저장됨\n(localStorage 영속)"]
+    end
+
+    %% ── 챗봇 진입 ─────────────────────────────────────────────────────
+    G7 --> START
+    START([👤 사용자 메시지 입력]) --> FE1
 
     %% ══════════════════════════════════════════════════════════════
     subgraph FE["🖥 프론트엔드 (React + Zustand)"]
-        FE1{현재 세션 있음?}
+        FE1{세션 있음?}
         FE1 -- NO --> FE2["POST /chat/sessions\n제목 = 첫 메시지 앞 20자"]
         FE2 --> FE3[세션 ID 저장\nZustand + localStorage]
         FE1 -- YES --> FE4
-        FE3 --> FE4["POST /sessions/{id}/messages/stream\nbody: content, guide_id"]
+        FE3 --> FE4["POST /sessions/{id}/messages/stream\nbody: content + guide_id\n※ retry 시에도 guide_id 유지"]
+        FE4 --> FE5{응답 10초 초과?}
+        FE5 -- YES --> FE6["⏳ 지연 안내 표시\n'AI 응답이 지연되고 있습니다'"]
+        FE5 -- NO --> BE1
+        FE6 --> BE1
     end
 
     %% ══════════════════════════════════════════════════════════════
     subgraph BE["⚙️ FastAPI 백엔드"]
-        FE4 --> BE1{JWT 인증}
+        BE1{JWT 인증}
         BE1 -- 실패 --> BE2[401 반환]
-        BE1 -- 성공 --> BE3{위험 키워드?\n자살·자해·극단적 선택\n과다복용}
-        BE3 -- YES --> BE4["🚨 즉시 반환\n━━━━━━━━━━━━\n📞 자살예방상담전화 1393\n📞 정신건강위기상담전화 1577-0199\nLLM 미호출"]
+        BE1 -- 성공 --> BE3{위험 키워드?\n자살·자해·극단적선택·과다복용}
+        BE3 -- YES --> BE4["🚨 즉시 반환 (LLM 미호출)\n📞 자살예방상담전화 1393\n📞 정신건강위기상담전화 1577-0199\n119 응급 안내"]
         style BE4 fill:#fee2e2,stroke:#f87171,color:#111
         BE3 -- NO --> BE5{부적절 키워드?\n욕설·비속어}
         BE5 -- YES --> BE6["❌ 답변 거부\n약 관련 질문만 안내"]
         style BE6 fill:#f1f5f9,stroke:#94a3b8,color:#111
-        BE5 -- NO --> BE7["건강 프로필 조회 (DB)\n기저질환·알레르기·복용약\n신체정보·생활습관"]
-        BE7 --> BE8{guide_id 있음?\nOCR 처방전 연동}
-        BE8 -- YES --> BE9["가이드 컨텍스트 조회\n━━━━━━━━━━━━\n· 처방 약물명\n· 복약 스케줄\n· 주요 지시사항\n· disease_codes(disease_names)"]
+        BE5 -- NO --> BE7["건강 프로필 조회\n성별·나이·신체정보\n기저질환·혈압·알레르기\n복용약·생활습관"]
+        BE7 --> BE8{guide_id 있음?}
+        BE8 -- YES --> BE9["가이드 컨텍스트 조회\n처방 약물 / 복약 스케줄\n주요 지시사항\n질병코드+병명 (별도 섹션)"]
         style BE9 fill:#eff6ff,stroke:#60a5fa,color:#111
         BE8 -- NO --> BE10
-        BE9 --> BE10[User Message DB 저장]
-        BE10 --> BE11["Redis Publish\n채널: chat:{session_id}\n컨텍스트 전달 → AI Worker"]
+        BE9 --> BE10["메시지 DB 저장\nRedis Publish\nchat:request:{session_id}"]
     end
 
     %% ══════════════════════════════════════════════════════════════
-    subgraph AI["🤖 AI Worker (ai_worker)"]
-        BE11 --> AI1[Redis Subscribe\n메시지 수신]
-        AI1 --> AI2{스킬 감지\n키워드 우선순위 순 매칭}
-        AI2 -- "호흡곤란·경련·쇼크·119" --> AI3[🚑 EMERGENCY]
-        AI2 -- "병용·상호작용·함께 먹어" --> AI4[💊 DRUG_INTERACTION]
-        AI2 -- "부작용·두통·구역·두드러기" --> AI5[⚠️ SIDE_EFFECT]
-        AI2 -- "복용법·식전·식후·처방전" --> AI6[📋 MEDICATION_GUIDE]
-        AI2 -- 해당 없음 --> AI7[💬 GENERAL]
+    subgraph AI["🤖 AI Worker"]
+        BE10 --> AI1["스킬 감지\n(키워드 우선순위 매칭)"]
 
-        AI3 & AI4 & AI5 & AI6 & AI7 --> AI8
+        AI1 --> SK1["🚑 EMERGENCY\n호흡곤란·경련·쇼크·119·과다"]
+        AI1 --> SK2["💊 DRUG_INTERACTION\n병용·상호작용·함께 먹어"]
+        AI1 --> SK3["⚠️ SIDE_EFFECT\n부작용·두통·구역·두드러기"]
+        AI1 --> SK4["📋 MEDICATION_GUIDE\n복용법·식전·식후·처방전·약봉투"]
+        AI1 --> SK5["🔍 DISEASE_INQUIRY\n내 병명·무슨 병·진단명·내 진단"]
+        AI1 --> SK6["💬 GENERAL\n그 외"]
 
-        AI8["시스템 프롬프트 빌드\n━━━━━━━━━━━━━━━━━━━━\n① 스킬 프롬프트\n② 건강 프로필 섹션\n   (사용자 직접 입력 출처 명시)\n③ 가이드 섹션\n   (처방약·스케줄·I10(고혈압) 형식)\n④ SOURCE_RULES\n   (출처 구분 + 확정 진단 금지)"]
+        SK5 --> DI["출처 분리 강제 프롬프트\n────────────────\n① 건강 프로필 →\n   '귀하께서 입력하신 건강정보에는\n   고혈압 정보가 포함되어 있습니다.'\n② OCR 질병코드 →\n   '올려주신 처방전에서 인식된\n   질병코드는 K29(위염)입니다.'"]
+        style DI fill:#f0fdf4,stroke:#86efac,color:#111
 
-        AI8 --> AI9{대화 히스토리\n12개 초과?}
-        AI9 -- YES --> AI10["이전 대화 요약\n3~5문장 압축 → system 프롬프트에 추가\n최근 8개 메시지만 유지"]
-        AI9 -- NO --> AI11
-        AI10 --> AI11["OpenAI Chat API\n스트리밍 호출\n(gpt 모델)"]
-        AI11 --> AI12["청크 단위 Redis Publish\n→ NDJSON 스트리밍 응답"]
-        AI12 --> AI13["⚠️ 의료 면책 문구 자동 추가\nAssistant Message DB 저장"]
+        SK1 & SK2 & SK3 & SK4 & DI & SK6 --> AI2
+
+        AI2["시스템 프롬프트 빌드\n① 스킬 프롬프트\n② 건강 프로필 섹션 (사용자 직접 입력)\n③ 처방 가이드 섹션 (복약 정보)\n④ 질병코드 섹션 (OCR 인식, 별도 분리)\n⑤ 출처 구분 규칙 + 확정 진단 금지\n⑥ 대화 순서 참조 규칙"]
+
+        AI2 --> AI3{히스토리 12개 초과?}
+        AI3 -- YES --> AI4["이전 대화 요약\n질문 순서 보존\n최근 8개 유지"]
+        AI3 -- NO --> AI5
+        AI4 --> AI5["OpenAI 스트리밍 호출"]
+        AI5 --> AI6["청크 Redis Publish\nchat:stream:{session_id}\n+ 스킬별 면책 문구 자동 추가"]
     end
 
     %% ══════════════════════════════════════════════════════════════
-    subgraph FERES["🖥 프론트엔드 (응답 수신)"]
-        AI12 --> FR1["NDJSON 청크 수신\n청크 누적 → 스트리밍 UI 표시"]
-        AI13 --> FR2["완료 이벤트 수신\n메시지 목록 refetch\n세션 목록 갱신"]
-        FR1 & FR2 --> END([💬 답변 완료])
+    subgraph RES["🖥 프론트엔드 (응답 수신)"]
+        AI6 --> R1["NDJSON 청크 수신\n실시간 UI 표시"]
+        R1 --> R2(["💬 답변 완료\n메시지·세션 목록 갱신"])
     end
