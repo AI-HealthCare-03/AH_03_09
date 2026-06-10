@@ -12,3 +12,5 @@ class ChatTaskPayload(BaseModel):
     history: list[HistoryMessage]
     health_profile: dict | None = None
     guide_context: dict | None = None
+    drug_details: list[dict] | None = None
+    rag_results: list[dict] | None = None

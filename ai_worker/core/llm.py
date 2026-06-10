@@ -185,6 +185,7 @@ _EXERCISE_LABEL = {"REGULAR": "규칙적 (주 3회 이상)", "IRREGULAR": "비�
 _ALCOHOL_LABEL = {"NONE": "", "MODERATE": "가끔 (주 1~2회)", "HEAVY": "자주 (주 3회 이상)"}
 
 _SUMMARY_THRESHOLD = 12
+_DRUG_FIELD_MAX = 500  # 식약처 텍스트가 길어 프롬프트 토큰 절약
 _RECENT_KEEP = 8
 _MEDICAL_DISCLAIMERS: dict[ChatSkill, str] = {
     ChatSkill.MEDICATION_GUIDE: "\n\n⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다.",
@@ -354,16 +355,73 @@ _SOURCE_RULES = """
 추측하거나 다른 대화창의 내용과 혼동하지 마세요."""
 
 
+def _truncate(text: str | None) -> str | None:
+    if not text:
+        return None
+    return text[:_DRUG_FIELD_MAX] + "..." if len(text) > _DRUG_FIELD_MAX else text
+
+
+def _build_drug_details_section(drug_details: list[dict]) -> str:
+    """식약처 drug_master 데이터를 프롬프트 섹션으로 변환.
+
+    처방 약품별 용법·부작용·주의사항을 LLM에 직접 제공해
+    일반 학습 지식 대신 실제 허가 데이터 기반 답변을 유도한다.
+    """
+    if not drug_details:
+        return ""
+    lines = [
+        "\n\n[처방 약품 상세 정보 — 식약처 허가 데이터]",
+        "아래는 사용자의 처방전에 포함된 약품의 실제 허가 정보입니다.",
+        "용법·부작용·주의사항 질문에는 반드시 이 정보를 우선 활용하세요.",
+    ]
+    for drug in drug_details:
+        name = drug.get("name", "")
+        lines.append(f"\n■ {name}")
+        if dosage := _truncate(drug.get("dosage")):
+            lines.append(f"  - 용법·용량: {dosage}")
+        if side_effects := _truncate(drug.get("side_effects")):
+            lines.append(f"  - 부작용: {side_effects}")
+        if cautions := _truncate(drug.get("cautions")):
+            lines.append(f"  - 주의사항: {cautions}")
+    return "\n".join(lines)
+
+
+def _build_rag_section(rag_results: list[dict]) -> str:
+    if not rag_results:
+        return ""
+    lines = [
+        "\n\n[RAG 검색 결과 — 사용자 질문과 의미적으로 유사한 약품 정보 (식약처 데이터 기반)]",
+        "아래는 사용자 질문과 관련성이 높은 약품 정보입니다.",
+        "처방 약품 상세 정보 섹션과 함께 활용하되, 중복 언급은 피하세요.",
+    ]
+    for r in rag_results:
+        name = r.get("name", "")
+        lines.append(f"\n▶ {name}")
+        if dosage := _truncate(r.get("dosage")):
+            lines.append(f"  - 용법·용량: {dosage}")
+        if side_effects := _truncate(r.get("side_effects")):
+            lines.append(f"  - 부작용: {side_effects}")
+        if cautions := _truncate(r.get("cautions")):
+            lines.append(f"  - 주의사항: {cautions}")
+    return "\n".join(lines)
+
+
 def _build_system_prompt(
     health_profile: dict | None,
     skill: ChatSkill = ChatSkill.GENERAL,
     guide_context: dict | None = None,
+    drug_details: list[dict] | None = None,
+    rag_results: list[dict] | None = None,
 ) -> str:
     result = _SKILL_SYSTEM_PROMPTS[skill]
     if health_profile:
         result += _build_profile_section(health_profile)
     if guide_context:
         result += _build_guide_section(guide_context)
+    if drug_details:
+        result += _build_drug_details_section(drug_details)
+    if rag_results:
+        result += _build_rag_section(rag_results)
     result += _SOURCE_RULES
     return result
 
@@ -410,9 +468,11 @@ async def stream_chat(
     history: list[dict],
     health_profile: dict | None = None,
     guide_context: dict | None = None,
+    drug_details: list[dict] | None = None,
+    rag_results: list[dict] | None = None,
 ):
     skill = detect_skill(user_message)
-    system_prompt = _build_system_prompt(health_profile, skill, guide_context)
+    system_prompt = _build_system_prompt(health_profile, skill, guide_context, drug_details, rag_results)
     client = get_openai_client()
 
     if len(history) > _SUMMARY_THRESHOLD:
