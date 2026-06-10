@@ -42,8 +42,12 @@ flowchart TD
         BE7 --> BE8{guide_id 있음?}
         BE8 -- YES --> BE9["가이드 컨텍스트 조회\n처방 약물 / 복약 스케줄\n주요 지시사항\n질병코드+병명 (별도 섹션)"]
         style BE9 fill:#eff6ff,stroke:#60a5fa,color:#111
-        BE8 -- NO --> BE10
-        BE9 --> BE10["메시지 DB 저장\nRedis Publish\nchat:request:{session_id}"]
+        BE9 --> BE9A["💊 drug_master 직접 조회\n처방 약품명 → 식약처 DB 매칭\n용법·부작용·주의사항 추출"]
+        style BE9A fill:#fefce8,stroke:#facc15,color:#111
+        BE9A --> BE9B["🔍 RAG 벡터 검색\n사용자 질문 임베딩\n→ pgvector 유사도 검색\n→ 상위 3개 의약품 지식 추출"]
+        style BE9B fill:#f0fdf4,stroke:#86efac,color:#111
+        BE8 -- NO --> BE9B
+        BE9B --> BE10["메시지 DB 저장\nRedis Publish\nchat:request:{session_id}"]
     end
 
     %% ══════════════════════════════════════════════════════════════
@@ -62,7 +66,7 @@ flowchart TD
 
         SK1 & SK2 & SK3 & SK4 & DI & SK6 --> AI2
 
-        AI2["시스템 프롬프트 빌드\n① 스킬 프롬프트\n② 건강 프로필 섹션 (사용자 직접 입력)\n③ 처방 가이드 섹션 (복약 정보)\n④ 질병코드 섹션 (OCR 인식, 별도 분리)\n⑤ 출처 구분 규칙 + 확정 진단 금지\n⑥ 대화 순서 참조 규칙"]
+        AI2["시스템 프롬프트 빌드\n① 스킬 프롬프트\n② 건강 프로필 섹션 (사용자 직접 입력)\n③ 처방 가이드 섹션 (복약 정보)\n④ 질병코드 섹션 (OCR 인식, 별도 분리)\n⑤ 출처 구분 규칙 + 확정 진단 금지\n⑥ 대화 순서 참조 규칙\n⑦ 약품 상세정보 (식약처 drug_master)\n⑧ RAG 검색 결과 (벡터 유사도 상위 3건)"]
 
         AI2 --> AI3{히스토리 12개 초과?}
         AI3 -- YES --> AI4["이전 대화 요약\n질문 순서 보존\n최근 8개 유지"]

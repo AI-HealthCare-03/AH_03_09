@@ -12,10 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db.sqlalchemy_client import get_async_session
 from app.core.redis_client import get_redis
 from app.models.chat import ChatMessage, ChatSession, MessageRole
+from app.models.drug_master import DrugMaster
 from app.models.health_profiles import HealthProfile
 from app.models.users import User
 from app.repositories.chat_repository import ChatRepository
 from app.services.guides import GuideService
+from app.services.rag import search_drug_by_query
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +129,27 @@ class ChatService:
 
         return ctx
 
+    async def _fetch_drug_details(self, medication_names: list[str]) -> list[dict]:
+        """처방 약품명으로 drug_master 조회해 상세 정보(용법·부작용·주의사항) 반환."""
+        if not medication_names:
+            return []
+        details: list[dict] = []
+        for name in medication_names:
+            result = await self.session.execute(
+                select(DrugMaster).where(DrugMaster.item_name.ilike(f"%{name}%")).limit(1)
+            )
+            drug = result.scalar_one_or_none()
+            if drug:
+                details.append(
+                    {
+                        "name": name,
+                        "dosage": drug.dosage,
+                        "side_effects": drug.side_effects,
+                        "cautions": drug.cautions,
+                    }
+                )
+        return details
+
     async def _get_guide_context(self, guide_id: str | None) -> dict | None:
         if not guide_id:
             logger.info("[guide_context] guide_id 없음 → None 반환")
@@ -167,6 +190,8 @@ class ChatService:
 
         health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
+        drug_details = await self._fetch_drug_details((guide_context or {}).get("medications") or [])
+        rag_results = await search_drug_by_query(self.session, content)
 
         redis = await get_redis()
         pubsub = redis.pubsub()
@@ -179,6 +204,8 @@ class ChatService:
                 "history": history_payload,
                 "health_profile": health_context,
                 "guide_context": guide_context,
+                "drug_details": drug_details or None,
+                "rag_results": rag_results or None,
             }
         )
         await redis.publish(f"chat:request:{session_id}", task_payload)
@@ -252,6 +279,8 @@ class ChatService:
 
         health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
+        drug_details = await self._fetch_drug_details((guide_context or {}).get("medications") or [])
+        rag_results = await search_drug_by_query(self.session, content)
 
         redis = await get_redis()
         pubsub = redis.pubsub()
@@ -264,6 +293,8 @@ class ChatService:
                 "history": history_payload,
                 "health_profile": health_context,
                 "guide_context": guide_context,
+                "drug_details": drug_details or None,
+                "rag_results": rag_results or None,
             }
         )
         await redis.publish(f"chat:request:{session_id}", task_payload)
