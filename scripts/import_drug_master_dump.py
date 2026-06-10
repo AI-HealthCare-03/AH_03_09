@@ -61,10 +61,14 @@ def _parse_dump(path: Path) -> list[tuple]:
             except ValueError:
                 continue
 
+            item_name = _val(parts[1])
+            if isinstance(item_name, str) and len(item_name) > 255:
+                item_name = item_name[:255]
+
             rows.append(
                 (
                     parsed_id,  # id
-                    _val(parts[1]),  # item_name
+                    item_name,  # item_name
                     _val(parts[2]),  # dosage
                     _val(parts[3]),  # cautions
                     _val(parts[4]),  # side_effects
