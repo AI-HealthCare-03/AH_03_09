@@ -1248,8 +1248,23 @@ class GuideService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
 
         medications: list[str] = []
+        drug_details: list[dict] = []
         if guide_dict.get("medication_guide"):
-            medications = [m["name"] for m in guide_dict["medication_guide"].get("medications", [])]
+            for m in guide_dict["medication_guide"].get("medications", []):
+                name = m.get("name")
+                if not name:
+                    continue
+                medications.append(name)
+                se = m.get("side_effects", [])
+                ca = m.get("cautions", [])
+                drug_details.append(
+                    {
+                        "name": name,
+                        "dosage": m.get("dosage") or "",
+                        "side_effects": ", ".join(se) if isinstance(se, list) else (se or ""),
+                        "cautions": ", ".join(ca) if isinstance(ca, list) else (ca or ""),
+                    }
+                )
 
         schedule: list[dict] = guide_dict.get("schedule_table") or []
 
@@ -1264,4 +1279,5 @@ class GuideService:
             key_instructions=key_instructions,
             disease_codes=guide_dict.get("disease_codes", []),
             disease_names=guide_dict.get("disease_names", []),
+            drug_details=drug_details,
         )
