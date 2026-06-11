@@ -12,7 +12,7 @@ Usage:
 import asyncio
 import logging
 import sys
-from math import ceil
+
 
 import asyncpg
 from openai import AsyncOpenAI
@@ -58,33 +58,40 @@ async def main() -> None:
     try:
         await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
-        rows = await conn.fetch(
-            "SELECT id, item_name, dosage, side_effects, cautions FROM drug_master WHERE embedding IS NULL ORDER BY id"
+        total = await conn.fetchval(
+            "SELECT COUNT(*) FROM drug_master WHERE embedding IS NULL"
         )
-        total = len(rows)
         logger.info("임베딩 미생성 항목: %d건", total)
 
         if total == 0:
             logger.info("모든 항목이 이미 임베딩 완료 상태입니다.")
         else:
-            batches = ceil(total / _BATCH_SIZE)
             processed = 0
+            last_id = 0
 
-            for i in range(batches):
-                batch = rows[i * _BATCH_SIZE : (i + 1) * _BATCH_SIZE]
+            while True:
+                batch = await conn.fetch(
+                    "SELECT id, item_name, dosage, side_effects, cautions FROM drug_master "
+                    "WHERE embedding IS NULL AND id > $1 ORDER BY id LIMIT $2",
+                    last_id,
+                    _BATCH_SIZE,
+                )
+                if not batch:
+                    break
+
                 texts = [_drug_to_text(r) for r in batch]
-
                 resp = await client.embeddings.create(model=_EMBED_MODEL, input=texts)
                 embeddings = [e.embedding for e in resp.data]
 
                 await conn.executemany(
-                    "UPDATE drug_master SET embedding = $1::vector WHERE id = $2",
+                    "UPDATE drug_master SET embedding = $1::text::vector WHERE id = $2",
                     [
                         ("[" + ",".join(str(v) for v in emb) + "]", r["id"])
                         for emb, r in zip(embeddings, batch, strict=False)
                     ],
                 )
                 processed += len(batch)
+                last_id = batch[-1]["id"]
                 logger.info("진행: %d / %d (%.1f%%)", processed, total, processed / total * 100)
 
         # IVFFlat 인덱스: 임베딩 있는 행 수에 맞게 lists 조정
