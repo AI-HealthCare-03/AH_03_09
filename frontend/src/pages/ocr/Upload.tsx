@@ -175,7 +175,7 @@ export default function Upload() {
                     선택
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    JPEG · PNG · PDF / 1개 / {MAX_SIZE_MB}MB 이하 / PDF 최대 2페이지
+                    JPG · JPEG · PNG · PDF / 1개 / {MAX_SIZE_MB}MB 이하 / PDF 최대 2페이지
                   </p>
                 </div>
               </label>
