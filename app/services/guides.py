@@ -30,6 +30,8 @@ from app.dtos.guides import (
     GuideContextResponse,
     GuideGenerationResult,
     GuideGenerationStatus,
+    GuideListItem,
+    GuideListResponse,
     GuideResponse,
     GuideStatusResponse,
     GuideType,
@@ -1229,6 +1231,36 @@ class GuideService:
         _feedbacks.setdefault(guide_id, {})
         _feedbacks[guide_id]["is_submitted"] = is_submitted
         return FeedbackStatusResponse(is_submitted=is_submitted)
+
+    async def list_guides(self, patient_id: str) -> GuideListResponse:
+        try:
+            async with _AsyncSessionFactory() as db_session:
+                result = await db_session.execute(
+                    select(Guide)
+                    .where(Guide.patient_id == patient_id)
+                    .order_by(Guide.created_at.desc())
+                    .limit(50)
+                )
+                rows = result.scalars().all()
+        except Exception:
+            logger.exception("list_guides DB 조회 실패 patient_id=%s", patient_id)
+            return GuideListResponse(items=[], total=0)
+
+        items: list[GuideListItem] = []
+        for row in rows:
+            data = row.guide_data or {}
+            med_guide = data.get("medication_guide") or {}
+            medications = med_guide.get("medications") or []
+            medication_names = [m.get("name", "") for m in medications if m.get("name")]
+            items.append(
+                GuideListItem(
+                    guide_id=row.guide_id,
+                    created_at=row.created_at.isoformat(),
+                    guide_types=data.get("guide_types", []),
+                    medication_names=medication_names,
+                )
+            )
+        return GuideListResponse(items=items, total=len(items))
 
     async def get_guide_context(self, guide_id: str) -> GuideContextResponse:
         # 1순위: DB

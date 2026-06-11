@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse as Response
 
+from app.dependencies.security import get_request_user
 from app.dtos.guides import (
     FeedbackRequest,
     FeedbackResponse,
@@ -10,13 +11,31 @@ from app.dtos.guides import (
     GenerateGuideRequest,
     GenerateGuideResponse,
     GuideContextResponse,
+    GuideListResponse,
     GuideResponse,
     GuideStatusResponse,
     UpdateFeedbackStatusRequest,
 )
+from app.models.users import User
 from app.services.guides import GuideService
 
 guide_router = APIRouter(prefix="/guides", tags=["LLM 가이드"])
+
+_AUTH = Annotated[User, Depends(get_request_user)]
+
+
+@guide_router.get(
+    "",
+    response_model=GuideListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="내 가이드 목록 조회",
+)
+async def list_guides(
+    current_user: _AUTH,
+    guide_service: Annotated[GuideService, Depends(GuideService)],
+) -> Response:
+    result = await guide_service.list_guides(str(current_user.id))
+    return Response(content=result.model_dump(), status_code=status.HTTP_200_OK)
 
 
 @guide_router.post(

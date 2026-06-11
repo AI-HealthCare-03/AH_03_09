@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useChatStore } from "@/store/chatStore";
 
 import {
@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Dumbbell,
   Droplets,
+  Loader2,
   MessageCircle,
   Utensils,
 } from "lucide-react";
@@ -85,6 +86,7 @@ export default function HealthGuide() {
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
   const [ratingSafety] = useState(5);
   const [comment, setComment] = useState("");
+  const { guide_id: guideIdParam } = useParams<{ guide_id?: string }>();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const initialJobIdRef = useRef(
@@ -134,6 +136,23 @@ export default function HealthGuide() {
       cancelled = true;
     };
   }, []); // initialJobIdRef는 마운트 시 한 번만 읽음
+
+  // /health-guide/:guide_id 경로로 직접 접근 시 가이드 로드
+  useEffect(() => {
+    if (!guideIdParam) return;
+    setStatus("loading");
+    (async () => {
+      try {
+        const guideResult = await getGuide(guideIdParam);
+        setGuide(guideResult);
+        setGuideId(guideIdParam);
+        setStoreGuideId(guideIdParam);
+        setStatus("가이드 생성 완료");
+      } catch {
+        setStatus("가이드를 불러오지 못했습니다.");
+      }
+    })();
+  }, [guideIdParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // guideId 설정 후 서버의 피드백 제출 여부를 동기화한다.
   useEffect(() => {
@@ -250,8 +269,11 @@ export default function HealthGuide() {
             </div>
           )}
           {!guide && status === "loading" && (
-            <div className="space-y-1 py-1 text-sm">
-              <p className="font-medium text-gray-800">건강 가이드 생성 중</p>
+            <div className="space-y-2 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                <p className="font-medium text-gray-800">건강 가이드 생성 중</p>
+              </div>
               <p className="text-muted-foreground">
                 올려주신 처방전/약정보를 읽고 복약·식사·운동 가이드를 생성하고 있습니다.
               </p>

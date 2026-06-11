@@ -87,6 +87,22 @@ export type GuideResponse = {
   generation_results?: GenerationResult[];
 };
 
+export type GuideListItem = {
+  guide_id: string;
+  created_at: string;
+  guide_types: GuideType[];
+  medication_names: string[];
+};
+
+export type GuideListResponse = {
+  items: GuideListItem[];
+  total: number;
+};
+
+export function getGuideList() {
+  return request<GuideListResponse>("/guides");
+}
+
 export function generateGuide(body: GenerateGuideRequest) {
   return request<GenerateGuideResponse>("/guides/generate", {
     method: "POST",

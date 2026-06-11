@@ -151,6 +151,18 @@ class GuideResponse(BaseModel):
     generation_results: list[GuideGenerationResult] | None = None
 
 
+class GuideListItem(BaseModel):
+    guide_id: str
+    created_at: str
+    guide_types: list[GuideType]
+    medication_names: list[str] = Field(default_factory=list)
+
+
+class GuideListResponse(BaseModel):
+    items: list[GuideListItem]
+    total: int
+
+
 class FeedbackResponse(BaseModel):
     feedback_id: str
     created_at: str
