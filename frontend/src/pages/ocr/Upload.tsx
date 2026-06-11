@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { CloudUploadIcon, FileTextIcon, Loader2Icon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { fetchDocuments, uploadDocuments } from "@/api/ocr";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import type { DocType, OcrStatus } from "@/types/api";
 
 const ACCEPT = ["image/jpeg", "image/png", "application/pdf"];
@@ -54,7 +55,14 @@ function formatSize(bytes: number): string {
 
 export default function Upload() {
   const navigate = useNavigate();
+  const isOnboarded = useAuthStore((s) => s.isOnboarded);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOnboarded) {
+      navigate("/onboarding", { replace: true });
+    }
+  }, [isOnboarded, navigate]);
   const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
