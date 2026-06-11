@@ -185,13 +185,54 @@ export default function HealthGuide() {
 
   return (
     <div className="space-y-3">
-      {/* 페이지 타이틀 + 생성 완료 뱃지 */}
+      {/* 페이지 타이틀 + 생성 완료 뱃지 + 가이드 생성 근거 */}
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-semibold">건강 가이드</h1>
         {guide && (
           <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
             생성 완료
           </span>
+        )}
+        {guide && (
+          <details className="relative ml-auto text-xs">
+            <summary className="cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-3 py-1 font-medium text-gray-600">
+              가이드 생성 근거 및 필독 안내
+            </summary>
+            <div className="absolute right-0 top-full z-10 mt-1 w-72 rounded-md border border-gray-200 bg-white px-3 pb-3 pt-2 shadow-lg space-y-3 text-gray-600">
+              {(guide.medication_guide?.medications?.length ?? 0) > 0 && (
+                <div>
+                  <p className="mb-1 font-medium text-gray-700">OCR 인식 약물</p>
+                  <ul className="list-disc space-y-0.5 pl-4">
+                    {guide.medication_guide!.medications.map((m) => (
+                      <li key={m.name}>{m.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {(guideContext?.disease_codes?.length ?? 0) > 0 && (
+                <div>
+                  <p className="mb-1 font-medium text-gray-700">OCR 질병코드</p>
+                  <ul className="list-disc space-y-0.5 pl-4">
+                    {guideContext!.disease_codes.map((code, idx) => {
+                      const name = guideContext!.disease_names?.[idx];
+                      return (
+                        <li key={code}>
+                          {name ? `${code} (${name})` : code}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              <div>
+                <p className="mb-1 font-medium text-gray-700">필독 안내</p>
+                <p className="leading-relaxed text-gray-500">
+                  본 가이드는 업로드한 문서(처방전, 약봉투 등)를 바탕으로 AI가 생성한 참고용 안내입니다.
+                  정확한 진단·치료 및 복약 방법은 담당 의료진의 안내를 우선적으로 따라주시기 바랍니다.
+                </p>
+              </div>
+            </div>
+          </details>
         )}
       </div>
 
@@ -216,49 +257,9 @@ export default function HealthGuide() {
             <p className="text-sm text-muted-foreground">{status}</p>
           )}
 
-          {/* 생성 근거 및 필독 안내 — 기본 접힘, 발표 시 펼쳐서 설명 */}
-          {guide && (
-            <details className="rounded-md border border-gray-200 bg-gray-50 text-xs">
-              <summary className="cursor-pointer px-3 py-2 font-medium text-gray-600">
-                가이드 생성 근거 및 필독 안내
-              </summary>
-              <div className="space-y-3 border-t border-gray-200 px-3 pb-3 pt-2 text-gray-600">
-                {(guide.medication_guide?.medications?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-gray-700">OCR 인식 약물</p>
-                    <ul className="list-disc space-y-0.5 pl-4">
-                      {guide.medication_guide!.medications.map((m) => (
-                        <li key={m.name}>{m.name}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {(guideContext?.disease_codes?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-gray-700">OCR 질병코드</p>
-                    <ul className="list-disc space-y-0.5 pl-4">
-                      {guideContext!.disease_codes.map((code, idx) => {
-                        const name = guideContext!.disease_names?.[idx];
-                        return (
-                          <li key={code}>
-                            {name ? `${code} (${name})` : code}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
-                <div>
-                  <p className="mb-1 font-medium text-gray-700">필독 안내</p>
-                  <p className="leading-relaxed text-gray-500">
-                    본 가이드는 업로드한 문서(처방전, 약봉투 등)를 바탕으로 AI가 생성한 참고용 안내입니다.
-                    정확한 진단·치료 및 복약 방법은 담당 의료진의 안내를 우선적으로 따라주시기 바랍니다.
-                  </p>
-                </div>
-              </div>
-            </details>
+          {guide?.medication_guide && (
+            <h2 className="text-base font-semibold text-gray-800">복약 가이드</h2>
           )}
-
           {guide?.medication_guide && (
             <div className="space-y-2">
               {guide.medication_guide.medications.map((medication) => (
