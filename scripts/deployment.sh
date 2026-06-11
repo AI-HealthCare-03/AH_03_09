@@ -87,8 +87,17 @@ for choice in $selections; do
     3)
       echo "${COLOR_BLUE}Frontend 앱의 배포 버젼을 입력하세요(ex. v1.0.0)${COLOR_NC}"
       read -p "Frontend 버젼: " frontend_version
+      echo "${COLOR_BLUE}API 서버 URL을 입력하세요(ex. http://43.202.190.120)${COLOR_NC}"
+      read -p "API URL: " api_base_url
       sed -i '' "s/^FRONTEND_VERSION=.*/FRONTEND_VERSION=${frontend_version}/" envs/.prod.env
-      build_and_push ${docker_user} ${docker_repo} "Frontend" ${frontend_version} "frontend/Dockerfile" "frontend"
+      echo "${COLOR_BLUE}Frontend Docker Image Build Start.${COLOR_NC}"
+      docker build --platform linux/amd64 \
+        --build-arg VITE_API_BASE_URL=${api_base_url} \
+        -t ${docker_user}/${docker_repo}:frontend-${frontend_version} \
+        -f frontend/Dockerfile frontend
+      echo "${COLOR_BLUE}Frontend Docker Image Push Start.${COLOR_NC}"
+      docker push ${docker_user}/${docker_repo}:frontend-${frontend_version}
+      echo "${COLOR_GREEN}Frontend Done.${COLOR_NC}"
       DEPLOY_SERVICES+=("frontend")
       ;;
     *)
