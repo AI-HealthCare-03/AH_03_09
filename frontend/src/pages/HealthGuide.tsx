@@ -240,9 +240,14 @@ export default function HealthGuide() {
         <CardContent className="space-y-3 px-4 pb-4 pt-4">
           {/* 가이드 미로드 시에만 설명·상태 표시 */}
           {!guide && !status && (
-            <p className="text-sm text-muted-foreground">
-              복약 정보를 바탕으로 맞춤 건강 가이드를 생성합니다.
-            </p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>복약 정보를 바탕으로 맞춤 건강 가이드를 생성합니다.</p>
+              <p>가이드는 생성 후 자동 저장됩니다.</p>
+              <p>
+                이전에 생성한 가이드를 다시 보시려면{" "}
+                <span className="font-medium text-gray-700">[내 문서] → [결과 보기]</span>를 이용해 주세요.
+              </p>
+            </div>
           )}
           {!guide && status === "loading" && (
             <div className="space-y-1 py-1 text-sm">
