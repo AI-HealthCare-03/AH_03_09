@@ -10,7 +10,6 @@ import uuid as uuid_lib
 import asyncpg
 import httpx
 import redis.asyncio as aioredis
-from PIL import Image
 
 from ai_worker.core.config import config
 from ai_worker.schemas.ocr import OcrTaskPayload
@@ -35,6 +34,8 @@ def _resize_image_if_needed(content: bytes, mime_type: str) -> bytes:
     """이미지 해상도가 Clova OCR 제한(8000px)을 초과하면 자동으로 축소합니다."""
     if mime_type not in ("image/jpeg", "image/png"):
         return content
+    from PIL import Image  # ai-worker 그룹 의존성 — 런타임에만 로드
+
     img = Image.open(io.BytesIO(content))
     w, h = img.size
     if w <= _CLOVA_MAX_PX and h <= _CLOVA_MAX_PX:
