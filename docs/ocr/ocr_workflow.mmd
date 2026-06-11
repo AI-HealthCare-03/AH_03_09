@@ -159,7 +159,7 @@ flowchart TD
         D1 --> D2{"문서 상태별 관리 버튼"}
         D2 -->|"DONE"| D3["'결과보기'\n→ /upload/result/:recordId"]
         D2 -->|"PENDING · PROCESSING"| D4["'처리현황'\n→ /upload/processing/:jobId"]
-        D2 -->|"FAILED"| D5["'재시도'\n→ /upload/processing/:jobId\n(해당 화면에서 재추출 버튼 제공)"]
+        D2 -->|"FAILED"| D5["'재시도'\n→ /upload/processing/:jobId\n(에러 종류에 따라 버튼 분기:\n· PDF 해상도 초과 → 재업로드 버튼\n· 일반 오류 → 재추출 버튼)"]
         D1 --> D6["'삭제' 버튼 클릭\n→ 삭제 확인 모달"]
         D6 -->|"삭제 진행 중\nESC · 배경 클릭"| D6a["모달 닫기 차단\n(deleting 상태 동안 비활성)"]
         D6 -->|"'삭제 확인' 클릭"| D7["DELETE /records/:id (소프트 삭제)\n30일 후 완전 삭제"]
