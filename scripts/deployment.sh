@@ -89,7 +89,9 @@ for choice in $selections; do
       read -p "Frontend 버젼: " frontend_version
       echo "${COLOR_BLUE}API 서버 URL을 입력하세요(ex. http://43.202.190.120)${COLOR_NC}"
       read -p "API URL: " api_base_url
+      api_base_url="${api_base_url%/}"  # 끝 슬래시 제거
       sed -i '' "s/^FRONTEND_VERSION=.*/FRONTEND_VERSION=${frontend_version}/" envs/.prod.env
+      sed -i '' "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${api_base_url}|" envs/.prod.env
       echo "${COLOR_BLUE}Frontend Docker Image Build Start.${COLOR_NC}"
       docker build --platform linux/amd64 \
         --build-arg VITE_API_BASE_URL=${api_base_url} \
