@@ -83,13 +83,12 @@ async def main() -> None:
                 resp = await client.embeddings.create(model=_EMBED_MODEL, input=texts)
                 embeddings = [e.embedding for e in resp.data]
 
-                await conn.executemany(
-                    "UPDATE drug_master SET embedding = $1::text::vector WHERE id = $2",
-                    [
-                        ("[" + ",".join(str(v) for v in emb) + "]", r["id"])
-                        for emb, r in zip(embeddings, batch, strict=False)
-                    ],
-                )
+                for emb, r in zip(embeddings, batch, strict=False):
+                    vec_str = "[" + ",".join(str(v) for v in emb) + "]"
+                    await conn.execute(
+                        f"UPDATE drug_master SET embedding = '{vec_str}' WHERE id = $1",
+                        r["id"],
+                    )
                 processed += len(batch)
                 last_id = batch[-1]["id"]
                 logger.info("진행: %d / %d (%.1f%%)", processed, total, processed / total * 100)
