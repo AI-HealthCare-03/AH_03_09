@@ -171,12 +171,19 @@ class ChatService:
             return None
 
     async def _resolve_drug_context(self, guide_context: dict | None, content: str) -> tuple[list[dict], list[dict]]:
-        """가이드 약품 데이터 + RAG 항상 병행 실행."""
+        """가이드 약품 데이터 + RAG 항상 병행 실행. 가이드 약품은 RAG 결과에서 제거."""
         guide_drug_details = (guide_context or {}).get("drug_details") or []
         drug_details = guide_drug_details or await self._fetch_drug_details(
             (guide_context or {}).get("medications") or []
         )
         rag_results = await search_drug_by_query(self.session, content)
+        if drug_details and rag_results:
+            guide_names = {d["name"].lower() for d in drug_details}
+            rag_results = [
+                r
+                for r in rag_results
+                if not any(gn in r["name"].lower() or r["name"].lower() in gn for gn in guide_names)
+            ]
         return drug_details, rag_results
 
     async def stream_message(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):

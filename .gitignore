@@ -26,6 +26,7 @@ htmlcov/
 node_modules/
 *.pem
 *.log
+*_dump.sql
 frontend/dist/
 docker-compose.override.yml
 frontend/.env.local
