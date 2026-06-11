@@ -167,3 +167,4 @@ class GuideContextResponse(BaseModel):
     key_instructions: list[str]
     disease_codes: list[str]
     disease_names: list[str] = Field(default_factory=list)
+    drug_details: list[dict] = Field(default_factory=list)

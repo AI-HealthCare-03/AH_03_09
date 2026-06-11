@@ -162,6 +162,7 @@ class ChatService:
                 "key_instructions": ctx.key_instructions,
                 "disease_codes": ctx.disease_codes,
                 "disease_names": ctx.disease_names,
+                "drug_details": ctx.drug_details,
             }
             logger.info("[guide_context] 조회 성공 guide_id=%s medications=%s", guide_id, ctx.medications)
             return result
@@ -190,7 +191,10 @@ class ChatService:
 
         health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
-        drug_details = await self._fetch_drug_details((guide_context or {}).get("medications") or [])
+        _guide_drug_details = (guide_context or {}).get("drug_details") or []
+        drug_details = _guide_drug_details or await self._fetch_drug_details(
+            (guide_context or {}).get("medications") or []
+        )
         rag_results = await search_drug_by_query(self.session, content)
 
         redis = await get_redis()
@@ -279,7 +283,10 @@ class ChatService:
 
         health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
-        drug_details = await self._fetch_drug_details((guide_context or {}).get("medications") or [])
+        _guide_drug_details = (guide_context or {}).get("drug_details") or []
+        drug_details = _guide_drug_details or await self._fetch_drug_details(
+            (guide_context or {}).get("medications") or []
+        )
         rag_results = await search_drug_by_query(self.session, content)
 
         redis = await get_redis()
