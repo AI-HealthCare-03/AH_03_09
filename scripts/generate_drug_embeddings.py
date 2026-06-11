@@ -18,7 +18,9 @@ import asyncpg
 from openai import AsyncOpenAI
 
 sys.path.insert(0, ".")
-from app.core.config import config  # noqa: E402
+from app.core.config import Config  # noqa: E402
+
+config = Config()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
