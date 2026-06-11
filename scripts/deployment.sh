@@ -73,18 +73,21 @@ for choice in $selections; do
     1)
       echo "${COLOR_BLUE}FastAPI 앱의 배포 버젼을 입력하세요(ex. v1.0.0)${COLOR_NC}"
       read -p "FastAPI 앱 버젼: " fastapi_version
+      sed -i '' "s/^APP_VERSION=.*/APP_VERSION=${fastapi_version}/" envs/.prod.env
       build_and_push ${docker_user} ${docker_repo} "FastAPI" ${fastapi_version} "app/Dockerfile" "."
       DEPLOY_SERVICES+=("fastapi")
       ;;
     2)
       echo "${COLOR_BLUE}AI-worker 앱의 배포 버젼을 입력하세요(ex. v1.0.0)${COLOR_NC}"
       read -p "AI-worker 앱 버젼: " ai_version
+      sed -i '' "s/^AI_WORKER_VERSION=.*/AI_WORKER_VERSION=${ai_version}/" envs/.prod.env
       build_and_push ${docker_user} ${docker_repo} "AI Worker" ${ai_version} "ai_worker/Dockerfile" "."
       DEPLOY_SERVICES+=("ai-worker")
       ;;
     3)
       echo "${COLOR_BLUE}Frontend 앱의 배포 버젼을 입력하세요(ex. v1.0.0)${COLOR_NC}"
       read -p "Frontend 버젼: " frontend_version
+      sed -i '' "s/^FRONTEND_VERSION=.*/FRONTEND_VERSION=${frontend_version}/" envs/.prod.env
       build_and_push ${docker_user} ${docker_repo} "Frontend" ${frontend_version} "frontend/Dockerfile" "frontend"
       DEPLOY_SERVICES+=("frontend")
       ;;
