@@ -170,14 +170,12 @@ class ChatService:
             logger.warning("[guide_context] 조회 실패 guide_id=%s detail=%s", guide_id, e.detail)
             return None
 
-    async def _resolve_drug_context(
-        self, guide_context: dict | None, content: str
-    ) -> tuple[list[dict], list[dict] | None]:
-        """가이드 약품 데이터 우선, 없으면 ILIKE 폴백 + RAG."""
+    async def _resolve_drug_context(self, guide_context: dict | None, content: str) -> tuple[list[dict], list[dict]]:
+        """가이드 약품 데이터 + RAG 항상 병행 실행."""
         guide_drug_details = (guide_context or {}).get("drug_details") or []
-        if guide_drug_details:
-            return guide_drug_details, None
-        drug_details = await self._fetch_drug_details((guide_context or {}).get("medications") or [])
+        drug_details = guide_drug_details or await self._fetch_drug_details(
+            (guide_context or {}).get("medications") or []
+        )
         rag_results = await search_drug_by_query(self.session, content)
         return drug_details, rag_results
 
