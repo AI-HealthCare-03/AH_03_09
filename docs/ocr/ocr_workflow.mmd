@@ -125,7 +125,7 @@ flowchart TD
         R6b --> R6
 
         R7{"문서 유형\n(질병코드 섹션 표시 여부 결정)"}
-        R7 -->|"DRUG_BAG / OTHER\n→ 질병코드 섹션 없음"| R_end["약물 전체 확인 완료\n→ 복약 가이드 생성 버튼 활성화\n※ 가이드 생성 조건: allMedsConfirmed = true 만으로 충분\n   질병코드 확인 여부는 무관"]
+        R7 -->|"DRUG_BAG / OTHER\n→ 질병코드 섹션 없음"| R_end["약물 전체 확인 완료\n→ 복약 가이드 생성 버튼 활성화\n※ 가이드 생성 조건: allMedsConfirmed = true && guide_job_id = null\n   질병코드 확인 여부는 무관\n   이미 가이드가 생성된 문서는 버튼 비활성(중복 방지)"]
         R7 -->|"PRESCRIPTION\n→ 질병코드 섹션 표시\n(코드 없으면 '없습니다' 메시지)"| R8["질병분류기호 섹션 표시\n(ICD-10 코드 · 질병명)\n※ 이 섹션 확인 여부는 가이드 생성에 영향 없음"]
 
         R8 --> R9{"질병코드 수정 필요?\n(allDiseasesConfirmed = false일 때만 편집 버튼 활성)\n※ 질병코드는 가이드 생성 시 함께 전달되므로\n   정확도가 가이드 품질에 영향 — 검토 권장\n   단, 확인 버튼 클릭은 가이드 생성 버튼 활성화에 불필요"}
@@ -140,10 +140,11 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph CONFIRM["⑤ 복약 가이드 생성 (결과 화면 상단 버튼)"]
         direction TB
-        C0{"복약 가이드 생성 버튼\n활성 조건:\nmedications.length > 0\n&& allMedsConfirmed = true"}
+        C0{"복약 가이드 생성 버튼\n활성 조건:\nmedications.length > 0\n&& allMedsConfirmed = true\n&& guide_job_id = null"}
         C0 -->|"비활성\n(약물 없음 또는 미확인 약물 존재)"| C0a["버튼 disabled\n약물 1개 이상이면 🔵 안내 배너 표시\n→ allMedsConfirmed = true가 되는 순간 배너 소멸·버튼 활성화"]
-        C0 -->|"활성 (모든 약물 확인 완료)"| C1["POST /ocr/jobs/:jobId/confirm { trigger_guide: true }"]
-        C1 --> C2["서버가 해당 문서에서 데이터를 읽어 POST /guides/generate에 전달\n· medications: 약물명·용량·복약횟수·기간·복약시기 등 전체 정보\n· disease_codes + disease_names: 처방전이면 ICD-10 코드+질병명,\n  약봉투·기타면 빈 배열\n→ 가이드 생성 비동기 작업 등록"]
+        C0 -->|"비활성\n(이미 가이드 생성됨\nguide_job_id 존재)"| C0b["'가이드 생성 완료' 버튼 disabled\n툴팁: '이미 생성된 가이드가 있습니다.\n건강 가이드 메뉴에서 확인해주세요.'\n(중복 생성 방지)"]
+        C0 -->|"활성 (모든 약물 확인 완료\n&& 가이드 미생성)"| C1["POST /ocr/jobs/:jobId/confirm { trigger_guide: true }"]
+        C1 --> C2["서버가 해당 문서에서 데이터를 읽어 POST /guides/generate에 전달\n· medications: 약물명·용량·복약횟수·기간·복약시기 등 전체 정보\n· disease_codes + disease_names: 처방전이면 ICD-10 코드+질병명,\n  약봉투·기타면 빈 배열\n→ 가이드 생성 비동기 작업 등록\n→ guide_job_id를 ocr_documents에 저장 (중복 생성 방지용)"]
         C2 --> C3{"응답"}
         C3 -->|"guide_job_id 수신"| C4["/health-guide로 이동\n(가이드 생성 대기 화면)"]
         C3 -->|"실패\n(네트워크 오류·서버 오류·\n문서 없음·가이드 서비스 오류 등\n→ FE에서 에러 유형 구분 없이 동일 처리)"| C5["❌ '가이드 생성에 실패했습니다.\n다시 시도해주세요.' 토스트\n→ 결과 화면에 그대로 유지\n(allMedsConfirmed = true 상태 유지\n버튼 활성화 상태이므로 재시도 가능)"]
