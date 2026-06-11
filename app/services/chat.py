@@ -170,6 +170,17 @@ class ChatService:
             logger.warning("[guide_context] 조회 실패 guide_id=%s detail=%s", guide_id, e.detail)
             return None
 
+    async def _resolve_drug_context(
+        self, guide_context: dict | None, content: str
+    ) -> tuple[list[dict], list[dict] | None]:
+        """가이드 약품 데이터 우선, 없으면 ILIKE 폴백 + RAG."""
+        guide_drug_details = (guide_context or {}).get("drug_details") or []
+        if guide_drug_details:
+            return guide_drug_details, None
+        drug_details = await self._fetch_drug_details((guide_context or {}).get("medications") or [])
+        rag_results = await search_drug_by_query(self.session, content)
+        return drug_details, rag_results
+
     async def stream_message(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):
         session = await self.repo.get_session(session_id, user_id)
         if not session:
@@ -191,11 +202,7 @@ class ChatService:
 
         health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
-        _guide_drug_details = (guide_context or {}).get("drug_details") or []
-        drug_details = _guide_drug_details or await self._fetch_drug_details(
-            (guide_context or {}).get("medications") or []
-        )
-        rag_results = await search_drug_by_query(self.session, content)
+        drug_details, rag_results = await self._resolve_drug_context(guide_context, content)
 
         redis = await get_redis()
         pubsub = redis.pubsub()
@@ -283,11 +290,7 @@ class ChatService:
 
         health_context = await self._fetch_health_context(user_id)
         guide_context = await self._get_guide_context(guide_id)
-        _guide_drug_details = (guide_context or {}).get("drug_details") or []
-        drug_details = _guide_drug_details or await self._fetch_drug_details(
-            (guide_context or {}).get("medications") or []
-        )
-        rag_results = await search_drug_by_query(self.session, content)
+        drug_details, rag_results = await self._resolve_drug_context(guide_context, content)
 
         redis = await get_redis()
         pubsub = redis.pubsub()
