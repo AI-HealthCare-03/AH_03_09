@@ -52,19 +52,19 @@ flowchart TD
         BE5 -- NO --> BE7["① 건강 프로필 조회\n성별·나이·신체정보\n기저질환·혈압·알레르기\n복용약·생활습관"]
         BE7 --> BE8{guide_id 있음?}
 
-        BE8 -- YES --> BE9["② 가이드 컨텍스트 조회\n처방 약물 목록 / 복약 스케줄\n주요 지시사항\n질병코드+병명"]
+        BE8 -- YES --> BE9["② 가이드 컨텍스트 조회\n처방 약물 목록 / 복약 스케줄\n주요 지시사항 / 질병코드+병명\n+ drug_details (용법·부작용·주의사항)"]
         style BE9 fill:#eff6ff,stroke:#60a5fa,color:#111
 
-        BE9 --> BE9A["③ drug_master 직접 조회\n_fetch_drug_details\n처방 약품명 ILIKE 매칭\n→ 용법·부작용·주의사항 추출\n※ embedding 없어도 동작"]
+        BE9 --> BE9A["③ 약품 상세 조회\n가이드 drug_details 우선\n(word_similarity로 매칭된 식약처 데이터)\n없으면 ILIKE 폴백\n→ 용법·부작용·주의사항"]
         style BE9A fill:#fefce8,stroke:#facc15,color:#111
 
         BE8 -- NO --> BE9B
         BE9A --> BE9B
 
-        BE9B["④ RAG 벡터 검색\napp/services/rag.py\n사용자 질문 → OpenAI 임베딩\n→ pgvector 코사인 유사도 검색\n→ 유사 약품 top-3 반환\n※ embedding 없으면 빈 결과로 폴백"]
+        BE9B["④ RAG 벡터 검색 (항상 실행)\napp/services/rag.py\n사용자 질문 → OpenAI 임베딩\n→ pgvector 코사인 유사도 검색\n→ 유사 약품 top-3 반환\n※ embedding 없으면 빈 결과로 폴백"]
         style BE9B fill:#f0fdf4,stroke:#86efac,color:#111
 
-        BE9B --> BE10["Redis Publish\nchat:request:{session_id}\npayload: health_profile\n+ guide_context\n+ drug_details ③\n+ rag_results ④"]
+        BE9B --> BE10["Redis Publish\nchat:request:{session_id}\npayload: health_profile\n+ guide_context (drug_details 포함)\n+ drug_details ③\n+ rag_results ④"]
     end
 
     %% ══════════════════════════════════════════════════════════════
