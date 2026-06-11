@@ -13,7 +13,6 @@ import asyncio
 import logging
 import sys
 
-
 import asyncpg
 from openai import AsyncOpenAI
 
@@ -71,9 +70,7 @@ async def main() -> None:
     conn = await _connect()
 
     try:
-        total = await conn.fetchval(
-            "SELECT COUNT(*) FROM drug_master WHERE embedding IS NULL"
-        )
+        total = await conn.fetchval("SELECT COUNT(*) FROM drug_master WHERE embedding IS NULL")
         logger.info("임베딩 미생성 항목: %d건", total)
 
         if total == 0:
