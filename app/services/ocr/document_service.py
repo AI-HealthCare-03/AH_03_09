@@ -333,6 +333,8 @@ class OcrDocumentService:
             )
             guide_resp = await GuideService().create_guide_job(guide_req)
             guide_job_id = guide_resp.job_id
+            doc.guide_job_id = guide_job_id
+            await self.session.flush()
 
         if trigger_chatbot_context:
             logger.info(

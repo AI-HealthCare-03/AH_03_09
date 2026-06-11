@@ -6,9 +6,9 @@ flowchart TB
       classDef nf     fill:#F8CECC,stroke:#B85450,color:#333
       classDef dec    fill:#FFF2CC,stroke:#D6B656,color:#333
       classDef rd     fill:#FFE6CC,stroke:#D79B00,color:#333
+      classDef ps     fill:#FFF9C4,stroke:#F9A825,color:#333
       classDef pg     fill:#D5E8D4,stroke:#82B366,color:#333
       classDef ai     fill:#E1D5E7,stroke:#9673A6,color:#333
-      classDef mem    fill:#FFFDE7,stroke:#F9A825,color:#333
 
       subgraph FE ["Frontend"]
           direction TB
@@ -24,34 +24,36 @@ flowchart TB
 
       subgraph API ["FastAPI Backend - API Layer"]
           direction TB
-          b1["POST /guides/generate\n요청 수신 · job_id 반환\nasyncio.create_task 등록"]
+          b1["POST /guides/generate\n요청 수신 · job_id 반환\nRedis Pub/Sub publish"]
           b2["GET /guides/status/{job_id}\nJob 상태 조회"]
-          b3["GET /guides/{guide_id}\nDB 우선 조회 · _guides fallback"]
+          b3["GET /guides/{guide_id}\nDB 조회"]
           b4["POST /feedback\n피드백 저장"]
           b5["GET /context\nGuideContext 생성"]
       end
 
-      subgraph WK ["FastAPI Backend - 비동기 Worker"]
+      subgraph RD ["Redis"]
           direction TB
+          r_pub["guide:request:{job_id}\nPub/Sub 채널 발행"]
+          r_sub["guide:request:*\nAI Worker subscribe"]
+          r1["guide:job:{job_id}\nJob PENDING"]
+          r2["Job PROCESSING"]
+          r3["Job DONE + guide_id"]
+          r4["Job FAILED\n+ error_message"]
+      end
+
+      subgraph WK ["AI Worker - Guide Task"]
+          direction TB
+          w0["process_guide_task 시작"]
           w1["Health Profile 조회\n기저질환·혈압·생활습관"]
-          w3["LLM 입력\n약물명 + 질병코드 원본 + Health Profile\nwhitelist 필터 미적용"]
+          w3["LLM 입력\n약물명 + 질병코드 원본 + Health Profile\nwhitelist 필터 적용"]
           wd{"drug_master\nDB 매칭?"}
           w4["복약 정보 추출 + 요약\n용법·주의사항·이상반응"]
-          w5["NOT_FOUND 처리\n약물 정보 없음\nCSV fallback 없음"]
+          w5["NOT_FOUND 처리\n약물 정보 없음\nLLM 생성 제외"]
           wst{"복용 시간\n정보 있음?"}
           w6a["시간대별 그룹 구성\n아침·점심·저녁"]
           w6b["처방전·약봉투 안내 참고"]
           w7["GuideResponse 조립\n전체 가이드 통합"]
-          wmem["_guides 메모리 저장\nin-memory dict"]
           w8["guides 테이블 저장\nPostgreSQL INSERT"]
-      end
-
-      subgraph RD ["Redis"]
-          direction TB
-          r1["Job PENDING"]
-          r2["Job PROCESSING"]
-          r3["Job DONE + guide_id"]
-          r4["Job FAILED\n+ error_message"]
       end
 
       subgraph PG ["PostgreSQL"]
@@ -73,10 +75,14 @@ flowchart TB
       f1 --> f2
       f2 --> b1
       b1 -->|Redis PENDING 저장| r1
+      b1 -->|Pub/Sub publish| r_pub
       b1 -->|job_id 반환| f3
-      b1 -.->|asyncio.create_task| w1
 
-      w1 -->|Redis PROCESSING| r2
+      r_pub --> r_sub
+      r_sub -->|guide task dispatched| w0
+
+      w0 -->|Redis PROCESSING| r2
+      w0 --> w1
 
       w1 --> p1
       w1 --> w3
@@ -100,7 +106,6 @@ flowchart TB
       w6a --> w7
       w6b --> w7
 
-      w7 --> wmem
       w7 --> w8
       w8 --> p3
       w8 -->|Redis DONE 업데이트| r3
@@ -109,14 +114,15 @@ flowchart TB
 
       f3 --> f4
       f4 --> b2
+      b2 -.->|상태 확인| r1
+      b2 -.->|상태 확인| r2
       b2 -.->|상태 확인| r3
       b2 -.->|상태 확인| r4
       b2 -->|DONE| f5
       b2 -->|FAILED| ffail
 
       f5 --> b3
-      b3 -.->|1순위 DB 조회| p3
-      b3 -.->|2순위 메모리 fallback| wmem
+      b3 -.->|DB 조회| p3
 
       f5 --> f6
       f6 --> b4
@@ -127,11 +133,11 @@ flowchart TB
 
       class f1,f2,f3,f4,f5,f6,f7,ffail fe
       class b1,b2,b3,b4,b5 be
-      class w1,w3,w4,w6a,w6b wk
-      class w7,wmem,w8 asm
+      class r_pub,r_sub,r1,r2,r3 rd
+      class r4 nf
+      class w0,w1,w3,w4,w6a,w6b wk
+      class w7,w8 asm
       class w5 nf
       class wd,wst dec
-      class r1,r2,r3 rd
-      class r4 nf
       class p1,p2,p3,p4 pg
       class l1,l2,l3,l4 ai

@@ -24,6 +24,9 @@ ai = [
     "torchaudio",
     "sentence-transformers>=5.2.0"
 ]
+ai-worker = [
+    "pillow>=12.2.0",
+]
 app = [
     "alembic>=1.13.0",
     "asyncpg>=0.30.0",

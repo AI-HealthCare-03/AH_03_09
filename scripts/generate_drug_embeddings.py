@@ -12,20 +12,21 @@ Usage:
 import asyncio
 import logging
 import sys
-from math import ceil
 
 import asyncpg
 from openai import AsyncOpenAI
 
 sys.path.insert(0, ".")
-from app.core.config import config  # noqa: E402
+from app.core.config import Config  # noqa: E402
+
+config = Config()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 _EMBED_MODEL = "text-embedding-3-small"
-_BATCH_SIZE = 100
-_IVFFLAT_LISTS = 100
+_BATCH_SIZE = 20
+_BATCH_SLEEP = 1.0  # 배치 간 딜레이 (초) — DB 메모리 압박 방지
 
 
 def _drug_to_text(row: asyncpg.Record) -> str:
@@ -39,69 +40,92 @@ def _drug_to_text(row: asyncpg.Record) -> str:
     return ". ".join(parts)
 
 
+DB_CONNECT_ARGS = dict(
+    host=config.DB_HOST,
+    port=config.DB_PORT,
+    user=config.DB_USER,
+    password=config.DB_PASSWORD,
+    database=config.DB_NAME,
+)
+
+
+async def _connect() -> asyncpg.Connection:
+    for attempt in range(10):
+        try:
+            conn = await asyncpg.connect(**DB_CONNECT_ARGS)
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            return conn
+        except Exception as e:
+            logger.warning("DB 연결 실패 (%d/10): %s — 10초 후 재시도", attempt + 1, e)
+            await asyncio.sleep(10)
+    raise RuntimeError("DB 연결 10회 실패")
+
+
 async def main() -> None:
     if not config.OPENAI_API_KEY:
         logger.error("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
         sys.exit(1)
 
     client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
-    conn = await asyncpg.connect(
-        host=config.DB_HOST,
-        port=config.DB_PORT,
-        user=config.DB_USER,
-        password=config.DB_PASSWORD,
-        database=config.DB_NAME,
-    )
+    conn = await _connect()
 
     try:
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-
-        rows = await conn.fetch(
-            "SELECT id, item_name, dosage, side_effects, cautions FROM drug_master WHERE embedding IS NULL ORDER BY id"
-        )
-        total = len(rows)
+        total = await conn.fetchval("SELECT COUNT(*) FROM drug_master WHERE embedding IS NULL")
         logger.info("임베딩 미생성 항목: %d건", total)
 
         if total == 0:
             logger.info("모든 항목이 이미 임베딩 완료 상태입니다.")
         else:
-            batches = ceil(total / _BATCH_SIZE)
             processed = 0
+            last_id = 0
 
-            for i in range(batches):
-                batch = rows[i * _BATCH_SIZE : (i + 1) * _BATCH_SIZE]
+            while True:
+                # 연결 끊김 시 재연결
+                if conn.is_closed():
+                    logger.warning("DB 연결 끊김 — 재연결 시도")
+                    conn = await _connect()
+
+                try:
+                    batch = await conn.fetch(
+                        "SELECT id, item_name, dosage, side_effects, cautions FROM drug_master "
+                        "WHERE embedding IS NULL AND id > $1 ORDER BY id LIMIT $2",
+                        last_id,
+                        _BATCH_SIZE,
+                    )
+                except Exception:
+                    logger.warning("fetch 실패 — 재연결 후 재시도")
+                    conn = await _connect()
+                    continue
+
+                if not batch:
+                    break
+
                 texts = [_drug_to_text(r) for r in batch]
-
                 resp = await client.embeddings.create(model=_EMBED_MODEL, input=texts)
                 embeddings = [e.embedding for e in resp.data]
 
-                await conn.executemany(
-                    "UPDATE drug_master SET embedding = $1::vector WHERE id = $2",
-                    [
-                        ("[" + ",".join(str(v) for v in emb) + "]", r["id"])
-                        for emb, r in zip(embeddings, batch, strict=False)
-                    ],
-                )
+                try:
+                    for emb, r in zip(embeddings, batch, strict=False):
+                        vec_str = "[" + ",".join(str(v) for v in emb) + "]"
+                        await conn.execute(
+                            f"UPDATE drug_master SET embedding = '{vec_str}' WHERE id = $1",
+                            r["id"],
+                        )
+                except Exception:
+                    logger.warning("update 실패 — 재연결 후 다음 배치 재시도")
+                    conn = await _connect()
+                    continue
+
                 processed += len(batch)
+                last_id = batch[-1]["id"]
                 logger.info("진행: %d / %d (%.1f%%)", processed, total, processed / total * 100)
+                await asyncio.sleep(_BATCH_SLEEP)
 
-        # IVFFlat 인덱스: 임베딩 있는 행 수에 맞게 lists 조정
-        embed_count = await conn.fetchval("SELECT COUNT(*) FROM drug_master WHERE embedding IS NOT NULL")
-        if embed_count == 0:
-            logger.warning("임베딩 데이터 없음 — 인덱스 생성 건너뜀")
-            return
-
-        lists = min(_IVFFLAT_LISTS, max(1, embed_count // 50))
-        logger.info("IVFFlat 인덱스 생성 중 (lists=%d, rows=%d)...", lists, embed_count)
-        await conn.execute(
-            f"CREATE INDEX IF NOT EXISTS ix_drug_master_embedding_ivfflat "
-            f"ON drug_master USING ivfflat (embedding vector_cosine_ops) "
-            f"WITH (lists = {lists})"
-        )
-        logger.info("완료!")
+        logger.info("임베딩 생성 완료!")
 
     finally:
-        await conn.close()
+        if not conn.is_closed():
+            await conn.close()
 
 
 if __name__ == "__main__":

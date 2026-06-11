@@ -74,6 +74,7 @@ class OcrDocumentDetailResponse(OcrDocumentResponse):
     medications: list[MedicationResponse] = []
     disease_codes: list[DiseaseCodeResponse] = []
     result: OcrResultResponse | None = None
+    guide_job_id: str | None = None
 
 
 class OcrDocumentListResponse(BaseSerializerModel):

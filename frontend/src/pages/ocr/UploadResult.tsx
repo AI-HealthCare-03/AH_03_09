@@ -277,13 +277,24 @@ export default function UploadResult() {
             목록으로
           </Button>
           {doc?.job_id && (
-            <Button
-              size="sm"
-              onClick={() => confirmMutation.mutate(doc.job_id)}
-              disabled={confirmMutation.isPending || !allMedsConfirmed}
-            >
-              {confirmMutation.isPending ? "요청 중..." : "복약 가이드 생성"}
-            </Button>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    onClick={() => confirmMutation.mutate(doc.job_id)}
+                    disabled={confirmMutation.isPending || !allMedsConfirmed || !!doc.guide_job_id}
+                  >
+                    {confirmMutation.isPending ? "요청 중..." : doc.guide_job_id ? "가이드 생성 완료" : "복약 가이드 생성"}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {doc.guide_job_id && (
+                <TooltipContent>
+                  이미 생성된 가이드가 있습니다. 건강 가이드 메뉴에서 확인해주세요.
+                </TooltipContent>
+              )}
+            </Tooltip>
           )}
         </div>
       </div>

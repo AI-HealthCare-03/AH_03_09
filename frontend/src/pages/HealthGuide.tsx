@@ -262,19 +262,19 @@ export default function HealthGuide() {
           {guide?.medication_guide && (
             <div className="space-y-2">
               {guide.medication_guide.medications.map((medication) => (
-                <Card key={medication.name}>
-                  <CardHeader className="py-3">
+                <Card key={medication.name} className="py-4 gap-4">
+                  <CardHeader className="px-4 py-2">
                     <CardTitle className="text-base">{medication.name}</CardTitle>
                   </CardHeader>
 
-                  <CardContent className="space-y-1.5 pt-0 text-sm">
+                  <CardContent className="px-4 space-y-1 pt-0 text-sm">
                     {medication.action_icons?.length > 0 && (
   <>
     <p className="text-sm font-medium text-blue-700 mb-1">
       핵심 주의사항
     </p>
 
-    <div className="flex flex-wrap gap-2 mb-2">
+    <div className="flex flex-wrap gap-2 mb-1">
       {medication.action_icons.map((icon) => (
         <div
           key={icon.type}
@@ -294,7 +294,7 @@ export default function HealthGuide() {
       핵심 복용법
     </p>
 
-    <div className="flex flex-wrap gap-2 mb-2">
+    <div className="flex flex-wrap gap-2 mb-1">
       {medication.usage_icons.map((icon) => (
         <div
           key={icon.type}
@@ -308,8 +308,8 @@ export default function HealthGuide() {
   </>
 )}
 {medication.easy_summary?.length > 0 && medication.match_status !== "NOT_FOUND" && (
-  <div className="rounded-lg bg-slate-50 p-3 mb-2">
-    <p className="font-medium mb-2">쉬운 설명</p>
+  <div className="rounded-lg bg-slate-50 p-2 mb-1">
+    <p className="font-medium mb-1">쉬운 설명</p>
 
     <ul className="list-disc pl-5 text-sm space-y-1">
       {medication.easy_summary.map((summary) => (
