@@ -1,0 +1,111 @@
+flowchart TD
+
+    %% ══════════════════════════════════════════════════════════════
+    subgraph AUTH["🔐 인증"]
+        A1([앱 진입]) --> A2{로그인 여부}
+        A2 -- 미로그인 --> A3["카카오 로그인\nGET /auth/kakao/login"]
+        A3 --> A4["카카오 OAuth 동의\n(외부 페이지)"]
+        A4 --> A5["POST /auth/kakao/callback\nJWT 발급 (httpOnly 쿠키)"]
+        A5 --> A6{is_onboarded?}
+        A6 -- NO --> A7["온보딩\n건강정보 최초 입력\nPOST /users/me/onboarding"]
+        A6 -- YES --> A8
+        A7 --> A8([🏠 홈])
+        A2 -- 로그인됨 --> A8
+    end
+
+    %% ══════════════════════════════════════════════════════════════
+    subgraph OCR["📄 OCR — 처방전 업로드"]
+        B1([홈 → 업로드]) --> B2["파일 선택\nJPEG·PNG·PDF, 최대 10MB\n하루 20회 제한"]
+        B2 --> B3["POST /ocr/upload\nS3 저장 + job 생성"]
+        B3 --> B4["처리 중 폴링\nGET /ocr/jobs/{job_id}/status"]
+
+        subgraph WORKER_OCR["🤖 OCR Worker"]
+            B4 --> W1["Clova OCR API 호출\n텍스트·신뢰도 추출"]
+            W1 --> W2["문서 유형 분류\n처방전 / 약봉투 / 기타"]
+            W2 --> W3["약물명·질병코드 파싱\nDrug Master DB 매칭"]
+            W3 --> W4["개인정보 마스킹\n(주민번호·전화번호 등)"]
+            W4 --> W5[DB 저장 → status DONE]
+        end
+
+        W5 --> B5["결과 확인 페이지\n약물·질병코드 검토/수정"]
+        B5 --> B6["확인 버튼\nPOST /ocr/jobs/{job_id}/confirm\ntrigger_guide=true"]
+    end
+
+    %% ══════════════════════════════════════════════════════════════
+    subgraph GUIDE["📋 가이드 생성"]
+        B6 --> C1["POST /guides/jobs\n가이드 생성 job 요청"]
+        C1 --> C2["navigate('/health-guide?job_id=xxx')\nURL 파라미터 → 새로고침 유지"]
+        C2 --> C3["폴링\nGET /guides/jobs/{job_id}/status"]
+
+        subgraph WORKER_GUIDE["🤖 Guide Worker"]
+            C3 --> GW1["약물·질병 데이터 로드"]
+            GW1 --> GW2["건강 프로필 로드"]
+            GW2 --> GW3["OpenAI API 호출\n복약·생활·식단·운동 가이드 생성"]
+            GW3 --> GW4["DB 저장 (JSONB)\n+ in-memory 캐시"]
+        end
+
+        GW4 --> C4["GET /guides/{guide_id}\n가이드 로드 완료"]
+        C4 --> C5["✅ chatStore.guideId 즉시 저장\n(localStorage 영속)"]
+        C5 --> C6["가이드 화면 표시\n복약·스케줄·생활관리·피드백"]
+    end
+
+    %% ══════════════════════════════════════════════════════════════
+    subgraph PROFILE["❤️ 건강 프로필"]
+        D1([홈 → 내 건강정보]) --> D2["건강정보 조회\nGET /health-profile"]
+        D2 --> D3["수정 폼\n키·몸무게·혈압·기저질환\n알레르기·복용약·생활습관"]
+        D3 --> D4["저장\nPATCH /health-profile"]
+        D4 --> D5["챗봇·가이드 생성에\n자동 반영"]
+    end
+
+    %% ══════════════════════════════════════════════════════════════
+    subgraph CHAT["💬 챗봇"]
+        E1([홈 → 챗봇]) --> E2{세션 있음?}
+        E2 -- NO --> E3["POST /chat/sessions\n새 세션 생성"]
+        E2 -- YES --> E4
+        E3 --> E4["메시지 입력\nPOST /sessions/{id}/messages/stream\nbody: content + guide_id"]
+
+        subgraph BE_CHAT["⚙️ FastAPI"]
+            E4 --> F1{JWT 인증}
+            F1 -- 실패 --> F2[401]
+            F1 -- 성공 --> F3{위험 키워드?}
+            F3 -- YES --> F4["🚨 위기상담 안내\n1393·1577-0199\nLLM 미호출"]
+            style F4 fill:#fee2e2,stroke:#f87171,color:#111
+            F3 -- NO --> F5{부적절 키워드?}
+            F5 -- YES --> F6["❌ 답변 거부"]
+            style F6 fill:#f1f5f9,stroke:#94a3b8,color:#111
+            F5 -- NO --> F7["건강 프로필 조회"]
+            F7 --> F8{guide_id 있음?}
+            F8 -- YES --> F9["가이드 컨텍스트 조회\n약물·스케줄·질병코드"]
+            style F9 fill:#eff6ff,stroke:#60a5fa,color:#111
+            F8 -- NO --> F10
+            F9 --> F10["Redis Publish → AI Worker"]
+        end
+
+        subgraph WORKER_CHAT["🤖 AI Worker"]
+            F10 --> G1["스킬 감지\n(EMERGENCY·약물상호작용·\n부작용·복약안내·GENERAL)"]
+            G1 --> G2["시스템 프롬프트 빌드\n① 스킬 ② 건강프로필\n③ 가이드 ④ 출처규칙"]
+            G2 --> G3{히스토리 12개 초과?}
+            G3 -- YES --> G4["이전 대화 요약\n최근 8개 유지"]
+            G3 -- NO --> G5
+            G4 --> G5["OpenAI 스트리밍 호출"]
+            G5 --> G6["청크 Redis Publish\n+ 면책 문구 자동 추가"]
+        end
+
+        G6 --> E5["NDJSON 스트리밍 수신\n실시간 UI 표시"]
+        E5 --> E6([💬 답변 완료])
+    end
+
+    %% ══════════════════════════════════════════════════════════════
+    subgraph PHARMACY["💊 약국 재고"]
+        H1([홈 → 약국 재고]) --> H2["약품명 검색"]
+        H2 --> H3["주변 약국 목록\n거리·영업시간·재고 표시\n(현재 목업 데이터)"]
+    end
+
+    %% ── 전체 연결 ────────────────────────────────────────────────
+    A8 --> B1
+    A8 --> C2
+    A8 --> D1
+    A8 --> E1
+    A8 --> H1
+    D4 -.-> E4
+    C5 -.-> E4
