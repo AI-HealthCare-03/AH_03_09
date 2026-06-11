@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import io
 import json
 import logging
 import re
@@ -26,6 +27,28 @@ _MIME_TO_FORMAT = {
 }
 
 
+_CLOVA_MAX_PX = 8000
+
+
+def _resize_image_if_needed(content: bytes, mime_type: str) -> bytes:
+    """이미지 해상도가 Clova OCR 제한(8000px)을 초과하면 자동으로 축소합니다."""
+    if mime_type not in ("image/jpeg", "image/png"):
+        return content
+    from PIL import Image  # ai-worker 그룹 의존성 — 런타임에만 로드
+
+    img = Image.open(io.BytesIO(content))
+    w, h = img.size
+    if w <= _CLOVA_MAX_PX and h <= _CLOVA_MAX_PX:
+        return content
+    ratio = min(_CLOVA_MAX_PX / w, _CLOVA_MAX_PX / h)
+    img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+    buf = io.BytesIO()
+    fmt = "JPEG" if mime_type == "image/jpeg" else "PNG"
+    img.save(buf, format=fmt)
+    logger.info("이미지 리사이즈: %dx%d → %dx%d", w, h, int(w * ratio), int(h * ratio))
+    return buf.getvalue()
+
+
 async def _read_file(s3_key: str, s3_bucket: str) -> bytes:
     """로컬 스토리지 또는 S3에서 파일을 읽어 반환합니다."""
     if s3_bucket == _LOCAL_BUCKET:
@@ -48,6 +71,7 @@ async def _call_clova_ocr(content: bytes, mime_type: str) -> dict:
     Returns:
         {"raw_text": str, "confidence": float, "request_id": str}
     """
+    content = _resize_image_if_needed(content, mime_type)
     fmt = _MIME_TO_FORMAT.get(mime_type, "jpeg")
     payload = {
         "version": "V2",
@@ -79,6 +103,8 @@ async def _call_clova_ocr(content: bytes, mime_type: str) -> dict:
     images = result.get("images", [])
     if not images or images[0].get("inferResult") != "SUCCESS":
         msg = images[0].get("message", "unknown") if images else "no images"
+        if "resolution limit" in msg.lower():
+            raise RuntimeError("PDF_RESOLUTION_EXCEEDED")
         raise RuntimeError(f"Clova OCR 인식 실패: {msg}")
 
     fields = images[0].get("fields", [])

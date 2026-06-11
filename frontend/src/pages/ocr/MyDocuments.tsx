@@ -206,7 +206,7 @@ export default function MyDocuments() {
                           scope="col"
                           className="px-4 py-3 text-left text-xs font-medium text-muted-foreground"
                         >
-                          관리
+                          OCR 분석 결과
                         </th>
                         <th
                           scope="col"

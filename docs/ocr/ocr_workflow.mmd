@@ -4,9 +4,12 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph UPLOAD["① 파일 업로드 (/upload)"]
         direction TB
+        U0{"온보딩 완료 여부 확인\n(isOnboarded 체크)"}
+        U0 -->|"미완료"| U0a["→ /onboarding 리다이렉트\n(동의 + 건강정보 입력 후 /home)"]
+        U0 -->|"완료"| U1
         U1["파일 선택\n(드래그 앤 드롭 또는 버튼 클릭)\n1개 파일만 업로드 가능"]
         U1 --> U2{"파일 형식 · 크기 확인\n(업로드 전 브라우저에서 검사)"}
-        U2 -->|"JPEG·PNG·PDF 아닌 형식"| UE1["❌ 형식 오류 안내\n업로드 버튼 비활성"]
+        U2 -->|"JPG·JPEG·PNG·PDF 아닌 형식"| UE1["❌ 형식 오류 안내\n업로드 버튼 비활성"]
         U2 -->|"10MB 초과"| UE2["❌ 용량 초과 안내\n업로드 버튼 비활성"]
         U2 -->|"통과"| U3["업로드 버튼 활성화"]
         U3 --> U4["POST /ocr/upload 요청\n(1개 파일)"]
@@ -25,9 +28,10 @@ flowchart TD
         direction TB
         W1["Redis 채널에서 작업 수신\n(ocr:request:{job_id})"]
         W1 --> W2["상태 PROCESSING으로 변경"]
-        W2 --> W3["Clova OCR API 호출\n→ 이미지 전체 텍스트 인식 (레이아웃 무관)\n→ raw_text 생성 + 블록별 confidence 평균 → 단일 confidence_score 저장"]
+        W2 --> W2b["이미지 전처리\nJPG·PNG 파일에 한해 8000px 초과 시 자동 리사이즈\n(Clova OCR 해상도 제한 대응, PDF는 그대로 전달)"]
+        W2b --> W3["Clova OCR API 호출\n→ 이미지 전체 텍스트 인식 (레이아웃 무관)\n→ raw_text 생성 + 블록별 confidence 평균 → 단일 confidence_score 저장"]
         W3 --> W4{"Clova 응답 성공?"}
-        W4 -->|"실패\n(API 장애·네트워크 오류·처리 불가 파일)"| WF["상태 FAILED로 변경\n(에러 내용 DB 저장)"]
+        W4 -->|"실패\n(API 장애·네트워크 오류·처리 불가 파일)"| WF["상태 FAILED로 변경\n에러 종류 감지 후 저장:\n· PDF 해상도 초과 → PDF_RESOLUTION_EXCEEDED\n· 그 외 → 원본 에러 메시지"]
         W4 -->|"성공"| W5["문서 유형 분류\n① 키워드 룰 기반 (처방전·약봉투 특징 키워드 점수 비교)\n② 키워드로 불명확 시 GPT 폴백 분류\n→ PRESCRIPTION / DRUG_BAG / OTHER"]
         W5 --> W6{"이전 수정 이력 존재?\n(ocr_corrections 조회)"}
         W6 -->|"있음\n(코드 로직은 존재하나 현재 실질적 미사용:\nFAILED 재추출 경로에만 수정 이력이 없으므로\nW7 경로는 사실상 dead code)"| W7["수정 이력을 few-shot 힌트로\nGPT 프롬프트에 주입\n(동일 오류 반복 방지)"]
@@ -61,10 +65,12 @@ flowchart TD
         P2 -->|"DONE\nretake_recommended = false\n(confidence ≥ 0.7, 정상 추출)"| P3["1초 후 자동 이동\n→ /upload/result/:recordId"]
         P2 -->|"DONE\nretake_recommended = true\n(confidence < 0.7, 인식률 낮음)"| P3b["재촬영 권고 선택지 화면\n⚠ '이미지 인식률이 낮습니다'"]
         P3b -->|"'결과 확인하기' 클릭"| P3c["→ /upload/result/:recordId\n※ 결과 화면의 '새 업로드' 버튼으로\n   더 선명한 파일 재업로드 가능"]
-        P2 -->|"FAILED\n(Clova API 장애 또는 파일 처리 불가)"| P4{"재추출 가능?\n(reanalyze_count < 5)"}
-        P4 -->|"가능"| P5b["❌ 'OCR 처리 중 오류가 발생했습니다.\nOCR 서비스의 일시적 오류일 수 있으니\n재시도해 주세요.' 안내\n'재추출' 버튼 클릭\n→ POST /records/:id/reanalyze\n→ 상태 PENDING으로 변경 + Redis PUBLISH\n→ ai_worker 재처리 (W1부터 동일 흐름)\n→ 재처리 후 또 FAILED 시 이 분기 반복\n(최대 5회까지)"]
+        P2 -->|"FAILED\n(Clova API 장애 또는 파일 처리 불가)"| P4{"에러 종류 확인\n(API message 기반)"}
+        P4 -->|"PDF 해상도 초과\n(PDF_RESOLUTION_EXCEEDED)"| P4a["❌ 'PDF 파일의 해상도가 너무 높아\n처리할 수 없습니다.\nJPG 또는 PNG로 촬영한 사진으로\n다시 업로드해 주세요.' 안내\n'재업로드' 버튼 → /upload\n(재추출 버튼 없음 — 같은 파일 재시도 불가)"]
+        P4 -->|"일반 오류\n(Clova API 장애·네트워크 오류 등)"| P4b{"재추출 가능?\n(reanalyze_count < 5)"}
+        P4b -->|"가능"| P5b["❌ 'OCR 처리 중 오류가 발생했습니다.\nOCR 서비스의 일시적 오류일 수 있으니\n재시도해 주세요.' 안내\n'재추출' 버튼 클릭\n→ POST /records/:id/reanalyze\n→ 상태 PENDING으로 변경 + Redis PUBLISH\n→ ai_worker 재처리 (W1부터 동일 흐름)\n→ 재처리 후 또 FAILED 시 이 분기 반복\n(최대 5회까지)"]
         P5b --> W1
-        P4 -->|"5회 초과 (reanalyze_count >= 5)"| P6["❌ '파일에 문제가 있어\n처리할 수 없습니다'\n'재업로드' 버튼 → /upload"]
+        P4b -->|"5회 초과 (reanalyze_count >= 5)"| P6["❌ '파일에 문제가 있어\n처리할 수 없습니다'\n'재업로드' 버튼 → /upload"]
     end
 
     %% ────────────────────────────────────────────────────────────────
@@ -119,7 +125,7 @@ flowchart TD
         R6b --> R6
 
         R7{"문서 유형\n(질병코드 섹션 표시 여부 결정)"}
-        R7 -->|"DRUG_BAG / OTHER\n→ 질병코드 섹션 없음"| R_end["약물 전체 확인 완료\n→ 복약 가이드 생성 버튼 활성화\n※ 가이드 생성 조건: allMedsConfirmed = true 만으로 충분\n   질병코드 확인 여부는 무관"]
+        R7 -->|"DRUG_BAG / OTHER\n→ 질병코드 섹션 없음"| R_end["약물 전체 확인 완료\n→ 복약 가이드 생성 버튼 활성화\n※ 가이드 생성 조건: allMedsConfirmed = true && guide_job_id = null\n   질병코드 확인 여부는 무관\n   이미 가이드가 생성된 문서는 버튼 비활성(중복 방지)"]
         R7 -->|"PRESCRIPTION\n→ 질병코드 섹션 표시\n(코드 없으면 '없습니다' 메시지)"| R8["질병분류기호 섹션 표시\n(ICD-10 코드 · 질병명)\n※ 이 섹션 확인 여부는 가이드 생성에 영향 없음"]
 
         R8 --> R9{"질병코드 수정 필요?\n(allDiseasesConfirmed = false일 때만 편집 버튼 활성)\n※ 질병코드는 가이드 생성 시 함께 전달되므로\n   정확도가 가이드 품질에 영향 — 검토 권장\n   단, 확인 버튼 클릭은 가이드 생성 버튼 활성화에 불필요"}
@@ -134,10 +140,11 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph CONFIRM["⑤ 복약 가이드 생성 (결과 화면 상단 버튼)"]
         direction TB
-        C0{"복약 가이드 생성 버튼\n활성 조건:\nmedications.length > 0\n&& allMedsConfirmed = true"}
+        C0{"복약 가이드 생성 버튼\n활성 조건:\nmedications.length > 0\n&& allMedsConfirmed = true\n&& guide_job_id = null"}
         C0 -->|"비활성\n(약물 없음 또는 미확인 약물 존재)"| C0a["버튼 disabled\n약물 1개 이상이면 🔵 안내 배너 표시\n→ allMedsConfirmed = true가 되는 순간 배너 소멸·버튼 활성화"]
-        C0 -->|"활성 (모든 약물 확인 완료)"| C1["POST /ocr/jobs/:jobId/confirm { trigger_guide: true }"]
-        C1 --> C2["서버가 해당 문서에서 데이터를 읽어 POST /guides/generate에 전달\n· medications: 약물명·용량·복약횟수·기간·복약시기 등 전체 정보\n· disease_codes + disease_names: 처방전이면 ICD-10 코드+질병명,\n  약봉투·기타면 빈 배열\n→ 가이드 생성 비동기 작업 등록"]
+        C0 -->|"비활성\n(이미 가이드 생성됨\nguide_job_id 존재)"| C0b["'가이드 생성 완료' 버튼 disabled\n툴팁: '이미 생성된 가이드가 있습니다.\n건강 가이드 메뉴에서 확인해주세요.'\n(중복 생성 방지)"]
+        C0 -->|"활성 (모든 약물 확인 완료\n&& 가이드 미생성)"| C1["POST /ocr/jobs/:jobId/confirm { trigger_guide: true }"]
+        C1 --> C2["서버가 해당 문서에서 데이터를 읽어 POST /guides/generate에 전달\n· medications: 약물명·용량·복약횟수·기간·복약시기 등 전체 정보\n· disease_codes + disease_names: 처방전이면 ICD-10 코드+질병명,\n  약봉투·기타면 빈 배열\n→ 가이드 생성 비동기 작업 등록\n→ guide_job_id를 ocr_documents에 저장 (중복 생성 방지용)"]
         C2 --> C3{"응답"}
         C3 -->|"guide_job_id 수신"| C4["/health-guide로 이동\n(가이드 생성 대기 화면)"]
         C3 -->|"실패\n(네트워크 오류·서버 오류·\n문서 없음·가이드 서비스 오류 등\n→ FE에서 에러 유형 구분 없이 동일 처리)"| C5["❌ '가이드 생성에 실패했습니다.\n다시 시도해주세요.' 토스트\n→ 결과 화면에 그대로 유지\n(allMedsConfirmed = true 상태 유지\n버튼 활성화 상태이므로 재시도 가능)"]
@@ -153,7 +160,7 @@ flowchart TD
         D1 --> D2{"문서 상태별 관리 버튼"}
         D2 -->|"DONE"| D3["'결과보기'\n→ /upload/result/:recordId"]
         D2 -->|"PENDING · PROCESSING"| D4["'처리현황'\n→ /upload/processing/:jobId"]
-        D2 -->|"FAILED"| D5["'재시도'\n→ /upload/processing/:jobId\n(해당 화면에서 재추출 버튼 제공)"]
+        D2 -->|"FAILED"| D5["'재시도'\n→ /upload/processing/:jobId\n(에러 종류에 따라 버튼 분기:\n· PDF 해상도 초과 → 재업로드 버튼\n· 일반 오류 → 재추출 버튼)"]
         D1 --> D6["'삭제' 버튼 클릭\n→ 삭제 확인 모달"]
         D6 -->|"삭제 진행 중\nESC · 배경 클릭"| D6a["모달 닫기 차단\n(deleting 상태 동안 비활성)"]
         D6 -->|"'삭제 확인' 클릭"| D7["DELETE /records/:id (소프트 삭제)\n30일 후 완전 삭제"]

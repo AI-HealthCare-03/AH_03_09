@@ -160,6 +160,7 @@ export interface OcrDocumentDetailResponse extends OcrDocumentResponse {
   medications: MedicationResponse[];
   disease_codes: DiseaseCodeResponse[];
   result: OcrResultResponse | null;
+  guide_job_id: string | null;
 }
 
 export interface OcrDocumentListResponse {
