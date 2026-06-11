@@ -1,5 +1,16 @@
 flowchart TD
 
+    %% ── 데이터 준비 (1회성 세팅) ─────────────────────────────────────
+    subgraph SETUP["🗄 데이터 준비 (배포 전 1회성)"]
+        S1["drug_master_dump.sql\n(식약처 43,143건)"]
+        S1 --> S2["scripts/import_drug_master_dump.py\nTRUNCATE → INSERT"]
+        S2 --> S3[("drug_master\n43,143건 적재 완료")]
+        S3 --> S4["scripts/generate_drug_embeddings.py\nOpenAI text-embedding-3-small\n100건씩 배치 처리"]
+        S4 --> S5[("drug_master.embedding\nvector(1536) 저장\n+ IVFFlat 인덱스 생성")]
+    end
+    style S3 fill:#f0fdf4,stroke:#86efac,color:#111
+    style S5 fill:#f0fdf4,stroke:#86efac,color:#111
+
     %% ── 가이드 연동 (사전 설정) ───────────────────────────────────────
     subgraph GUIDE["📋 가이드 연동 (사전 설정)"]
         G1([OCR 처방전 확인]) --> G2["POST /guides/jobs\n가이드 생성 요청"]
@@ -29,7 +40,7 @@ flowchart TD
     end
 
     %% ══════════════════════════════════════════════════════════════
-    subgraph BE["⚙️ FastAPI 백엔드"]
+    subgraph BE["⚙️ FastAPI 백엔드 (app/services/chat.py)"]
         BE1{JWT 인증}
         BE1 -- 실패 --> BE2[401 반환]
         BE1 -- 성공 --> BE3{위험 키워드?\n자살·자해·극단적선택·과다복용}
@@ -38,20 +49,26 @@ flowchart TD
         BE3 -- NO --> BE5{부적절 키워드?\n욕설·비속어}
         BE5 -- YES --> BE6["❌ 답변 거부\n약 관련 질문만 안내"]
         style BE6 fill:#f1f5f9,stroke:#94a3b8,color:#111
-        BE5 -- NO --> BE7["건강 프로필 조회\n성별·나이·신체정보\n기저질환·혈압·알레르기\n복용약·생활습관"]
+        BE5 -- NO --> BE7["① 건강 프로필 조회\n성별·나이·신체정보\n기저질환·혈압·알레르기\n복용약·생활습관"]
         BE7 --> BE8{guide_id 있음?}
-        BE8 -- YES --> BE9["가이드 컨텍스트 조회\n처방 약물 / 복약 스케줄\n주요 지시사항\n질병코드+병명 (별도 섹션)"]
+
+        BE8 -- YES --> BE9["② 가이드 컨텍스트 조회\n처방 약물 목록 / 복약 스케줄\n주요 지시사항\n질병코드+병명"]
         style BE9 fill:#eff6ff,stroke:#60a5fa,color:#111
-        BE9 --> BE9A["💊 drug_master 직접 조회\n처방 약품명 → 식약처 DB 매칭\n용법·부작용·주의사항 추출"]
+
+        BE9 --> BE9A["③ drug_master 직접 조회\n_fetch_drug_details\n처방 약품명 ILIKE 매칭\n→ 용법·부작용·주의사항 추출\n※ embedding 없어도 동작"]
         style BE9A fill:#fefce8,stroke:#facc15,color:#111
-        BE9A --> BE9B["🔍 RAG 벡터 검색\n사용자 질문 임베딩\n→ pgvector 유사도 검색\n→ 상위 3개 의약품 지식 추출"]
-        style BE9B fill:#f0fdf4,stroke:#86efac,color:#111
+
         BE8 -- NO --> BE9B
-        BE9B --> BE10["메시지 DB 저장\nRedis Publish\nchat:request:{session_id}"]
+        BE9A --> BE9B
+
+        BE9B["④ RAG 벡터 검색\napp/services/rag.py\n사용자 질문 → OpenAI 임베딩\n→ pgvector 코사인 유사도 검색\n→ 유사 약품 top-3 반환\n※ embedding 없으면 빈 결과로 폴백"]
+        style BE9B fill:#f0fdf4,stroke:#86efac,color:#111
+
+        BE9B --> BE10["Redis Publish\nchat:request:{session_id}\npayload: health_profile\n+ guide_context\n+ drug_details ③\n+ rag_results ④"]
     end
 
     %% ══════════════════════════════════════════════════════════════
-    subgraph AI["🤖 AI Worker"]
+    subgraph AI["🤖 AI Worker (ai_worker/core/llm.py)"]
         BE10 --> AI1["스킬 감지\n(키워드 우선순위 매칭)"]
 
         AI1 --> SK1["🚑 EMERGENCY\n호흡곤란·경련·쇼크·119·과다"]
@@ -61,17 +78,17 @@ flowchart TD
         AI1 --> SK5["🔍 DISEASE_INQUIRY\n내 병명·무슨 병·진단명·내 진단"]
         AI1 --> SK6["💬 GENERAL\n그 외"]
 
-        SK5 --> DI["출처 분리 강제 프롬프트\n────────────────\n① 건강 프로필 →\n   '귀하께서 입력하신 건강정보에는\n   고혈압 정보가 포함되어 있습니다.'\n② OCR 질병코드 →\n   '올려주신 처방전에서 인식된\n   질병코드는 K29(위염)입니다.'"]
+        SK5 --> DI["출처 분리 강제 프롬프트\n────────────────\n① 건강 프로필 →\n   '귀하께서 입력하신 건강정보에는'\n② OCR 질병코드 →\n   '올려주신 처방전에서 인식된\n   질병코드는 K29(위염)입니다.'"]
         style DI fill:#f0fdf4,stroke:#86efac,color:#111
 
         SK1 & SK2 & SK3 & SK4 & DI & SK6 --> AI2
 
-        AI2["시스템 프롬프트 빌드\n① 스킬 프롬프트\n② 건강 프로필 섹션 (사용자 직접 입력)\n③ 처방 가이드 섹션 (복약 정보)\n④ 질병코드 섹션 (OCR 인식, 별도 분리)\n⑤ 출처 구분 규칙 + 확정 진단 금지\n⑥ 대화 순서 참조 규칙\n⑦ 약품 상세정보 (식약처 drug_master)\n⑧ RAG 검색 결과 (벡터 유사도 상위 3건)"]
+        AI2["시스템 프롬프트 빌드\n_build_system_prompt\n───────────────────────\n① 스킬별 역할 프롬프트\n② 건강 프로필 섹션\n③ 처방 가이드 섹션 (복약 정보)\n④ 질병코드 섹션 (OCR 인식)\n⑤ 출처 구분 + 확정 진단 금지 규칙\n⑥ 대화 순서 참조 규칙\n⑦ 약품 상세정보 — drug_details\n   (식약처 허가 데이터, 처방전 직접 매칭)\n⑧ RAG 검색 결과 — rag_results\n   (의미 유사 약품 top-3)"]
 
         AI2 --> AI3{히스토리 12개 초과?}
         AI3 -- YES --> AI4["이전 대화 요약\n질문 순서 보존\n최근 8개 유지"]
         AI3 -- NO --> AI5
-        AI4 --> AI5["OpenAI 스트리밍 호출"]
+        AI4 --> AI5["OpenAI 스트리밍 호출\ngpt-4o-mini"]
         AI5 --> AI6["청크 Redis Publish\nchat:stream:{session_id}\n+ 스킬별 면책 문구 자동 추가"]
     end
 
