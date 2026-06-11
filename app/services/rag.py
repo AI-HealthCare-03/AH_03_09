@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 _EMBED_MODEL = "text-embedding-3-small"
 _TOP_K = 3
+_MIN_SIMILARITY = 0.7  # 코사인 유사도 임계값 (거리 기준: 1 - 0.7 = 0.3)
 _openai_client: AsyncOpenAI | None = None
 
 
@@ -36,10 +37,11 @@ async def search_drug_by_query(session: AsyncSession, query: str) -> list[dict]:
                     "SELECT item_name, dosage, side_effects, cautions "
                     "FROM drug_master "
                     "WHERE embedding IS NOT NULL "
+                    "  AND embedding <=> (:vec)::vector < :dist_threshold "
                     "ORDER BY embedding <=> (:vec)::vector "
                     "LIMIT :k"
                 ),
-                {"vec": vec_str, "k": _TOP_K},
+                {"vec": vec_str, "k": _TOP_K, "dist_threshold": 1 - _MIN_SIMILARITY},
             )
         ).fetchall()
     except Exception:
