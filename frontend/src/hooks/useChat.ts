@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { submitFeedback } from "@/api/chat";
 import { useMessages, useStreamMessage } from "@/hooks/useMessages";
@@ -13,7 +13,7 @@ export function useChat() {
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
   const guideId = useChatStore((s) => s.guideId);
 
-  const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
+  const [localFeedbackGiven, setLocalFeedbackGiven] = useState<Set<number>>(new Set());
   const [optimisticUserMsg, setOptimisticUserMsg] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -26,6 +26,20 @@ export function useChat() {
   const messages = messagesData?.messages ?? [];
   const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
   const busy = streamMut.isPending || createMut.isPending;
+
+  // 서버에서 받은 피드백 + 이번 세션에서 제출한 피드백 합산
+  const feedbackGiven = useMemo(
+    () => new Set([
+      ...messages.filter((m) => m.feedback).map((m) => m.id),
+      ...localFeedbackGiven,
+    ]),
+    [messages, localFeedbackGiven],
+  );
+
+  // 세션 변경 시 로컬 피드백 초기화
+  useEffect(() => {
+    setLocalFeedbackGiven(new Set());
+  }, [currentSessionId]);
 
   useEffect(() => {
     setOptimisticUserMsg(null);
@@ -71,7 +85,7 @@ export function useChat() {
     if (!currentSessionId) return;
     try {
       await submitFeedback(currentSessionId, messageId, feedback);
-      setFeedbackGiven((prev) => new Set(prev).add(messageId));
+      setLocalFeedbackGiven((prev) => new Set(prev).add(messageId));
     } catch {
       setFeedbackError("피드백 전송에 실패했습니다. 다시 시도해주세요.");
     }
