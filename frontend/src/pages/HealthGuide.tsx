@@ -154,13 +154,18 @@ export default function HealthGuide() {
     })();
   }, [guideIdParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // guideId 설정 후 서버의 피드백 제출 여부를 동기화한다.
+  // guideId 설정 후 서버의 피드백 상태와 내용을 복원한다.
   useEffect(() => {
     if (!guideId) return;
     (async () => {
       try {
         const result = await getGuideFeedbackStatus(guideId);
         setFeedbackSubmitted(result.is_submitted);
+        if (result.is_submitted) {
+          if (result.rating_comprehension != null) setRatingComprehension(result.rating_comprehension);
+          if (result.rating_usefulness != null) setRatingUsefulness(result.rating_usefulness);
+          if (result.comment != null) setComment(result.comment);
+        }
       } catch {
         // 조회 실패 시 feedbackSubmitted = false 유지 (기존 동작)
       }

@@ -1199,14 +1199,26 @@ class GuideService:
                 row = result.scalar_one_or_none()
             if row is not None:
                 fb = row.feedback_data or {}
-                return FeedbackStatusResponse(is_submitted=fb.get("is_submitted", False))
+                data = fb.get("data") or {}
+                return FeedbackStatusResponse(
+                    is_submitted=fb.get("is_submitted", False),
+                    rating_comprehension=data.get("rating_comprehension"),
+                    rating_usefulness=data.get("rating_usefulness"),
+                    comment=data.get("comment"),
+                )
         except Exception:
             logger.exception("get_feedback_status DB 조회 실패 guide_id=%s — fallback", guide_id)
         # 2순위: _guides fallback
         if guide_id not in _guides:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
         fb = _feedbacks.get(guide_id, {})
-        return FeedbackStatusResponse(is_submitted=fb.get("is_submitted", False))
+        data = fb.get("data") or {}
+        return FeedbackStatusResponse(
+            is_submitted=fb.get("is_submitted", False),
+            rating_comprehension=data.get("rating_comprehension"),
+            rating_usefulness=data.get("rating_usefulness"),
+            comment=data.get("comment"),
+        )
 
     async def update_feedback_status(self, guide_id: str, req: UpdateFeedbackStatusRequest) -> FeedbackStatusResponse:
         is_submitted = req.status == "submitted"

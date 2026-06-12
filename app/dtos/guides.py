@@ -170,6 +170,9 @@ class FeedbackResponse(BaseModel):
 
 class FeedbackStatusResponse(BaseModel):
     is_submitted: bool
+    rating_comprehension: int | None = None
+    rating_usefulness: int | None = None
+    comment: str | None = None
 
 
 class GuideContextResponse(BaseModel):
