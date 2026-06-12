@@ -8,7 +8,7 @@ import {
   getGuideStatus,
   type GuideListItem,
 } from "@/api/guides";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,7 +65,13 @@ export default function GuideHistory() {
 
   return (
     <div className="space-y-3">
-      <h1 className="text-xl font-semibold">건강 가이드</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">건강 가이드</h1>
+        <Button size="sm" onClick={() => navigate("/upload")}>
+          <Upload className="mr-2 size-4" />
+          처방전 업로드하기
+        </Button>
+      </div>
 
       {pollingState === "loading" && (
         <Card>
@@ -97,9 +103,15 @@ export default function GuideHistory() {
               <p className="text-sm text-muted-foreground">목록을 불러오는 중...</p>
             )}
             {!listLoading && !guideList?.items?.length && (
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>생성된 건강 가이드가 없습니다.</p>
-                <p>처방전 또는 약봉투를 업로드하면 맞춤 건강 가이드를 받을 수 있습니다.</p>
+              <div className="flex flex-col items-center gap-4 py-6 text-center">
+                <p className="text-sm font-medium text-gray-700">아직 생성된 건강 가이드가 없습니다.</p>
+                <p className="text-sm text-muted-foreground">
+                  처방전 또는 약봉투를 업로드하면 맞춤 건강 가이드를 받을 수 있습니다.
+                </p>
+                <Button onClick={() => navigate("/upload")}>
+                  <Upload className="mr-2 size-4" />
+                  처방전 업로드하기
+                </Button>
               </div>
             )}
             {!listLoading && !!guideList?.items?.length && (

@@ -137,6 +137,9 @@ export function submitGuideFeedback(
 
 export type FeedbackStatusResponse = {
   is_submitted: boolean;
+  rating_comprehension: number | null;
+  rating_usefulness: number | null;
+  comment: string | null;
 };
 
 export function getGuideFeedbackStatus(guideId: string) {
