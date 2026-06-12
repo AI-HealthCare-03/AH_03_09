@@ -20,7 +20,6 @@ export const useChatStore = create<ChatState>()(
       name: "medi-mate-chat",
       partialize: (state) => ({
         currentSessionId: state.currentSessionId,
-        guideId: state.guideId,
       }),
     },
   ),

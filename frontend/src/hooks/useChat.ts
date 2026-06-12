@@ -32,6 +32,11 @@ export function useChat() {
     setRetryCount(0);
   }, [messages.length]);
 
+  const cancelStream = streamMut.cancel;
+  useEffect(() => {
+    cancelStream();
+  }, [currentSessionId, cancelStream]);
+
   const handleLogout = () => {
     clear();
     navigate("/", { replace: true });

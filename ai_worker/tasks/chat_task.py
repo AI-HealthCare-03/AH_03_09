@@ -13,7 +13,7 @@ async def process_chat(payload: ChatTaskPayload, redis: aioredis.Redis) -> None:
             payload.user_message,
             history,
             payload.health_profile,
-            payload.guide_context,
+            payload.guides,
             payload.drug_details,
             payload.rag_results,
         ):

@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, BotIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, BotIcon, PlusIcon, UserIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import Markdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +19,7 @@ const SUGGESTED_QUESTIONS = [
 export default function Chat() {
   const navigate = useNavigate();
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
+  const setGuideId = useChatStore((s) => s.setGuideId);
   const guideId = useChatStore((s) => s.guideId);
   const {
     messages,
@@ -69,7 +70,7 @@ export default function Chat() {
   return (
     <div className="flex h-dvh flex-col bg-slate-50 text-slate-900">
       <div className="flex flex-1 overflow-hidden">
-        <SessionSidebar onProfileClick={() => navigate("/profile")} onLogout={handleLogout} />
+        <SessionSidebar onLogout={handleLogout} />
 
         <main className="flex flex-1 flex-col overflow-hidden">
           <header className="flex h-14 items-center gap-2 border-b border-slate-200 bg-white px-4">
@@ -83,17 +84,28 @@ export default function Chat() {
               <ArrowLeftIcon className="size-4" />
               홈으로
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setCurrentSessionId(null)}
-              aria-label="새 대화"
-              className="md:hidden ml-auto"
-            >
-              <PlusIcon className="size-4" />
-              새 대화
-            </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => { setCurrentSessionId(null); setGuideId(null); }}
+                aria-label="새 대화"
+                className="md:hidden"
+              >
+                <PlusIcon className="size-4" />
+                새 대화
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/profile")}
+                aria-label="내 정보"
+              >
+                <UserIcon className="size-5" />
+              </Button>
+            </div>
           </header>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
@@ -181,6 +193,33 @@ export default function Chat() {
                     feedbackGiven={feedbackGiven.has(m.id)}
                   />
                 ))}
+
+                {streamMut.actionCard === "guide_prompt" && (
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-primary text-white">
+                      <BotIcon className="size-4" />
+                    </div>
+                    <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3">
+                      <p className="mb-2 text-sm text-slate-600">어떻게 하시겠어요?</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => navigate("/health-guide")}
+                          className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
+                        >
+                          🏥 건강 가이드로 넘어가기
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => streamMut.dismissAction()}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                        >
+                          💬 가이드 없이 챗봇 사용
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {optimisticUserMsg && (
                   <MessageBubble

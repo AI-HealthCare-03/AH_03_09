@@ -222,50 +222,76 @@ def detect_skill(user_message: str) -> ChatSkill:
     return ChatSkill.GENERAL
 
 
-def _build_guide_section(guide_context: dict) -> str:
+def _build_single_guide_block(guide: dict) -> str:
+    """가이드 1개의 내용을 텍스트 블록으로 변환한다."""
     lines: list[str] = []
 
-    medications = guide_context.get("medications") or []
+    medications = guide.get("medications") or []
     if medications:
         lines.append(f"- 처방 약물: {', '.join(medications)}")
 
-    schedule = guide_context.get("schedule") or []
+    schedule = guide.get("schedule") or []
     if schedule:
         schedule_lines = [f"  · {s.get('time', '')}: {', '.join(s.get('medications', []))}" for s in schedule]
         lines.append("- 복약 스케줄:\n" + "\n".join(schedule_lines))
 
-    instructions = guide_context.get("key_instructions") or []
+    instructions = guide.get("key_instructions") or []
     if instructions:
         instruction_lines = [f"  · {i}" for i in instructions]
         lines.append("- 주요 지시사항:\n" + "\n".join(instruction_lines))
 
-    disease_codes = guide_context.get("disease_codes") or []
-    disease_names = guide_context.get("disease_names") or []
-
-    medication_section = (
-        "\n\n[처방 가이드 — 사용자가 올린 처방전·복약정보 기반, 복약 관련 질문에 이 내용을 활용하세요]\n"
-        + "\n".join(lines)
-        if lines
-        else ""
-    )
-
-    disease_section = ""
+    disease_codes = guide.get("disease_codes") or []
+    disease_names = guide.get("disease_names") or []
     if disease_codes:
-        if disease_names:
-            pairs = [f"{c}({n})" if n else c for c, n in zip(disease_codes, disease_names, strict=False)]
-        else:
-            pairs = disease_codes
-        disease_section = (
-            "\n\n[처방전 인식 질병코드 — 사용자가 올린 의료문서에서 OCR로 인식된 참고 코드입니다. "
-            "절대 확정 진단처럼 표현하지 말고, 반드시 '올려주신 처방전/복약정보에서 인식된 질병코드'라는 출처를 명시하세요]\n"
-            f"- 인식된 코드: {', '.join(pairs)}\n"
-            "- ※ 이 코드는 의료문서 분류 참고정보이며 확정 진단이 아닙니다."
-        )
+        pairs = [f"{c}({n})" if n else c for c, n in zip(disease_codes, disease_names, strict=False)]
+        lines.append(f"- 질병코드(참고용, 확정 진단 아님): {', '.join(pairs)}")
 
-    if not medication_section and not disease_section:
+    return "\n".join(lines)
+
+
+def _build_guides_section(guides: list[dict]) -> str:
+    """가이드 목록을 시스템 프롬프트 섹션으로 변환한다.
+
+    가이드가 1개면 바로 내용 포함, 2개 이상이면 레이블 붙여 나열하고
+    처방·질병 관련 질문 시 어느 가이드를 기준으로 할지 먼저 물어보도록 지시한다.
+    """
+    non_empty = [g for g in guides if g.get("medications") or g.get("disease_codes")]
+    if not non_empty:
         return ""
 
-    return medication_section + disease_section
+    if len(non_empty) == 1:
+        g = non_empty[0]
+        label = g.get("label", "가이드 1")
+        date = g.get("created_at", "")
+        header = f"\n\n[처방 가이드 — {label}" + (f" ({date})" if date else "") + "]"
+        block = _build_single_guide_block(g)
+        return header + "\n" + block if block else ""
+
+    # 여러 가이드
+    lines = [
+        "\n\n[처방 가이드 목록 — 사용자가 업로드한 처방전·복약정보]",
+        "",
+        "⚑ 처방 내용·질병 관련 질문이 들어오면, 답변하기 전에 반드시 아래 중 어느 가이드를 기준으로 할지 사용자에게 먼저 물어보세요.",
+        "  단, 사용자가 이미 가이드를 지정했거나 대화 문맥에서 특정 가이드가 명확하다면 바로 답변하세요.",
+        "  처방·질병과 무관한 일반 복약 질문(예: '이 약은 언제 먹나요?')은 물어보지 않아도 됩니다.",
+        "",
+    ]
+    for g in non_empty:
+        label = g.get("label", "")
+        date = g.get("created_at", "")
+        disease_names = g.get("disease_names") or []
+        disease_codes = g.get("disease_codes") or []
+        # 병명 우선, 없으면 질병코드 fallback
+        summary_items = disease_names if disease_names else disease_codes
+        summary = ", ".join(summary_items[:2]) + ("…" if len(summary_items) > 2 else "")
+        header = f"■ {label}" + (f" ({date})" if date else "") + (f" — {summary}" if summary else "")
+        lines.append(header)
+        block = _build_single_guide_block(g)
+        if block:
+            lines.append(block)
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 def _build_user_info(health_profile: dict) -> list[str]:
@@ -413,15 +439,25 @@ def _build_rag_section(rag_results: list[dict]) -> str:
 def _build_system_prompt(
     health_profile: dict | None,
     skill: ChatSkill = ChatSkill.GENERAL,
-    guide_context: dict | None = None,
+    guides: list[dict] | None = None,
     drug_details: list[dict] | None = None,
     rag_results: list[dict] | None = None,
 ) -> str:
     result = _SKILL_SYSTEM_PROMPTS[skill]
     if health_profile:
         result += _build_profile_section(health_profile)
-    if guide_context:
-        result += _build_guide_section(guide_context)
+    if guides:
+        result += _build_guides_section(guides)
+    else:
+        result += (
+            "\n\n[처방전 없음 안내 규칙]"
+            "\n사용자가 아직 처방전·복약정보를 업로드하지 않았습니다."
+            "\n아래 두 경우에 '건강 가이드 페이지에서 처방전을 올리시면 더 정확하게 답변드릴 수 있어요'라고 안내하세요:"
+            "\n  1) 이 대화의 첫 번째 응답일 때"
+            "\n  2) '내 처방약', '내 병명', '내 복약 스케줄' 등 개인 처방 데이터가 필요한 질문을 받았을 때"
+            "\n단, 이미 이 대화에서 위 안내를 한 번 한 적이 있다면 절대 다시 언급하지 마세요. (대화 히스토리를 확인하세요)"
+            "\n약 복용법·부작용·상호작용 등 일반 건강·약 질문은 안내 여부와 관계없이 평소처럼 답변하세요."
+        )
     if drug_details:
         result += _build_drug_details_section(drug_details)
     if rag_results:
@@ -471,12 +507,12 @@ async def stream_chat(
     user_message: str,
     history: list[dict],
     health_profile: dict | None = None,
-    guide_context: dict | None = None,
+    guides: list[dict] | None = None,
     drug_details: list[dict] | None = None,
     rag_results: list[dict] | None = None,
 ):
     skill = detect_skill(user_message)
-    system_prompt = _build_system_prompt(health_profile, skill, guide_context, drug_details, rag_results)
+    system_prompt = _build_system_prompt(health_profile, skill, guides, drug_details, rag_results)
     client = get_openai_client()
 
     if len(history) > _SUMMARY_THRESHOLD:
