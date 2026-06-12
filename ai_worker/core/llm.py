@@ -446,8 +446,9 @@ def _build_system_prompt(
     result = _SKILL_SYSTEM_PROMPTS[skill]
     if health_profile:
         result += _build_profile_section(health_profile)
-    if guides:
-        result += _build_guides_section(guides)
+    guide_section = _build_guides_section(guides) if guides else ""
+    if guide_section:
+        result += guide_section
     else:
         result += (
             "\n\n[처방전 없음 안내 규칙]"
