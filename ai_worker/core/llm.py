@@ -537,6 +537,7 @@ async def stream_chat(
         model=config.OPENAI_CHAT_MODEL,
         messages=messages,
         stream=True,
+        max_tokens=600,
     )
     async for chunk in stream:
         delta = chunk.choices[0].delta.content

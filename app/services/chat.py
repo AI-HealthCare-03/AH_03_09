@@ -22,8 +22,8 @@ from app.services.rag import search_drug_by_query
 
 logger = logging.getLogger(__name__)
 
-RESPONSE_TIMEOUT_SECONDS = 60
-DELAY_WARNING_SECONDS = 10
+RESPONSE_TIMEOUT_SECONDS = 25
+DELAY_WARNING_SECONDS = 8
 
 _DANGER_KEYWORDS = [
     "자살",
