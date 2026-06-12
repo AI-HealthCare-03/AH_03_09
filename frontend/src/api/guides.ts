@@ -38,7 +38,7 @@ export type MedicationItem = {
   label: string;
 }[];
   easy_summary: string[];
-  match_status: string | null;
+  match_status: "EXACT_DB_MATCH" | "WEB_REFERENCE" | "SIMILAR_MATCH" | "NOT_FOUND" | null;
   disclaimer: string | null;
   source_name: string | null;
 };

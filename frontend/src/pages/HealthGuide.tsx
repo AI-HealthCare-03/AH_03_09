@@ -344,7 +344,7 @@ export default function HealthGuide() {
     </div>
   </>
 )}
-{medication.easy_summary?.length > 0 && medication.match_status !== "NOT_FOUND" && (
+{medication.easy_summary?.length > 0 && medication.match_status !== "NOT_FOUND" && medication.match_status !== "SIMILAR_MATCH" && (
   <div className="rounded-lg bg-slate-50 p-2 mb-1">
     <p className="font-medium mb-1">쉬운 설명</p>
 
@@ -409,6 +409,53 @@ export default function HealthGuide() {
       )}
     </div>
   </details>
+)}
+
+{medication.match_status === "SIMILAR_MATCH" && (
+  <>
+    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm space-y-1">
+      <p className="font-medium text-amber-800">유사 약물 정보 · 확인 필요</p>
+      <p className="text-amber-700">
+        입력된 약물명과 유사한 의약품 정보를 찾았습니다.
+        처방전 표기, OCR 인식 결과, 데이터베이스 표기가 다를 수 있으니
+        약봉투 또는 처방전의 약물명과 일치하는지 확인한 뒤 가이드를 참고해 주세요.
+      </p>
+    </div>
+    {medication.easy_summary?.length > 0 && (
+      <div className="rounded-lg bg-slate-50 p-2 mb-1">
+        <p className="font-medium mb-1">쉬운 설명</p>
+        <p className="text-xs text-amber-600 mb-1">※ 유사 약물 정보를 기준으로 생성된 안내입니다.</p>
+        <ul className="list-disc pl-5 text-sm space-y-1">
+          {medication.easy_summary.map((summary) => (
+            <li key={summary}>{summary}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+    <details className="mt-2 rounded-lg border p-3">
+      <summary className="cursor-pointer font-medium text-blue-700">
+        제품허가정보 원문 일부 보기
+      </summary>
+      <div className="mt-3 space-y-3">
+        <div className="rounded-md bg-amber-50 p-3 text-amber-800 text-xs">
+          아래 내용은 제품허가정보 원문 일부입니다.
+          전문 용어가 포함되어 있어 이해가 어려울 수 있습니다.
+          복용 관련 판단이 필요한 경우 의료진 또는 약사와 상담하세요.
+        </div>
+        {medication.dosage && <p>용법: {medication.dosage}</p>}
+        {medication.cautions.length > 0 && (
+          <div>
+            <p className="font-medium">주의사항</p>
+            <ul className="list-disc pl-5">
+              {medication.cautions.map((caution) => (
+                <li key={caution}>{caution}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </details>
+  </>
 )}
 
 {medication.match_status === "NOT_FOUND" && (

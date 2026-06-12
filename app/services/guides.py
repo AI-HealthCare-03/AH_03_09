@@ -471,18 +471,17 @@ async def _search_medication_db(session: AsyncSession, name: str) -> MedicationI
     """drug_master DB에서 약물 조회. 없거나 오류 시 None 반환."""
     normalized = _normalize_drug_name(name)
     try:
+        score_col = func.word_similarity(normalized, DrugMaster.item_name).label("score")
         result = await session.execute(
-            select(DrugMaster)
-            .where(func.word_similarity(normalized, DrugMaster.item_name) > 0.6)
-            .order_by(func.word_similarity(normalized, DrugMaster.item_name).desc())
-            .limit(1)
+            select(DrugMaster, score_col).where(score_col > 0.6).order_by(score_col.desc()).limit(1)
         )
-        row = result.scalar_one_or_none()
+        row_data = result.first()
     except Exception:
         return None
-    if row is None:
+    if row_data is None:
         return None
 
+    row, score = row_data
     dosage = row.dosage or ""
     cautions_str = row.cautions or ""
     if len(cautions_str) > 1500:
@@ -490,9 +489,12 @@ async def _search_medication_db(session: AsyncSession, name: str) -> MedicationI
     side_effects_str = row.side_effects or ""
     storage = row.storage or ""
     cautions = [cautions_str] if cautions_str else []
-    match_status = (
-        MedicationMatchStatus.EXACT_DB_MATCH if row.source == "식약처" else MedicationMatchStatus.WEB_REFERENCE
-    )
+    if score < 0.8:
+        match_status = MedicationMatchStatus.SIMILAR_MATCH
+    elif row.source == "식약처":
+        match_status = MedicationMatchStatus.EXACT_DB_MATCH
+    else:
+        match_status = MedicationMatchStatus.WEB_REFERENCE
     return MedicationItem(
         name=row.item_name,
         dosage=dosage,
