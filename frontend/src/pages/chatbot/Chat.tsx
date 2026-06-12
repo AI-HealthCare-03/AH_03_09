@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, BotIcon, PlusIcon, UserIcon } from "lucide-react";
+import { BotIcon, PlusIcon, UserIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import Markdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
@@ -73,29 +73,19 @@ export default function Chat() {
         <SessionSidebar onLogout={handleLogout} />
 
         <main className="flex flex-1 flex-col overflow-hidden">
-          <header className="flex h-14 items-center gap-2 border-b border-slate-200 bg-white px-4">
+          <header className="flex h-14 items-center border-b border-slate-200 bg-white px-4">
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => navigate("/home")}
-              aria-label="홈으로"
+              onClick={() => { setCurrentSessionId(null); setGuideId(null); }}
+              aria-label="새 대화"
+              className="md:hidden"
             >
-              <ArrowLeftIcon className="size-4" />
-              홈으로
+              <PlusIcon className="size-4" />
+              새 대화
             </Button>
-            <div className="ml-auto flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => { setCurrentSessionId(null); setGuideId(null); }}
-                aria-label="새 대화"
-                className="md:hidden"
-              >
-                <PlusIcon className="size-4" />
-                새 대화
-              </Button>
+            <div className="ml-auto flex items-center">
               <Button
                 type="button"
                 variant="ghost"
