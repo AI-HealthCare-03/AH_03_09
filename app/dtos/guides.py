@@ -33,6 +33,7 @@ class MedicationMatchStatus(StrEnum):
     EXACT_DB_MATCH = "EXACT_DB_MATCH"
     WEB_REFERENCE = "WEB_REFERENCE"
     LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    SIMILAR_MATCH = "SIMILAR_MATCH"
     NOT_FOUND = "NOT_FOUND"
 
 
@@ -151,6 +152,18 @@ class GuideResponse(BaseModel):
     generation_results: list[GuideGenerationResult] | None = None
 
 
+class GuideListItem(BaseModel):
+    guide_id: str
+    created_at: str
+    guide_types: list[GuideType]
+    medication_names: list[str] = Field(default_factory=list)
+
+
+class GuideListResponse(BaseModel):
+    items: list[GuideListItem]
+    total: int
+
+
 class FeedbackResponse(BaseModel):
     feedback_id: str
     created_at: str
@@ -158,6 +171,9 @@ class FeedbackResponse(BaseModel):
 
 class FeedbackStatusResponse(BaseModel):
     is_submitted: bool
+    rating_comprehension: int | None = None
+    rating_usefulness: int | None = None
+    comment: str | None = None
 
 
 class GuideContextResponse(BaseModel):

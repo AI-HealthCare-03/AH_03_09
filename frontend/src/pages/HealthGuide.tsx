@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useChatStore } from "@/store/chatStore";
 
 import {
@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Dumbbell,
   Droplets,
+  Loader2,
   MessageCircle,
   Utensils,
 } from "lucide-react";
@@ -85,6 +86,7 @@ export default function HealthGuide() {
   const [ratingUsefulness, setRatingUsefulness] = useState(5);
   const [ratingSafety] = useState(5);
   const [comment, setComment] = useState("");
+  const { guide_id: guideIdParam } = useParams<{ guide_id?: string }>();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const initialJobIdRef = useRef(
@@ -135,13 +137,35 @@ export default function HealthGuide() {
     };
   }, []); // initialJobIdRef는 마운트 시 한 번만 읽음
 
-  // guideId 설정 후 서버의 피드백 제출 여부를 동기화한다.
+  // /health-guide/:guide_id 경로로 직접 접근 시 가이드 로드
+  useEffect(() => {
+    if (!guideIdParam) return;
+    setStatus("loading");
+    (async () => {
+      try {
+        const guideResult = await getGuide(guideIdParam);
+        setGuide(guideResult);
+        setGuideId(guideIdParam);
+        setStoreGuideId(guideIdParam);
+        setStatus("가이드 생성 완료");
+      } catch {
+        setStatus("가이드를 불러오지 못했습니다.");
+      }
+    })();
+  }, [guideIdParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // guideId 설정 후 서버의 피드백 상태와 내용을 복원한다.
   useEffect(() => {
     if (!guideId) return;
     (async () => {
       try {
         const result = await getGuideFeedbackStatus(guideId);
         setFeedbackSubmitted(result.is_submitted);
+        if (result.is_submitted) {
+          if (result.rating_comprehension != null) setRatingComprehension(result.rating_comprehension);
+          if (result.rating_usefulness != null) setRatingUsefulness(result.rating_usefulness);
+          if (result.comment != null) setComment(result.comment);
+        }
       } catch {
         // 조회 실패 시 feedbackSubmitted = false 유지 (기존 동작)
       }
@@ -185,7 +209,7 @@ export default function HealthGuide() {
 
   return (
     <div className="space-y-3">
-      {/* 페이지 타이틀 + 생성 완료 뱃지 */}
+      {/* 페이지 타이틀 + 생성 완료 뱃지 + 가이드 생성 근거 */}
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-semibold">건강 가이드</h1>
         {guide && (
@@ -193,19 +217,72 @@ export default function HealthGuide() {
             생성 완료
           </span>
         )}
+        {guide && (
+          <details className="relative ml-auto text-sm">
+            <summary className="cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-600">
+              가이드 생성 근거 및 필독 안내
+            </summary>
+            <div className="absolute right-0 top-full z-10 mt-1 w-80 rounded-md border border-gray-200 bg-white px-4 pb-4 pt-3 shadow-lg space-y-4 text-gray-600">
+              {(guide.medication_guide?.medications?.length ?? 0) > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-gray-700">OCR 인식 약물</p>
+                  <ul className="space-y-1.5">
+                    {guide.medication_guide!.medications.map((m) => (
+                      <li key={m.name} className="flex items-center gap-2 text-sm">
+                        <span className="size-1.5 shrink-0 rounded-full bg-gray-400" />
+                        {m.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {(guideContext?.disease_codes?.length ?? 0) > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-gray-700">OCR 질병코드</p>
+                  <div className="space-y-1.5">
+                    {guideContext!.disease_codes.map((code, idx) => {
+                      const name = guideContext!.disease_names?.[idx];
+                      return (
+                        <div key={code} className="grid grid-cols-[5rem_1fr] gap-x-2 text-sm">
+                          <span className="font-mono font-semibold text-gray-700">{code}</span>
+                          <span className="text-gray-700">{name ?? "—"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p className="mb-1.5 text-sm font-semibold text-gray-700">필독 안내</p>
+                <p className="text-sm leading-relaxed text-gray-500">
+                  본 가이드는 업로드한 문서(처방전, 약봉투 등)를 바탕으로 AI가 생성한 참고용 안내입니다.
+                  정확한 진단·치료 및 복약 방법은 담당 의료진의 안내를 우선적으로 따라주시기 바랍니다.
+                </p>
+              </div>
+            </div>
+          </details>
+        )}
       </div>
 
       <Card>
         <CardContent className="space-y-3 px-4 pb-4 pt-4">
           {/* 가이드 미로드 시에만 설명·상태 표시 */}
           {!guide && !status && (
-            <p className="text-sm text-muted-foreground">
-              복약 정보를 바탕으로 맞춤 건강 가이드를 생성합니다.
-            </p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>복약 정보를 바탕으로 맞춤 건강 가이드를 생성합니다.</p>
+              <p>가이드는 생성 후 자동 저장됩니다.</p>
+              <p>
+                이전에 생성한 가이드를 다시 보시려면{" "}
+                <span className="font-medium text-gray-700">[내 문서] → [결과 보기]</span>를 이용해 주세요.
+              </p>
+            </div>
           )}
           {!guide && status === "loading" && (
-            <div className="space-y-1 py-1 text-sm">
-              <p className="font-medium text-gray-800">건강 가이드 생성 중</p>
+            <div className="space-y-2 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                <p className="font-medium text-gray-800">건강 가이드 생성 중</p>
+              </div>
               <p className="text-muted-foreground">
                 올려주신 처방전/약정보를 읽고 복약·식사·운동 가이드를 생성하고 있습니다.
               </p>
@@ -216,49 +293,9 @@ export default function HealthGuide() {
             <p className="text-sm text-muted-foreground">{status}</p>
           )}
 
-          {/* 생성 근거 및 필독 안내 — 기본 접힘, 발표 시 펼쳐서 설명 */}
-          {guide && (
-            <details className="rounded-md border border-gray-200 bg-gray-50 text-xs">
-              <summary className="cursor-pointer px-3 py-2 font-medium text-gray-600">
-                가이드 생성 근거 및 필독 안내
-              </summary>
-              <div className="space-y-3 border-t border-gray-200 px-3 pb-3 pt-2 text-gray-600">
-                {(guide.medication_guide?.medications?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-gray-700">OCR 인식 약물</p>
-                    <ul className="list-disc space-y-0.5 pl-4">
-                      {guide.medication_guide!.medications.map((m) => (
-                        <li key={m.name}>{m.name}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {(guideContext?.disease_codes?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="mb-1 font-medium text-gray-700">OCR 질병코드</p>
-                    <ul className="list-disc space-y-0.5 pl-4">
-                      {guideContext!.disease_codes.map((code, idx) => {
-                        const name = guideContext!.disease_names?.[idx];
-                        return (
-                          <li key={code}>
-                            {name ? `${code} (${name})` : code}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
-                <div>
-                  <p className="mb-1 font-medium text-gray-700">필독 안내</p>
-                  <p className="leading-relaxed text-gray-500">
-                    본 가이드는 업로드한 문서(처방전, 약봉투 등)를 바탕으로 AI가 생성한 참고용 안내입니다.
-                    정확한 진단·치료 및 복약 방법은 담당 의료진의 안내를 우선적으로 따라주시기 바랍니다.
-                  </p>
-                </div>
-              </div>
-            </details>
+          {guide?.medication_guide && (
+            <h2 className="text-base font-semibold text-gray-800">복약 가이드</h2>
           )}
-
           {guide?.medication_guide && (
             <div className="space-y-2">
               {guide.medication_guide.medications.map((medication) => (
@@ -307,7 +344,7 @@ export default function HealthGuide() {
     </div>
   </>
 )}
-{medication.easy_summary?.length > 0 && medication.match_status !== "NOT_FOUND" && (
+{medication.easy_summary?.length > 0 && medication.match_status !== "NOT_FOUND" && medication.match_status !== "SIMILAR_MATCH" && (
   <div className="rounded-lg bg-slate-50 p-2 mb-1">
     <p className="font-medium mb-1">쉬운 설명</p>
 
@@ -372,6 +409,53 @@ export default function HealthGuide() {
       )}
     </div>
   </details>
+)}
+
+{medication.match_status === "SIMILAR_MATCH" && (
+  <>
+    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm space-y-1">
+      <p className="font-medium text-amber-800">유사 약물 정보 · 확인 필요</p>
+      <p className="text-amber-700">
+        입력된 약물명과 유사한 의약품 정보를 찾았습니다.
+        처방전 표기, OCR 인식 결과, 데이터베이스 표기가 다를 수 있으니
+        약봉투 또는 처방전의 약물명과 일치하는지 확인한 뒤 가이드를 참고해 주세요.
+      </p>
+    </div>
+    {medication.easy_summary?.length > 0 && (
+      <div className="rounded-lg bg-slate-50 p-2 mb-1">
+        <p className="font-medium mb-1">쉬운 설명</p>
+        <p className="text-xs text-amber-600 mb-1">※ 유사 약물 정보를 기준으로 생성된 안내입니다.</p>
+        <ul className="list-disc pl-5 text-sm space-y-1">
+          {medication.easy_summary.map((summary) => (
+            <li key={summary}>{summary}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+    <details className="mt-2 rounded-lg border p-3">
+      <summary className="cursor-pointer font-medium text-blue-700">
+        제품허가정보 원문 일부 보기
+      </summary>
+      <div className="mt-3 space-y-3">
+        <div className="rounded-md bg-amber-50 p-3 text-amber-800 text-xs">
+          아래 내용은 제품허가정보 원문 일부입니다.
+          전문 용어가 포함되어 있어 이해가 어려울 수 있습니다.
+          복용 관련 판단이 필요한 경우 의료진 또는 약사와 상담하세요.
+        </div>
+        {medication.dosage && <p>용법: {medication.dosage}</p>}
+        {medication.cautions.length > 0 && (
+          <div>
+            <p className="font-medium">주의사항</p>
+            <ul className="list-disc pl-5">
+              {medication.cautions.map((caution) => (
+                <li key={caution}>{caution}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </details>
+  </>
 )}
 
 {medication.match_status === "NOT_FOUND" && (

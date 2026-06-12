@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import ChatLayout from "@/components/layout/ChatLayout";
 import Chat from "@/pages/chatbot/Chat";
 import GuideDemo from "@/pages/GuideDemo";
+import GuideHistory from "@/pages/GuideHistory";
 import HealthGuide from "@/pages/HealthGuide";
 import HealthProfile from "@/pages/HealthProfile";
 import Home from "@/pages/Home";
@@ -38,7 +39,8 @@ export const router = createBrowserRouter([
           { path: "/upload/processing/:jobId", element: <UploadProcessing /> },
           { path: "/upload/result/:recordId", element: <UploadResult /> },
           { path: "/documents", element: <MyDocuments /> },
-          { path: "/health-guide", element: <HealthGuide /> },
+          { path: "/health-guide", element: <GuideHistory /> },
+          { path: "/health-guide/:guide_id", element: <HealthGuide /> },
           { path: "/health-profile", element: <HealthProfile /> },
           { path: "/pharmacy", element: <Pharmacy /> },
           { path: "/profile", element: <Profile /> },

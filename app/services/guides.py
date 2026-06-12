@@ -30,6 +30,8 @@ from app.dtos.guides import (
     GuideContextResponse,
     GuideGenerationResult,
     GuideGenerationStatus,
+    GuideListItem,
+    GuideListResponse,
     GuideResponse,
     GuideStatusResponse,
     GuideType,
@@ -469,18 +471,17 @@ async def _search_medication_db(session: AsyncSession, name: str) -> MedicationI
     """drug_master DB에서 약물 조회. 없거나 오류 시 None 반환."""
     normalized = _normalize_drug_name(name)
     try:
+        score_col = func.word_similarity(normalized, DrugMaster.item_name).label("score")
         result = await session.execute(
-            select(DrugMaster)
-            .where(func.word_similarity(normalized, DrugMaster.item_name) > 0.6)
-            .order_by(func.word_similarity(normalized, DrugMaster.item_name).desc())
-            .limit(1)
+            select(DrugMaster, score_col).where(score_col > 0.6).order_by(score_col.desc()).limit(1)
         )
-        row = result.scalar_one_or_none()
+        row_data = result.first()
     except Exception:
         return None
-    if row is None:
+    if row_data is None:
         return None
 
+    row, score = row_data
     dosage = row.dosage or ""
     cautions_str = row.cautions or ""
     if len(cautions_str) > 1500:
@@ -488,9 +489,12 @@ async def _search_medication_db(session: AsyncSession, name: str) -> MedicationI
     side_effects_str = row.side_effects or ""
     storage = row.storage or ""
     cautions = [cautions_str] if cautions_str else []
-    match_status = (
-        MedicationMatchStatus.EXACT_DB_MATCH if row.source == "식약처" else MedicationMatchStatus.WEB_REFERENCE
-    )
+    if score < 0.8:
+        match_status = MedicationMatchStatus.SIMILAR_MATCH
+    elif row.source == "식약처":
+        match_status = MedicationMatchStatus.EXACT_DB_MATCH
+    else:
+        match_status = MedicationMatchStatus.WEB_REFERENCE
     return MedicationItem(
         name=row.item_name,
         dosage=dosage,
@@ -1197,14 +1201,26 @@ class GuideService:
                 row = result.scalar_one_or_none()
             if row is not None:
                 fb = row.feedback_data or {}
-                return FeedbackStatusResponse(is_submitted=fb.get("is_submitted", False))
+                data = fb.get("data") or {}
+                return FeedbackStatusResponse(
+                    is_submitted=fb.get("is_submitted", False),
+                    rating_comprehension=data.get("rating_comprehension"),
+                    rating_usefulness=data.get("rating_usefulness"),
+                    comment=data.get("comment"),
+                )
         except Exception:
             logger.exception("get_feedback_status DB 조회 실패 guide_id=%s — fallback", guide_id)
         # 2순위: _guides fallback
         if guide_id not in _guides:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="가이드를 찾을 수 없습니다.")
         fb = _feedbacks.get(guide_id, {})
-        return FeedbackStatusResponse(is_submitted=fb.get("is_submitted", False))
+        data = fb.get("data") or {}
+        return FeedbackStatusResponse(
+            is_submitted=fb.get("is_submitted", False),
+            rating_comprehension=data.get("rating_comprehension"),
+            rating_usefulness=data.get("rating_usefulness"),
+            comment=data.get("comment"),
+        )
 
     async def update_feedback_status(self, guide_id: str, req: UpdateFeedbackStatusRequest) -> FeedbackStatusResponse:
         is_submitted = req.status == "submitted"
@@ -1229,6 +1245,33 @@ class GuideService:
         _feedbacks.setdefault(guide_id, {})
         _feedbacks[guide_id]["is_submitted"] = is_submitted
         return FeedbackStatusResponse(is_submitted=is_submitted)
+
+    async def list_guides(self, patient_id: str) -> GuideListResponse:
+        try:
+            async with _AsyncSessionFactory() as db_session:
+                result = await db_session.execute(
+                    select(Guide).where(Guide.patient_id == patient_id).order_by(Guide.created_at.desc()).limit(50)
+                )
+                rows = result.scalars().all()
+        except Exception:
+            logger.exception("list_guides DB 조회 실패 patient_id=%s", patient_id)
+            return GuideListResponse(items=[], total=0)
+
+        items: list[GuideListItem] = []
+        for row in rows:
+            data = row.guide_data or {}
+            med_guide = data.get("medication_guide") or {}
+            medications = med_guide.get("medications") or []
+            medication_names = [m.get("name", "") for m in medications if m.get("name")]
+            items.append(
+                GuideListItem(
+                    guide_id=row.guide_id,
+                    created_at=row.created_at.isoformat(),
+                    guide_types=data.get("guide_types", []),
+                    medication_names=medication_names,
+                )
+            )
+        return GuideListResponse(items=items, total=len(items))
 
     async def get_guide_context(self, guide_id: str) -> GuideContextResponse:
         # 1순위: DB

@@ -158,7 +158,8 @@ async def _search_medication_db(conn: asyncpg.Connection, name: str) -> dict | N
     normalized = _normalize_drug_name(name)
     try:
         row = await conn.fetchrow(
-            "SELECT item_name, dosage, cautions, side_effects, storage, etc_otc_code, source "
+            "SELECT item_name, dosage, cautions, side_effects, storage, etc_otc_code, source, "
+            "word_similarity($1, item_name) AS match_score "
             "FROM drug_master "
             "WHERE word_similarity($1, item_name) > 0.6 "
             "ORDER BY word_similarity($1, item_name) DESC LIMIT 1",
@@ -290,7 +291,8 @@ async def _enrich_easy_summary_for_dict(med: dict) -> list[str]:
     if not config.OPENAI_API_KEY:
         return fallback
     is_web_ref = med.get("match_status") == "WEB_REFERENCE"
-    prompt = _PATIENT_SUMMARY_PROMPT if is_web_ref else _DEFAULT_SUMMARY_PROMPT
+    is_similar = med.get("match_status") == "SIMILAR_MATCH"
+    prompt = _PATIENT_SUMMARY_PROMPT if (is_web_ref or is_similar) else _DEFAULT_SUMMARY_PROMPT
     try:
         result = await _make_easy_summary_llm(
             med.get("dosage") or "",
@@ -299,7 +301,7 @@ async def _enrich_easy_summary_for_dict(med: dict) -> list[str]:
             med.get("storage") or "",
             system_prompt=prompt,
         )
-        if is_web_ref:
+        if is_web_ref or is_similar:
             result = _filter_patient_summary(result)
         return result if result else fallback
     except Exception:
@@ -413,6 +415,13 @@ async def _build_medication_guide(conn: asyncpg.Connection, medication_names: li
             source = row.get("source") or "DB"
             cautions_list = [cautions_str] if cautions_str else []
             side_effects_list = [side_effects_str] if side_effects_str else []
+            match_score = float(row.get("match_score") or 0.0)
+            if match_score < 0.8:
+                match_status = "SIMILAR_MATCH"
+            elif source == "식약처":
+                match_status = "EXACT_DB_MATCH"
+            else:
+                match_status = "WEB_REFERENCE"
             medications.append(
                 {
                     "name": row.get("item_name", name),
@@ -426,7 +435,7 @@ async def _build_medication_guide(conn: asyncpg.Connection, medication_names: li
                     "storage": storage_str,
                     "action_icons": _make_medication_action_icons(cautions_list, side_effects_list, storage_str),
                     "usage_icons": _make_medication_usage_icons(dosage_str),
-                    "match_status": "EXACT_DB_MATCH" if source == "식약처" else "WEB_REFERENCE",
+                    "match_status": match_status,
                     "source_name": source,
                     "disclaimer": None,
                 }
