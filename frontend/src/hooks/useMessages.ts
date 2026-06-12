@@ -76,11 +76,12 @@ export function useStreamMessage() {
       (chunk) => setStreamingContent((prev) => prev + chunk),
       (_messageId, _title) => {
         abortRef.current = null;
-        qc.invalidateQueries({ queryKey: messagesKey(sessionId) });
+        qc.refetchQueries({ queryKey: messagesKey(sessionId) }).finally(() => {
+          setStreamingContent("");
+          setDelayMessage(null);
+          setIsPending(false);
+        });
         qc.invalidateQueries({ queryKey: SESSIONS_KEY });
-        setStreamingContent("");
-        setDelayMessage(null);
-        setIsPending(false);
       },
       (detail) => {
         abortRef.current = null;
