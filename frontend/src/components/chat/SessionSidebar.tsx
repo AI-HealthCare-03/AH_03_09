@@ -3,7 +3,6 @@ import { useDeleteSession, useSessions } from "@/hooks/useSessions";
 import { useChatStore } from "@/store/chatStore";
 
 interface Props {
-  onProfileClick: () => void;
   onLogout: () => void;
 }
 
@@ -12,14 +11,16 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   timeStyle: "short",
 });
 
-export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
+export default function SessionSidebar({ onLogout }: Props) {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
+  const setGuideId = useChatStore((s) => s.setGuideId);
   const { data: sessions, isLoading } = useSessions();
   const deleteMut = useDeleteSession();
 
   const handleNew = () => {
     setCurrentSessionId(null);
+    setGuideId(null);
   };
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
@@ -79,14 +80,7 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
         )}
       </div>
 
-      <div className="space-y-1 border-t border-slate-200 p-3">
-        <button
-          type="button"
-          onClick={onProfileClick}
-          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-        >
-          내 정보
-        </button>
+      <div className="border-t border-slate-200 p-3">
         <button
           type="button"
           onClick={onLogout}
