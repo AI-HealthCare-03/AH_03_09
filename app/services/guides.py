@@ -1236,10 +1236,7 @@ class GuideService:
         try:
             async with _AsyncSessionFactory() as db_session:
                 result = await db_session.execute(
-                    select(Guide)
-                    .where(Guide.patient_id == patient_id)
-                    .order_by(Guide.created_at.desc())
-                    .limit(50)
+                    select(Guide).where(Guide.patient_id == patient_id).order_by(Guide.created_at.desc()).limit(50)
                 )
                 rows = result.scalars().all()
         except Exception:
