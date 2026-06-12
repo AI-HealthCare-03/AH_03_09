@@ -473,10 +473,7 @@ async def _search_medication_db(session: AsyncSession, name: str) -> MedicationI
     try:
         score_col = func.word_similarity(normalized, DrugMaster.item_name).label("score")
         result = await session.execute(
-            select(DrugMaster, score_col)
-            .where(score_col > 0.6)
-            .order_by(score_col.desc())
-            .limit(1)
+            select(DrugMaster, score_col).where(score_col > 0.6).order_by(score_col.desc()).limit(1)
         )
         row_data = result.first()
     except Exception:
