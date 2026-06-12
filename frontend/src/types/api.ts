@@ -41,6 +41,7 @@ export interface ChatMessageResponse {
   id: number;
   role: "user" | "assistant";
   content: string;
+  feedback?: "good" | "bad" | null;
   created_at: string;
 }
 

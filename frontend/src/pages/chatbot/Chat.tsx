@@ -180,7 +180,7 @@ export default function Chat() {
                         ? handleFeedback
                         : undefined
                     }
-                    feedbackGiven={feedbackGiven.has(m.id)}
+                    feedbackGiven={feedbackGiven.get(m.id)}
                   />
                 ))}
 

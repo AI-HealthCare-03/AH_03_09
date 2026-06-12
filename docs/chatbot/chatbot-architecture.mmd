@@ -1,0 +1,85 @@
+flowchart TD
+
+    %% ── 처방전 처리 ───────────────────────────────────────────────────
+    subgraph OCR_GUIDE["📄 처방전 처리 (OCR + 가이드)"]
+        G1([사용자 처방전 업로드]) --> G2["OCR 인식\n약품명·질병코드 추출"]
+        G2 --> G3["POST /guides/jobs\n가이드 생성 요청"]
+        G3 --> G4["폴링 GET /guides/jobs/{job_id}/status"]
+        G4 --> G5{DONE?}
+        G5 -- NO --> G4
+        G5 -- YES --> G6["가이드 생성 완료\n복약 스케줄·지시사항\n용법·부작용·주의사항\n질병코드+병명"]
+        G6 --> G7["chatStore.guideId 저장\n(localStorage 영속)"]
+    end
+    style OCR_GUIDE fill:#eff6ff,stroke:#60a5fa,color:#111
+
+    %% ── 챗봇 진입 ─────────────────────────────────────────────────────
+    G7 --> START
+    START([👤 사용자 메시지 입력]) --> FE1
+
+    %% ── 프론트엔드 ────────────────────────────────────────────────────
+    subgraph FE["🖥 프론트엔드 (React + Zustand)"]
+        FE1{채팅 세션 있음?}
+        FE1 -- NO --> FE2["POST /chat/sessions\n제목 = 첫 메시지 앞 20자"]
+        FE2 --> FE3[세션 ID 저장]
+        FE1 -- YES --> FE4
+        FE3 --> FE4["POST /sessions/{id}/messages/stream\ncontent + guide_id 전송"]
+        FE4 --> FE5{응답 10초 초과?}
+        FE5 -- YES --> FE6["⏳ 지연 안내 표시"]
+        FE5 -- NO --> BE1
+        FE6 --> BE1
+    end
+    style FE fill:#fefce8,stroke:#facc15,color:#111
+
+    %% ── 백엔드 ────────────────────────────────────────────────────────
+    subgraph BE["⚙️ FastAPI 백엔드 (app/services/chat.py)"]
+        BE1{JWT 인증}
+        BE1 -- 실패 --> BE2[401 반환]
+        BE1 -- 성공 --> BE3{위험 키워드?\n자살·자해·과다복용}
+        BE3 -- YES --> BE4["🚨 즉시 반환\n자살예방상담전화 1393\n정신건강위기상담전화 1577-0199"]
+        style BE4 fill:#fee2e2,stroke:#f87171,color:#111
+        BE3 -- NO --> BE5{부적절 키워드?\n욕설·비속어}
+        BE5 -- YES --> BE6["❌ 답변 거부"]
+        style BE6 fill:#f1f5f9,stroke:#94a3b8,color:#111
+        BE5 -- NO --> BE7["① 건강 프로필 조회\n성별·나이·기저질환·알레르기\n혈압·복용약·생활습관"]
+        BE7 --> BE8{guide_id 있음?}
+        BE8 -- YES --> BE9["② 가이드 컨텍스트 조회\n처방 약물·스케줄·지시사항\n질병코드+병명\n+ drug_details"]
+        style BE9 fill:#eff6ff,stroke:#60a5fa,color:#111
+        BE9 --> BE9A["③ 약품 상세 조회\n가이드 drug_details 우선\n없으면 ILIKE 폴백\n→ 용법·부작용·주의사항"]
+        style BE9A fill:#fefce8,stroke:#facc15,color:#111
+        BE8 -- NO --> BE9B
+        BE9A --> BE9B
+        BE9B["④ RAG 벡터 검색 (항상 실행)\n사용자 질문 → OpenAI 임베딩\n→ pgvector 코사인 유사도 검색\n→ 유사도 0.7 이상만 반환\n→ 가이드 약품 중복 제거"]
+        style BE9B fill:#f0fdf4,stroke:#86efac,color:#111
+        BE9B --> BE10["Redis Publish\nchat:request:{session_id}\nhealth_profile + guide_context\n+ drug_details + rag_results"]
+    end
+
+    DB[("🗄 PostgreSQL\ndrug_master 식약처\n+ vector 임베딩")]
+    DB --> |코사인 유사도 검색| BE9B
+    style DB fill:#f0fdf4,stroke:#86efac,color:#111
+
+    %% ── AI Worker ────────────────────────────────────────────────────
+    subgraph AI["🤖 AI Worker (ai_worker/core/llm.py)"]
+        BE10 --> AI1["Redis Subscribe\nchat:request:{session_id}"]
+        AI1 --> AI2["스킬 감지 (키워드 매칭)"]
+        AI2 --> SK1["🚑 EMERGENCY\n호흡곤란·경련·쇼크"]
+        AI2 --> SK2["💊 DRUG_INTERACTION\n병용·상호작용"]
+        AI2 --> SK3["⚠️ SIDE_EFFECT\n부작용·두통·구역"]
+        AI2 --> SK4["📋 MEDICATION_GUIDE\n복용법·식전·식후"]
+        AI2 --> SK5["🔍 DISEASE_INQUIRY\n내 병명·진단명"]
+        AI2 --> SK6["💬 GENERAL\n그 외"]
+        SK1 & SK2 & SK3 & SK4 & SK5 & SK6 --> AI3
+        AI3["시스템 프롬프트 빌드\n① 스킬별 역할\n② 건강 프로필\n③ 처방 가이드 (복약 정보)\n④ 질병코드 (OCR 인식)\n⑤ 출처 구분 + 확정 진단 금지\n⑥ drug_details (식약처 허가 데이터)\n⑦ rag_results (유사 약품 top-3)"]
+        AI3 --> AI4{히스토리 12개 초과?}
+        AI4 -- YES --> AI5["이전 대화 요약\n최근 8개 유지"]
+        AI4 -- NO --> AI6
+        AI5 --> AI6["OpenAI 스트리밍 호출\ngpt-4o-mini"]
+        AI6 --> AI7["청크 Redis Publish\nchat:stream:{session_id}\n+ 스킬별 면책 문구"]
+    end
+    style AI fill:#fdf4ff,stroke:#d946ef,color:#111
+
+    %% ── 응답 ─────────────────────────────────────────────────────────
+    subgraph RES["🖥 프론트엔드 (응답 수신)"]
+        AI7 --> R1["NDJSON 청크 수신\n실시간 UI 표시"]
+        R1 --> R2(["💬 답변 완료"])
+    end
+    style RES fill:#fefce8,stroke:#facc15,color:#111
