@@ -105,7 +105,8 @@ async def _call_clova_ocr(content: bytes, mime_type: str) -> dict:
         msg = images[0].get("message", "unknown") if images else "no images"
         if "resolution limit" in msg.lower():
             raise RuntimeError("PDF_RESOLUTION_EXCEEDED")
-        raise RuntimeError(f"Clova OCR 인식 실패: {msg}")
+        # Clova가 이미지 자체를 인식하지 못한 경우 (QR코드, 문서가 아닌 이미지 등)
+        raise RuntimeError("IMAGE_UNRECOGNIZABLE")
 
     fields = images[0].get("fields", [])
 

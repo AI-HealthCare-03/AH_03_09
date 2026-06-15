@@ -177,6 +177,8 @@ async def get_job_status(
             message_map["FAILED"] = (
                 "PDF 파일의 해상도가 너무 높아 처리할 수 없습니다. JPG 또는 PNG로 촬영한 사진으로 다시 업로드해 주세요."
             )
+        elif "IMAGE_UNRECOGNIZABLE" in error_msg:
+            message_map["FAILED"] = "인식할 수 없는 이미지입니다. 처방전이나 약봉투 사진을 올려주세요."
 
     retake_recommended = False
     if ocr_status == "DONE" and doc.result is not None:
