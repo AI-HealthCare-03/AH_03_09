@@ -62,21 +62,21 @@ export default function SessionSidebar({ onLogout }: Props) {
               <span className="text-sm font-semibold text-slate-800">Medi-Mate</span>
             </button>
           </div>
-          <div className="border-b border-slate-100">
+          <div className="border-b border-slate-100 px-2 py-1">
             <button
               type="button"
               onClick={() => navigate("/home")}
-              className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium hover:bg-slate-100 [&>svg]:size-5"
             >
-              <ArrowLeftIcon className="size-4 shrink-0" />
+              <ArrowLeftIcon />
               뒤로가기
             </button>
             <button
               type="button"
               onClick={handleNew}
-              className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium hover:bg-slate-100 [&>svg]:size-5"
             >
-              <PlusIcon className="size-4 shrink-0" />
+              <PlusIcon />
               새 대화
             </button>
           </div>
