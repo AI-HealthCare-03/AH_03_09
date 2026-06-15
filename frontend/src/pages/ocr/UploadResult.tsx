@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangleIcon, CheckCircle2Icon, InfoIcon, Maximize2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import {
   type MedicationCreateBody,
@@ -139,17 +140,20 @@ export default function UploadResult() {
     onError: () => toast.error("추가에 실패했습니다. 다시 시도해주세요."),
   });
 
+  const debouncedDrugSearch = useDebounce(drugSearch);
+  const debouncedEditNameSearch = useDebounce(editNameSearch);
+
   const { data: drugSuggestions } = useQuery({
-    queryKey: ["drug-search", drugSearch],
-    queryFn: () => searchDrugs(drugSearch),
-    enabled: drugSearch.length >= 2,
+    queryKey: ["drug-search", debouncedDrugSearch],
+    queryFn: () => searchDrugs(debouncedDrugSearch),
+    enabled: debouncedDrugSearch.length >= 2,
     staleTime: 30_000,
   });
 
   const { data: editNameSuggestions } = useQuery({
-    queryKey: ["drug-search", editNameSearch],
-    queryFn: () => searchDrugs(editNameSearch),
-    enabled: editNameSearch.length >= 2,
+    queryKey: ["drug-search", debouncedEditNameSearch],
+    queryFn: () => searchDrugs(debouncedEditNameSearch),
+    enabled: debouncedEditNameSearch.length >= 2,
     staleTime: 30_000,
   });
 
