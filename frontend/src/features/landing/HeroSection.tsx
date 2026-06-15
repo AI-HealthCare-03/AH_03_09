@@ -5,7 +5,7 @@ import {
   MessageCircleHeartIcon,
   PillIcon,
   ShieldCheckIcon,
-  SparklesIcon,
+
   UploadCloudIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -39,8 +39,8 @@ export function HeroSection() {
                 animate="visible"
                 className="inline-flex w-fit items-center gap-2 self-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary lg:self-start"
               >
-                <SparklesIcon className="size-3.5" />
-                의료 AI 어시스턴트 · Medi-Mate
+                <PillIcon className="size-3.5" />
+                복약 관리 서비스 · Medi-Mate
               </motion.span>,
               <motion.h1
                 key="title"
