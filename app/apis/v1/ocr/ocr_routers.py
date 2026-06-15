@@ -55,14 +55,14 @@ async def search_drugs(
     session: _SESSION,
     limit: Annotated[int, Query(ge=1, le=20)] = 10,
 ) -> list[DrugSearchResult]:
-    """약물명 검색 (drug_master ILIKE + word_similarity 랭킹)"""
+    """약물명 검색 (drug_master LIKE + word_similarity 랭킹, 한글은 대소문자 없어 LIKE로 충분)"""
     q = q.strip()
     if len(q) < 2:
         return []
     rows = await session.execute(
         text(
             "SELECT item_name FROM drug_master"
-            " WHERE item_name ILIKE :pattern"
+            " WHERE item_name LIKE :pattern"
             " ORDER BY word_similarity(:q, item_name) DESC, length(item_name)"
             " LIMIT :limit"
         ),
