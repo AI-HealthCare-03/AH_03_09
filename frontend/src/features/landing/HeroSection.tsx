@@ -5,7 +5,6 @@ import {
   MessageCircleHeartIcon,
   PillIcon,
   ShieldCheckIcon,
-
   UploadCloudIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -52,9 +51,7 @@ export function HeroSection() {
               >
                 처방전·약봉투를 찍으면,
                 <br />
-                <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  AI가 다 알아서
-                </span>
+                복약 가이드까지
               </motion.h1>,
               <motion.p
                 key="desc"
@@ -79,21 +76,6 @@ export function HeroSection() {
                   별도 가입 없이 카카오 계정 정보로 즉시 시작합니다.
                 </p>
               </motion.div>,
-              <motion.ul
-                key="bullets"
-                custom={4}
-                variants={fadeUp}
-                initial="hidden"
-                animate="visible"
-                className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground lg:justify-start"
-              >
-                {["OCR 자동 분석", "맞춤형 복약 가이드", "AI 건강 챗봇", "무료로 시작"].map((item) => (
-                  <li key={item} className="flex items-center gap-1.5">
-                    <span className="size-1.5 rounded-full bg-primary" />
-                    {item}
-                  </li>
-                ))}
-              </motion.ul>,
             ]}
           </div>
 
@@ -175,11 +157,11 @@ function BentoPreview() {
           </div>
           <div className="mt-2 space-y-1.5">
             <div className="rounded-lg bg-primary/8 px-2.5 py-1.5">
-              <p className="text-[11px] font-semibold text-primary">💊 복약</p>
+              <p className="text-[11px] font-semibold text-primary">복약</p>
               <p className="mt-0.5 text-[11px] leading-snug text-foreground/80">하루 1회 식후 복용</p>
             </div>
             <div className="rounded-lg bg-success/8 px-2.5 py-1.5">
-              <p className="text-[11px] font-semibold text-success">🏃 생활</p>
+              <p className="text-[11px] font-semibold text-success">생활</p>
               <p className="mt-0.5 text-[11px] leading-snug text-foreground/80">규칙적 운동 권장</p>
             </div>
           </div>
@@ -210,7 +192,7 @@ function BentoPreview() {
           </div>
         </motion.div>
 
-        {/* AI 챗봇 */}
+        {/* 복약 상담 */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -219,7 +201,7 @@ function BentoPreview() {
         >
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <MessageCircleHeartIcon className="size-3 text-primary" />
-            AI 챗봇
+            복약 상담
           </div>
           <ChatMock />
         </motion.div>
@@ -339,14 +321,14 @@ const FEATURES = [
   {
     icon: FileTextIcon,
     title: "처방전·약봉투 자동 분석",
-    description: "처방전·약봉투를 업로드하면 AI가 약물 정보를 자동으로 추출하고 구조화합니다.",
+    description: "처방전·약봉투를 업로드하면 약물 정보를 자동으로 추출하고 구조화합니다.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
   },
   {
     icon: MessageCircleHeartIcon,
-    title: "AI 건강 챗봇",
+    title: "복약 상담 챗봇",
     description: "약 복용, 부작용, 건강 궁금증을 물어보세요.",
     accent: "from-success/15 to-success/0",
     iconBg: "bg-success/10 text-success",

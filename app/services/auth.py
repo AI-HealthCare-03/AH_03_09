@@ -61,11 +61,15 @@ class AuthService:
 
         kakao_id = str(kakao_info["id"])
         kakao_account = kakao_info.get("kakao_account", {})
+        properties = kakao_info.get("properties", {})
+
+        # 비즈 앱은 실명 권한 없음 → 카카오 닉네임을 폴백으로 사용
+        display_name = kakao_account.get("name") or properties.get("nickname")
 
         user = await self.user_repo.upsert_kakao_user(
             kakao_id=kakao_id,
             email=kakao_account.get("email"),
-            name=kakao_account.get("name"),
+            name=display_name,
             gender=kakao_account.get("gender"),
             age_range=kakao_account.get("age_range"),
             birthday=kakao_account.get("birthday"),

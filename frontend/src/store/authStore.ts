@@ -10,7 +10,7 @@ export interface UserInfo {
 
 export interface MedicalProfile {
   gender?: "M" | "F" | "OTHER";
-  birthDate?: string;
+  ageRange?: string;
   heightCm: number;
   weightKg: number;
   existingDiagnoses?: string;

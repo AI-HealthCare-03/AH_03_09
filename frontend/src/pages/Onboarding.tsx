@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { completeOnboarding } from "@/api/auth";
 import { updateHealthProfile } from "@/api/healthProfile";
@@ -29,9 +30,14 @@ export default function Onboarding() {
   const profileMutation = useMutation({ mutationFn: updateHealthProfile });
 
   const finishOnboarding = async () => {
-    await completeMutation.mutateAsync();
-    setIsOnboarded(true);
-    navigate("/home", { replace: true });
+    try {
+      await completeMutation.mutateAsync();
+      setIsOnboarded(true);
+      navigate("/home", { replace: true });
+    } catch (e) {
+      console.error("[finishOnboarding 에러]", e);
+      toast.error(`온보딩 완료 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   const handleProfileSubmit = async (values: HealthProfileFormValues) => {
@@ -41,12 +47,12 @@ export default function Onboarding() {
     const hasBp = !!values.systolic && !!values.diastolic;
 
     await profileMutation.mutateAsync({
-      gender: values.gender ?? null,
-      birth_date: values.birthDate || null,
-      height_cm: Number(values.heightCm) || null,
-      weight_kg: Number(values.weightKg) || null,
-      blood_pressure_systolic: hasBp ? Number(values.systolic) : null,
-      blood_pressure_diastolic: hasBp ? Number(values.diastolic) : null,
+      gender: values.gender ?? undefined,
+      age_range: values.ageRange || undefined,
+      height_cm: Number(values.heightCm) || undefined,
+      weight_kg: Number(values.weightKg) || undefined,
+      blood_pressure_systolic: hasBp ? Number(values.systolic) : undefined,
+      blood_pressure_diastolic: hasBp ? Number(values.diastolic) : undefined,
       primary_conditions: diagnoses,
       allergies: values.allergies,
       current_medications: values.currentMedications,

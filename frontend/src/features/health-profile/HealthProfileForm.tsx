@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { validateHealthInput } from "@/lib/inputValidation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
+import { AGE_RANGE_OPTIONS, type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
 
 const GENDER_OPTIONS = [
   { value: "M", label: "남성" },
@@ -55,7 +56,8 @@ export function HealthProfileForm({
   isSaving = false,
 }: Props) {
   const form = useForm<HealthProfileFormValues>({
-    resolver: zodResolver(healthProfileSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(healthProfileSchema) as any,
     mode: "onTouched",
     defaultValues,
   });
@@ -66,7 +68,16 @@ export function HealthProfileForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-6"
+        noValidate
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+            e.preventDefault();
+          }
+        }}
+      >
         {/* 기본 정보 */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -95,13 +106,24 @@ export function HealthProfileForm({
           />
           <FormField
             control={form.control}
-            name="birthDate"
+            name="ageRange"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>생년월일</FormLabel>
-                <FormControl>
-                  <Input type="date" max={new Date().toISOString().split("T")[0]} {...field} />
-                </FormControl>
+                <FormLabel>나이대</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="선택" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {AGE_RANGE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -146,7 +168,40 @@ export function HealthProfileForm({
             <FormItem>
               <FormLabel>기저질환</FormLabel>
               <FormControl>
-                <Input placeholder="예) 고혈압, 당뇨" {...field} />
+                <Input
+                  placeholder="예) 고혈압, 당뇨"
+                  {...field}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
+                  }}
+                  onChange={(e) => {
+                    field.onChange(e);
+                    const val = e.target.value;
+                    if (!val.trim()) { form.clearErrors("existingDiagnoses"); return; }
+                    // 쉼표 기준 완성된 단어 즉시 검증
+                    const parts = val.split(",").map((p) => p.trim()).filter(Boolean);
+                    const completedParts = val.endsWith(",") ? parts : parts.slice(0, -1);
+                    const invalid = completedParts.find((p) => validateHealthInput(p) !== null);
+                    if (invalid) {
+                      form.setError("existingDiagnoses", { message: "적절하지 않은 표현이 포함되어 있습니다." });
+                    } else {
+                      form.clearErrors("existingDiagnoses");
+                    }
+                  }}
+                  onBlur={(e) => {
+                    field.onBlur();
+                    // blur 시 마지막 단어 포함 전체 검증
+                    const val = e.target.value;
+                    if (!val.trim()) { form.clearErrors("existingDiagnoses"); return; }
+                    const invalid = val.split(",").map((p) => p.trim()).filter(Boolean)
+                      .find((p) => validateHealthInput(p) !== null);
+                    if (invalid) {
+                      form.setError("existingDiagnoses", { message: "적절하지 않은 표현이 포함되어 있습니다." });
+                    } else {
+                      form.clearErrors("existingDiagnoses");
+                    }
+                  }}
+                />
               </FormControl>
               <FormDescription>선택 입력입니다. 쉼표로 구분해 입력해주세요.</FormDescription>
               <FormMessage />
@@ -332,10 +387,17 @@ function TagSection({
   onRemove: (idx: number) => void;
 }) {
   const [inputVal, setInputVal] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const add = () => {
     const trimmed = inputVal.trim();
     if (!trimmed) return;
+    const validationError = validateHealthInput(trimmed);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
     onAdd(trimmed);
     setInputVal("");
   };
@@ -365,8 +427,13 @@ function TagSection({
       <div className="flex gap-2">
         <Input
           value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+          onChange={(e) => { setInputVal(e.target.value); setError(null); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              add();
+            }
+          }}
           placeholder={placeholder}
           className="flex-1"
         />
@@ -374,6 +441,7 @@ function TagSection({
           추가
         </Button>
       </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </FormItem>
   );
 }

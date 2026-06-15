@@ -55,14 +55,14 @@ async def search_drugs(
     session: _SESSION,
     limit: Annotated[int, Query(ge=1, le=20)] = 10,
 ) -> list[DrugSearchResult]:
-    """약물명 검색 (drug_master ILIKE + word_similarity 랭킹)"""
+    """약물명 검색 (drug_master LIKE + word_similarity 랭킹, 한글은 대소문자 없어 LIKE로 충분)"""
     q = q.strip()
     if len(q) < 2:
         return []
     rows = await session.execute(
         text(
             "SELECT item_name FROM drug_master"
-            " WHERE item_name ILIKE :pattern"
+            " WHERE item_name LIKE :pattern"
             " ORDER BY word_similarity(:q, item_name) DESC, length(item_name)"
             " LIMIT :limit"
         ),
@@ -177,6 +177,8 @@ async def get_job_status(
             message_map["FAILED"] = (
                 "PDF 파일의 해상도가 너무 높아 처리할 수 없습니다. JPG 또는 PNG로 촬영한 사진으로 다시 업로드해 주세요."
             )
+        elif "IMAGE_UNRECOGNIZABLE" in error_msg:
+            message_map["FAILED"] = "인식할 수 없는 이미지입니다. 처방전이나 약봉투 사진을 올려주세요."
 
     retake_recommended = False
     if ocr_status == "DONE" and doc.result is not None:

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -8,7 +8,7 @@ from app.models.health_profiles import AlcoholHabit, ExerciseHabit, GenderType, 
 
 class HealthProfileUpdateRequest(BaseModel):
     gender: GenderType | None = None
-    birth_date: date | None = None
+    age_range: str | None = None
     height_cm: int | None = None
     weight_kg: int | None = None
     blood_pressure_systolic: int | None = None
@@ -24,7 +24,7 @@ class HealthProfileUpdateRequest(BaseModel):
 class HealthProfileResponse(BaseSerializerModel):
     id: int
     gender: GenderType | None
-    birth_date: date | None
+    age_range: str | None
     height_cm: int | None
     weight_kg: int | None
     blood_pressure_systolic: int | None

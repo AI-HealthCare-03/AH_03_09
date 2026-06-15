@@ -1,4 +1,3 @@
-from datetime import date
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
@@ -20,16 +19,6 @@ def _map_kakao_gender(kakao_gender: str | None) -> str | None:
     return None
 
 
-def _build_birth_date(birthyear: str | None, birthday: str | None) -> date | None:
-    """카카오 birthyear('1990')와 birthday('0315', MMDD)를 date로 변환합니다."""
-    if not birthyear or not birthday or len(birthday) != 4:
-        return None
-    try:
-        return date(int(birthyear), int(birthday[:2]), int(birthday[2:]))
-    except (ValueError, TypeError):
-        return None
-
-
 class HealthProfileService:
     def __init__(self, session: Annotated[AsyncSession, Depends(get_async_session)]) -> None:
         self.repo = HealthProfileRepository(session)
@@ -40,19 +29,14 @@ class HealthProfileService:
             profile = await self.repo.create(
                 user_id=user.id,
                 gender=_map_kakao_gender(user.gender),
-                birth_date=_build_birth_date(user.birthyear, user.birthday),
             )
         else:
-            # 기존 프로필에 gender/birth_date 미설정이면 카카오 데이터로 보완
+            # 기존 프로필에 gender 미설정이면 카카오 데이터로 보완
             updates: dict = {}
             if profile.gender is None:
                 mapped = _map_kakao_gender(user.gender)
                 if mapped:
                     updates["gender"] = mapped
-            if profile.birth_date is None:
-                bd = _build_birth_date(user.birthyear, user.birthday)
-                if bd:
-                    updates["birth_date"] = bd
             if updates:
                 await self.repo.update_instance(profile, updates)
                 await self.repo.session.commit()

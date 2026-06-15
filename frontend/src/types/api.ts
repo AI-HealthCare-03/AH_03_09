@@ -1,7 +1,7 @@
 export interface HealthProfileResponse {
   id: number;
   gender: "M" | "F" | "OTHER" | null;
-  birth_date: string | null;
+  age_range: string | null;
   height_cm: number | null;
   weight_kg: number | null;
   blood_pressure_systolic: number | null;
@@ -17,7 +17,7 @@ export interface HealthProfileResponse {
 
 export interface HealthProfileUpdateRequest {
   gender?: "M" | "F" | "OTHER";
-  birth_date?: string;
+  age_range?: string;
   height_cm?: number;
   weight_kg?: number;
   blood_pressure_systolic?: number;
