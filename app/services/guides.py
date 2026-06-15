@@ -1263,12 +1263,14 @@ class GuideService:
             med_guide = data.get("medication_guide") or {}
             medications = med_guide.get("medications") or []
             medication_names = [m.get("name", "") for m in medications if m.get("name")]
+            disease_names = data.get("disease_names") or []
             items.append(
                 GuideListItem(
                     guide_id=row.guide_id,
                     created_at=row.created_at.isoformat(),
                     guide_types=data.get("guide_types", []),
                     medication_names=medication_names,
+                    disease_names=disease_names,
                 )
             )
         return GuideListResponse(items=items, total=len(items))
