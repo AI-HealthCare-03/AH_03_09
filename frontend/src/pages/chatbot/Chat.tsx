@@ -36,8 +36,6 @@ export default function Chat() {
     retryCount,
     busy,
     streamMut,
-    guidePromptShown,
-    markGuidePromptShown,
     handleSubmit,
     handleRetry,
     handleFeedback,
@@ -45,8 +43,6 @@ export default function Chat() {
   } = useChat();
 
   const [noGuideMode, setNoGuideMode] = useState(false);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const pendingAfterGuideRef = useRef<string | null>(null);
 
   const { data: guideListData } = useQuery({
     queryKey: ["guides"],
@@ -59,52 +55,6 @@ export default function Chat() {
       ? `${selectedGuide.medication_names[0]}의 부작용이 있나요?`
       : "처방받은 약들의 부작용을 알려주세요";
   const SUGGESTED_QUESTIONS = [sideEffectQuestion, ...BASE_QUESTIONS];
-
-  // 가이드 선택 후 대기 중인 메시지 자동 전송
-  useEffect(() => {
-    if (guideId && pendingAfterGuideRef.current) {
-      const msg = pendingAfterGuideRef.current;
-      pendingAfterGuideRef.current = null;
-      handleSubmit(msg);
-    }
-  }, [guideId]);
-
-  const findRelatedGuides = (message: string) => {
-    const lower = message.toLowerCase();
-    const directMatch = guides.filter(
-      (g) =>
-        g.disease_names.some((d) => lower.includes(d.toLowerCase())) ||
-        g.medication_names.some((m) => lower.includes(m.toLowerCase())),
-    );
-    if (directMatch.length > 0) return directMatch;
-    const HEALTH_KEYWORDS = ["약", "아파", "아프", "통증", "부작용", "복용", "처방", "증상", "병원", "치료", "질환", "질병", "건강", "두통", "발열", "기침", "머리", "배", "허리", "관절", "피로", "열", "감기", "소화", "혈압", "당뇨", "알레르기"];
-    const isHealthRelated = HEALTH_KEYWORDS.some((kw) => lower.includes(kw));
-    return isHealthRelated ? guides : [];
-  };
-
-  const handleSubmitWithGuideCheck = (content: string) => {
-    if (!guideId && !noGuideMode) {
-      const related = findRelatedGuides(content);
-      if (related.length > 0) {
-        setPendingMessage(content);
-        return;
-      }
-    }
-    handleSubmit(content);
-  };
-
-  const handleSelectGuide = (id: string) => {
-    pendingAfterGuideRef.current = pendingMessage;
-    setPendingMessage(null);
-    setGuideId(id);
-  };
-
-  const handleSendWithoutGuide = () => {
-    const msg = pendingMessage;
-    setPendingMessage(null);
-    setNoGuideMode(true);
-    if (msg) handleSubmit(msg);
-  };
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -190,7 +140,7 @@ export default function Chat() {
               </div>
             ) : (
               <div className="space-y-4">
-                {!optimisticUserMsg && !streamMut.isPending && !streamMut.streamingContent && (!currentSessionId || messages.length === 0) && pendingMessage === null ? (
+                {!optimisticUserMsg && !streamMut.isPending && !streamMut.streamingContent && (!currentSessionId || messages.length === 0) ? (
                   <div className="flex h-full flex-col items-center justify-center gap-6 py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <div className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
@@ -265,7 +215,7 @@ export default function Chat() {
                         <button
                           key={q}
                           type="button"
-                          onClick={() => handleSubmitWithGuideCheck(q)}
+                          onClick={() => handleSubmit(q)}
                           className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-medium text-slate-700 transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
                         >
                           {q}
@@ -288,84 +238,6 @@ export default function Chat() {
                   />
                 ))}
 
-                {pendingMessage !== null && (
-                  <div className="flex items-start gap-2.5">
-                    <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-primary text-white">
-                      <BotIcon className="size-4" />
-                    </div>
-                    <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-4 max-w-sm">
-                      <p className="mb-3 text-sm text-slate-600">
-                        만드신 건강 가이드가 있어요. 어떤 가이드를 기준으로 답변드릴까요?
-                      </p>
-                      {guides.length > 0 && (
-                        <div className="mb-3 flex flex-col gap-2">
-                          {guides.map((guide) => (
-                            <button
-                              key={guide.guide_id}
-                              type="button"
-                              onClick={() => handleSelectGuide(guide.guide_id)}
-                              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
-                            >
-                              <p className="text-sm font-medium text-slate-700">
-                                {guide.disease_names.length > 0
-                                  ? guide.disease_names.join(", ")
-                                  : guide.medication_names.length > 0
-                                    ? guide.medication_names.join(", ")
-                                    : "건강 가이드"}
-                              </p>
-                              <p className="mt-0.5 text-xs text-slate-400">
-                                {new Date(guide.created_at).toLocaleDateString("ko-KR")}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex flex-col gap-2">
-                        <button
-                          type="button"
-                          onClick={() => navigate("/health-guide")}
-                          className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
-                        >
-                          🏥 건강 가이드 생성
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSendWithoutGuide}
-                          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                        >
-                          💬 가이드 없이 챗봇 사용
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {streamMut.actionCard === "guide_prompt" && !guidePromptShown && (
-                  <div className="flex items-start gap-2.5">
-                    <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-primary text-white">
-                      <BotIcon className="size-4" />
-                    </div>
-                    <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3">
-                      <p className="mb-2 text-sm text-slate-600">어떻게 하시겠어요?</p>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => { markGuidePromptShown(); navigate("/health-guide"); }}
-                          className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
-                        >
-                          🏥 건강 가이드로 넘어가기
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { markGuidePromptShown(); streamMut.dismissAction(); }}
-                          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                        >
-                          💬 가이드 없이 챗봇 사용
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {optimisticUserMsg && (
                   <MessageBubble
@@ -450,7 +322,7 @@ export default function Chat() {
               </button>
             </div>
           )}
-          <InputComposer onSubmit={handleSubmitWithGuideCheck} disabled={busy || pendingMessage !== null} />
+          <InputComposer onSubmit={handleSubmit} disabled={busy} />
         </main>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon, LogOutIcon, PlusIcon, Trash2 } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, HomeIcon, LogOutIcon, PlusIcon, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDeleteSession, useSessions } from "@/hooks/useSessions";
@@ -63,6 +63,14 @@ export default function SessionSidebar({ onLogout }: Props) {
             </button>
           </div>
           <div className="border-b border-slate-100">
+            <button
+              type="button"
+              onClick={() => navigate("/home")}
+              className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <HomeIcon className="size-4 shrink-0" />
+              홈으로
+            </button>
             <button
               type="button"
               onClick={handleNew}
@@ -133,7 +141,15 @@ export default function SessionSidebar({ onLogout }: Props) {
               M
             </button>
           </div>
-          <div className="border-b border-slate-100 py-1 flex justify-center">
+          <div className="border-b border-slate-100 py-1 flex flex-col items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => navigate("/home")}
+              className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              aria-label="홈으로"
+            >
+              <HomeIcon className="size-4" />
+            </button>
             <button
               type="button"
               onClick={handleNew}
