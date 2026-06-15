@@ -41,12 +41,12 @@ export default function Onboarding() {
     const hasBp = !!values.systolic && !!values.diastolic;
 
     await profileMutation.mutateAsync({
-      gender: values.gender ?? null,
-      birth_date: values.birthDate || null,
-      height_cm: Number(values.heightCm) || null,
-      weight_kg: Number(values.weightKg) || null,
-      blood_pressure_systolic: hasBp ? Number(values.systolic) : null,
-      blood_pressure_diastolic: hasBp ? Number(values.diastolic) : null,
+      gender: values.gender ?? undefined,
+      birth_date: values.birthDate || undefined,
+      height_cm: Number(values.heightCm) || undefined,
+      weight_kg: Number(values.weightKg) || undefined,
+      blood_pressure_systolic: hasBp ? Number(values.systolic) : undefined,
+      blood_pressure_diastolic: hasBp ? Number(values.diastolic) : undefined,
       primary_conditions: diagnoses,
       allergies: values.allergies,
       current_medications: values.currentMedications,
