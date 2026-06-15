@@ -1,8 +1,8 @@
 import { toast } from "sonner";
-import { env } from "@/lib/env";
 import { useAuthStore } from "@/store/authStore";
 
-export const API_BASE = `${env.VITE_API_BASE_URL}/api/v1`;
+// 상대 URL 사용 — 로컬은 Vite 프록시, 배포는 같은 도메인이므로 쿠키가 정상 전달됨
+export const API_BASE = "/api/v1";
 
 export class ApiError extends Error {
   constructor(
