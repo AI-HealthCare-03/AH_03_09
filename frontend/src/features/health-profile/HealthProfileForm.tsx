@@ -56,7 +56,8 @@ export function HealthProfileForm({
   isSaving = false,
 }: Props) {
   const form = useForm<HealthProfileFormValues>({
-    resolver: zodResolver(healthProfileSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(healthProfileSchema) as any,
     mode: "onTouched",
     defaultValues,
   });
@@ -147,7 +148,26 @@ export function HealthProfileForm({
             <FormItem>
               <FormLabel>기저질환</FormLabel>
               <FormControl>
-                <Input placeholder="예) 고혈압, 당뇨" {...field} />
+                <Input
+                  placeholder="예) 고혈압, 당뇨"
+                  {...field}
+                  onChange={(e) => {
+                    field.onChange(e);
+                    const val = e.target.value;
+                    if (val.trim()) {
+                      const invalid = val.split(",").find((part) => validateHealthInput(part.trim()) !== null);
+                      if (invalid) {
+                        form.setError("existingDiagnoses", {
+                          message: "적절하지 않은 표현이 포함되어 있습니다.",
+                        });
+                      } else {
+                        form.clearErrors("existingDiagnoses");
+                      }
+                    } else {
+                      form.clearErrors("existingDiagnoses");
+                    }
+                  }}
+                />
               </FormControl>
               <FormDescription>선택 입력입니다. 쉼표로 구분해 입력해주세요.</FormDescription>
               <FormMessage />
