@@ -35,6 +35,8 @@ export default function Chat() {
     retryCount,
     busy,
     streamMut,
+    guidePromptShown,
+    markGuidePromptShown,
     handleSubmit,
     handleRetry,
     handleFeedback,
@@ -93,7 +95,7 @@ export default function Chat() {
                 onClick={() => navigate("/profile")}
                 aria-label="내 정보"
               >
-                <UserIcon className="size-5" />
+                <UserIcon />
               </Button>
             </div>
           </header>
@@ -184,7 +186,7 @@ export default function Chat() {
                   />
                 ))}
 
-                {streamMut.actionCard === "guide_prompt" && (
+                {streamMut.actionCard === "guide_prompt" && !guidePromptShown && (
                   <div className="flex items-start gap-2.5">
                     <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-primary text-white">
                       <BotIcon className="size-4" />
@@ -194,14 +196,14 @@ export default function Chat() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => navigate("/health-guide")}
+                          onClick={() => { markGuidePromptShown(); navigate("/health-guide"); }}
                           className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
                         >
                           🏥 건강 가이드로 넘어가기
                         </button>
                         <button
                           type="button"
-                          onClick={() => streamMut.dismissAction()}
+                          onClick={() => { markGuidePromptShown(); streamMut.dismissAction(); }}
                           className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
                         >
                           💬 가이드 없이 챗봇 사용

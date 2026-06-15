@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { submitFeedback } from "@/api/chat";
 import { useMessages, useStreamMessage } from "@/hooks/useMessages";
@@ -18,6 +18,7 @@ export function useChat() {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [guidePromptShown, setGuidePromptShown] = useState(false);
 
   const { data: messagesData, isLoading } = useMessages(currentSessionId);
   const streamMut = useStreamMessage();
@@ -37,9 +38,10 @@ export function useChat() {
     return result;
   }, [messages, localFeedbackGiven]);
 
-  // 세션 변경 시 로컬 피드백 초기화
+  // 세션 변경 시 로컬 피드백 및 가이드 프롬프트 초기화
   useEffect(() => {
     setLocalFeedbackGiven(new Map());
+    setGuidePromptShown(false);
   }, [currentSessionId]);
 
   useEffect(() => {
@@ -48,8 +50,12 @@ export function useChat() {
   }, [messages.length]);
 
   const cancelStream = streamMut.cancel;
+  const prevSessionIdRef = useRef<string | null>(null);
   useEffect(() => {
-    cancelStream();
+    if (prevSessionIdRef.current !== null && prevSessionIdRef.current !== currentSessionId) {
+      cancelStream();
+    }
+    prevSessionIdRef.current = currentSessionId;
   }, [currentSessionId, cancelStream]);
 
   const handleLogout = () => {
@@ -92,6 +98,8 @@ export function useChat() {
     }
   };
 
+  const markGuidePromptShown = () => setGuidePromptShown(true);
+
   return {
     messages,
     isLoading,
@@ -106,6 +114,8 @@ export function useChat() {
     retryCount,
     busy,
     streamMut,
+    guidePromptShown,
+    markGuidePromptShown,
     handleSubmit,
     handleRetry,
     handleFeedback,
