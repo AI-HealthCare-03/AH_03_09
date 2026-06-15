@@ -2,7 +2,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   CalendarIcon,
   LogOutIcon,
-  MailIcon,
   MessageSquareIcon,
   UserIcon,
 } from "lucide-react";
@@ -79,7 +78,7 @@ export default function Profile() {
       <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="text-base">기본 정보</CardTitle>
-          <CardDescription>카카오에서 제공된 기본 정보입니다. (닉네임·이메일·가입일)</CardDescription>
+          <CardDescription>닉네임은 카카오 계정에서, 가입일은 서비스 가입 시점 기준입니다.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? <ProfileSkeleton /> : null}
@@ -235,9 +234,8 @@ export default function Profile() {
 
 function ProfileFields({ data }: { data: UserInfoResponse }) {
   return (
-    <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+    <dl className="flex flex-col gap-4 text-sm">
       <Field icon={UserIcon} label="닉네임" value={data.name} />
-      <Field icon={MailIcon} label="이메일" value={data.email} />
       <Field icon={MessageSquareIcon} label="카카오 ID" value={data.kakao_id} />
       <Field
         icon={CalendarIcon}
