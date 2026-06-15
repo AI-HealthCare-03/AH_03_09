@@ -235,7 +235,7 @@ class ChatService:
     async def _get_all_user_guide_contexts(self, user_id: int) -> list[dict]:
         """유저의 모든 가이드를 최신순으로 가져와 레이블이 붙은 컨텍스트 목록을 반환한다."""
         result = await self.session.execute(
-            select(Guide).where(Guide.patient_id == str(user_id)).order_by(Guide.created_at.desc()).limit(10)
+            select(Guide).where(Guide.patient_id == str(user_id)).order_by(Guide.created_at.asc()).limit(7)
         )
         rows = result.scalars().all()
         guides: list[dict] = []
@@ -318,7 +318,25 @@ class ChatService:
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
         health_context = await self._fetch_health_context(user_id)
-        guides = await self._get_all_user_guide_contexts(user_id)
+        if guide_id:
+            guide_ctx = await self._get_guide_context(guide_id)
+            guides = (
+                [
+                    {
+                        "label": "선택된 가이드",
+                        "medications": guide_ctx["medications"],
+                        "schedule": guide_ctx["schedule"],
+                        "key_instructions": guide_ctx["key_instructions"],
+                        "disease_codes": guide_ctx["disease_codes"],
+                        "disease_names": guide_ctx["disease_names"],
+                        "drug_details": guide_ctx["drug_details"],
+                    }
+                ]
+                if guide_ctx
+                else []
+            )
+        else:
+            guides = await self._get_all_user_guide_contexts(user_id)
         drug_details, rag_results = await self._resolve_drug_context(guides, content)
 
         redis = await get_redis()

@@ -1,3 +1,4 @@
+import json
 from enum import StrEnum
 
 from openai import AsyncOpenAI
@@ -264,12 +265,14 @@ def _build_guides_section(guides: list[dict]) -> str:
         label = g.get("label", "가이드 1")
         date = g.get("created_at", "")
         header = f"\n\n[처방 가이드 — {label}" + (f" ({date})" if date else "") + "]"
+        header += "\n※ 아래 데이터는 OCR로 인식된 내용이므로 약품명·용어에 오탈자가 있을 수 있습니다. 데이터를 해석할 때만 참고하고, 당신의 답변 문장 자체는 원래대로 자연스럽게 작성하세요."
         block = _build_single_guide_block(g)
         return header + "\n" + block if block else ""
 
     # 여러 가이드
     lines = [
         "\n\n[처방 가이드 목록 — 사용자가 업로드한 처방전·복약정보]",
+        "※ 아래 데이터는 OCR로 인식된 내용이므로 약품명·용어에 오탈자가 있을 수 있습니다. 데이터를 해석할 때만 참고하고, 당신의 답변 문장 자체는 원래대로 자연스럽게 작성하세요.",
         "",
         "⚑ 처방 내용·질병 관련 질문이 들어오면, 답변하기 전에 반드시 아래 중 어느 가이드를 기준으로 할지 사용자에게 먼저 물어보세요.",
         "  단, 사용자가 이미 가이드를 지정했거나 대화 문맥에서 특정 가이드가 명확하다면 바로 답변하세요.",
@@ -467,6 +470,91 @@ def _build_system_prompt(
     return result
 
 
+TOOLS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_health_profile",
+            "description": (
+                "사용자가 등록한 건강 프로필(기저질환, 알레르기, 복용 약물, 생활습관)을 조회합니다. "
+                "사용자의 건강 상태, 기저질환, 알레르기 반응 관련 질문에 사용하세요."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_prescription_guide",
+            "description": (
+                "사용자가 업로드한 처방전 기반 가이드(처방 약물, 질병코드, 복약 스케줄, 복약 지시사항)를 조회합니다. "
+                "처방약, 복약 일정, 특정 처방에 대한 질문에 사용하세요."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_drug_info",
+            "description": (
+                "약물명으로 식약처 허가 데이터베이스에서 약물 상세 정보(부작용, 주의사항, 용법·용량)를 검색합니다. "
+                "특정 약물의 부작용, 복용법, 주의사항을 물어볼 때 사용하세요."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "drug_name": {
+                        "type": "string",
+                        "description": "검색할 약물 이름 (예: 타이레놀, 아스피린, 이부프로펜)",
+                    }
+                },
+                "required": ["drug_name"],
+            },
+        },
+    },
+]
+
+
+def _execute_tool(name: str, arguments: str, context: dict) -> str:
+    args: dict = json.loads(arguments) if arguments else {}
+
+    if name == "get_health_profile":
+        hp = context.get("health_profile")
+        result = _build_profile_section(hp) if hp else ""
+        return result if result else "등록된 건강 프로필이 없습니다."
+
+    if name == "get_prescription_guide":
+        guides = context.get("guides") or []
+        result = _build_guides_section(guides) if guides else ""
+        return result if result else "등록된 처방전/가이드가 없습니다."
+
+    if name == "search_drug_info":
+        drug_name = args.get("drug_name", "").strip()
+        drug_details = context.get("drug_details") or []
+        rag_results = context.get("rag_results") or []
+
+        name_lower = drug_name.lower()
+        matched = [d for d in drug_details if name_lower in d.get("name", "").lower()]
+        if not matched:
+            matched = [r for r in rag_results if name_lower in r.get("name", "").lower()]
+        if not matched:
+            return f"'{drug_name}'에 대한 식약처 데이터를 찾을 수 없습니다."
+
+        lines = [f"[{drug_name} 식약처 허가 정보]"]
+        for d in matched[:2]:
+            lines.append(f"\n■ {d.get('name', drug_name)}")
+            if dosage := _truncate(d.get("dosage")):
+                lines.append(f"  - 용법·용량: {dosage}")
+            if side_effects := _truncate(d.get("side_effects")):
+                lines.append(f"  - 부작용: {side_effects}")
+            if cautions := _truncate(d.get("cautions")):
+                lines.append(f"  - 주의사항: {cautions}")
+        return "\n".join(lines)
+
+    return "알 수 없는 도구입니다."
+
+
 def get_openai_client() -> AsyncOpenAI:
     global _client
     if _client is None:
@@ -513,13 +601,25 @@ async def stream_chat(
     rag_results: list[dict] | None = None,
 ):
     skill = detect_skill(user_message)
-    system_prompt = _build_system_prompt(health_profile, skill, guides, drug_details, rag_results)
     client = get_openai_client()
+
+    # Base system: skill role + source rules (no data pre-loaded — tools supply it on demand)
+    base_system = _SKILL_SYSTEM_PROMPTS[skill] + _SOURCE_RULES
+    if not guides:
+        base_system += (
+            "\n\n[처방전 없음 안내 규칙]"
+            "\n사용자가 아직 처방전·복약정보를 업로드하지 않았습니다."
+            "\n아래 두 경우에 '건강 가이드 페이지에서 처방전을 올리시면 더 정확하게 답변드릴 수 있어요'라고 안내하세요:"
+            "\n  1) 이 대화의 첫 번째 응답일 때"
+            "\n  2) '내 처방약', '내 병명', '내 복약 스케줄' 등 개인 처방 데이터가 필요한 질문을 받았을 때"
+            "\n단, 이미 이 대화에서 위 안내를 한 번 한 적이 있다면 절대 다시 언급하지 마세요."
+            "\n약 복용법·부작용·상호작용 등 일반 건강·약 질문은 안내 여부와 관계없이 평소처럼 답변하세요."
+        )
 
     if len(history) > _SUMMARY_THRESHOLD:
         cutoff = len(history) - _RECENT_KEEP
         summary = await _compress_history(history[:cutoff], client)
-        system_prompt += f"\n\n[이전 대화 요약 — 이 내용을 기억하고 답변에 활용하세요]\n{summary}"
+        base_system += f"\n\n[이전 대화 요약 — 이 내용을 기억하고 답변에 활용하세요]\n{summary}"
         trimmed_history = history[cutoff:]
     else:
         trimmed_history = history
@@ -529,10 +629,48 @@ async def stream_chat(
         for msg in trimmed_history
     ]
 
-    messages = [{"role": "system", "content": system_prompt}]
+    tool_context = {
+        "health_profile": health_profile,
+        "guides": guides,
+        "drug_details": drug_details,
+        "rag_results": rag_results,
+    }
+
+    # Phase 1: tool selection — LLM decides which data it needs (non-streaming)
+    messages: list[dict] = [{"role": "system", "content": base_system}]
     messages.extend(cleaned_history)
     messages.append({"role": "user", "content": user_message})
 
+    first_response = await client.chat.completions.create(
+        model=config.OPENAI_CHAT_MODEL,
+        messages=messages,
+        tools=TOOLS,
+        tool_choice="auto",
+        max_tokens=200,
+    )
+    assistant_msg = first_response.choices[0].message
+
+    # Phase 2: execute requested tools from pre-fetched payload (no new DB calls)
+    if assistant_msg.tool_calls:
+        messages.append(
+            {
+                "role": "assistant",
+                "content": None,  # discard any Phase 1 partial text to prevent overlap in Phase 3
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                    }
+                    for tc in assistant_msg.tool_calls
+                ],
+            }
+        )
+        for tc in assistant_msg.tool_calls:
+            result_text = _execute_tool(tc.function.name, tc.function.arguments, tool_context)
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": result_text})
+
+    # Phase 3: streaming final response with any tool results now in messages
     stream = await client.chat.completions.create(
         model=config.OPENAI_CHAT_MODEL,
         messages=messages,

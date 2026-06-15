@@ -92,6 +92,7 @@ export type GuideListItem = {
   created_at: string;
   guide_types: GuideType[];
   medication_names: string[];
+  disease_names: string[];
 };
 
 export type GuideListResponse = {
