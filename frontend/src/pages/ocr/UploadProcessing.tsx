@@ -121,11 +121,12 @@ export default function UploadProcessing() {
   if (data?.status === "FAILED") {
     const isExhausted = (data.reanalyze_count ?? 0) >= 5;
     const isPdfResolution = data.message?.includes("PDF 파일의 해상도");
-    const errorMessage = isPdfResolution
-      ? data.message
-      : isExhausted
-        ? "파일에 문제가 있어 처리할 수 없습니다. 다른 파일로 재업로드해 주세요."
-        : "OCR 처리 중 오류가 발생했습니다. OCR 서비스의 일시적 오류일 수 있으니 재시도해 주세요.";
+    const isUnrecognizable = data.message?.includes("인식할 수 없는 이미지");
+    const isFileIssue = isPdfResolution || isUnrecognizable || isExhausted;
+
+    const errorMessage = isFileIssue
+      ? data.message ?? "파일에 문제가 있어 처리할 수 없습니다. 다른 파일로 재업로드해 주세요."
+      : "OCR 처리 중 오류가 발생했습니다. OCR 서비스의 일시적 오류일 수 있으니 재시도해 주세요.";
 
     return (
       <Card>
@@ -136,7 +137,7 @@ export default function UploadProcessing() {
           <Alert variant="destructive">
             <AlertDescription>{errorMessage}</AlertDescription>
           </Alert>
-          {isPdfResolution || isExhausted ? (
+          {isFileIssue ? (
             <Button onClick={() => navigate("/upload")}>재업로드</Button>
           ) : (
             <Button onClick={() => reanalyzeMutation.mutate()} disabled={reanalyzeMutation.isPending}>

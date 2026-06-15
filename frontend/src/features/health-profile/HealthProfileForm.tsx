@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { validateHealthInput } from "@/lib/inputValidation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -332,10 +333,17 @@ function TagSection({
   onRemove: (idx: number) => void;
 }) {
   const [inputVal, setInputVal] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const add = () => {
     const trimmed = inputVal.trim();
     if (!trimmed) return;
+    const validationError = validateHealthInput(trimmed);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
     onAdd(trimmed);
     setInputVal("");
   };
@@ -365,8 +373,13 @@ function TagSection({
       <div className="flex gap-2">
         <Input
           value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+          onChange={(e) => { setInputVal(e.target.value); setError(null); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              add();
+            }
+          }}
           placeholder={placeholder}
           className="flex-1"
         />
@@ -374,6 +387,7 @@ function TagSection({
           추가
         </Button>
       </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </FormItem>
   );
 }

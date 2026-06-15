@@ -105,7 +105,8 @@ async def _call_clova_ocr(content: bytes, mime_type: str) -> dict:
         msg = images[0].get("message", "unknown") if images else "no images"
         if "resolution limit" in msg.lower():
             raise RuntimeError("PDF_RESOLUTION_EXCEEDED")
-        raise RuntimeError(f"Clova OCR 인식 실패: {msg}")
+        # Clova가 이미지 자체를 인식하지 못한 경우 (QR코드, 문서가 아닌 이미지 등)
+        raise RuntimeError("IMAGE_UNRECOGNIZABLE")
 
     fields = images[0].get("fields", [])
 
@@ -279,7 +280,7 @@ def _extract_base_name(name: str) -> str:
 async def _normalize_medication_names(conn: asyncpg.Connection, medications: list[dict]) -> list[dict]:
     """OCR 약물명을 drug_master 테이블과 매칭해 정규화합니다.
 
-    1차: 기본 약품명(용량 제거)으로 ILIKE 매칭
+    1차: 기본 약품명(용량 제거)으로 LIKE 매칭 (한글은 대소문자 구분 없어 ILIKE 불필요)
          → 성분명(generic_name)이 있으면 DB 항목명에 포함 여부 검증
          → 불일치 시 원문 유지 (다른 성분의 동명 약품 오매칭 방지)
     매칭 실패 또는 성분명 불일치 → 원문 유지
@@ -299,11 +300,11 @@ async def _normalize_medication_names(conn: asyncpg.Connection, medications: lis
         row = await conn.fetchrow(
             """
             SELECT item_name FROM drug_master
-            WHERE item_name ILIKE $1
+            WHERE item_name LIKE $1
             ORDER BY
-              (CASE WHEN $2 != '' AND item_name ILIKE $3 THEN 0 ELSE 1 END),
-              (CASE WHEN item_name ILIKE $4 THEN 0 ELSE 1 END),
-              (CASE WHEN $5 != '' AND item_name ILIKE $6 THEN 0 ELSE 1 END),
+              (CASE WHEN $2 != '' AND item_name LIKE $3 THEN 0 ELSE 1 END),
+              (CASE WHEN item_name LIKE $4 THEN 0 ELSE 1 END),
+              (CASE WHEN $5 != '' AND item_name LIKE $6 THEN 0 ELSE 1 END),
               length(item_name)
             LIMIT 1
             """,
