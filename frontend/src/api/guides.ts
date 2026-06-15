@@ -38,7 +38,7 @@ export type MedicationItem = {
   label: string;
 }[];
   easy_summary: string[];
-  match_status: string | null;
+  match_status: "EXACT_DB_MATCH" | "WEB_REFERENCE" | "SIMILAR_MATCH" | "NOT_FOUND" | null;
   disclaimer: string | null;
   source_name: string | null;
 };
@@ -87,6 +87,22 @@ export type GuideResponse = {
   generation_results?: GenerationResult[];
 };
 
+export type GuideListItem = {
+  guide_id: string;
+  created_at: string;
+  guide_types: GuideType[];
+  medication_names: string[];
+};
+
+export type GuideListResponse = {
+  items: GuideListItem[];
+  total: number;
+};
+
+export function getGuideList() {
+  return request<GuideListResponse>("/guides");
+}
+
 export function generateGuide(body: GenerateGuideRequest) {
   return request<GenerateGuideResponse>("/guides/generate", {
     method: "POST",
@@ -121,6 +137,9 @@ export function submitGuideFeedback(
 
 export type FeedbackStatusResponse = {
   is_submitted: boolean;
+  rating_comprehension: number | null;
+  rating_usefulness: number | null;
+  comment: string | null;
 };
 
 export function getGuideFeedbackStatus(guideId: string) {

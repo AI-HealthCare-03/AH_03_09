@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { submitFeedback } from "@/api/chat";
 import { useMessages, useStreamMessage } from "@/hooks/useMessages";
@@ -13,7 +13,7 @@ export function useChat() {
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
   const guideId = useChatStore((s) => s.guideId);
 
-  const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
+  const [localFeedbackGiven, setLocalFeedbackGiven] = useState<Map<number, "good" | "bad">>(new Map());
   const [optimisticUserMsg, setOptimisticUserMsg] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -27,10 +27,30 @@ export function useChat() {
   const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
   const busy = streamMut.isPending || createMut.isPending;
 
+  // 서버 피드백 + 이번 세션 피드백 합산 (Map: messageId → "good" | "bad")
+  const feedbackGiven = useMemo(() => {
+    const result = new Map<number, "good" | "bad">();
+    messages.filter((m) => m.feedback).forEach((m) => {
+      result.set(m.id, m.feedback as "good" | "bad");
+    });
+    localFeedbackGiven.forEach((type, id) => result.set(id, type));
+    return result;
+  }, [messages, localFeedbackGiven]);
+
+  // 세션 변경 시 로컬 피드백 초기화
+  useEffect(() => {
+    setLocalFeedbackGiven(new Map());
+  }, [currentSessionId]);
+
   useEffect(() => {
     setOptimisticUserMsg(null);
     setRetryCount(0);
   }, [messages.length]);
+
+  const cancelStream = streamMut.cancel;
+  useEffect(() => {
+    cancelStream();
+  }, [currentSessionId, cancelStream]);
 
   const handleLogout = () => {
     clear();
@@ -66,7 +86,7 @@ export function useChat() {
     if (!currentSessionId) return;
     try {
       await submitFeedback(currentSessionId, messageId, feedback);
-      setFeedbackGiven((prev) => new Set(prev).add(messageId));
+      setLocalFeedbackGiven((prev) => new Map(prev).set(messageId, feedback));
     } catch {
       setFeedbackError("피드백 전송에 실패했습니다. 다시 시도해주세요.");
     }

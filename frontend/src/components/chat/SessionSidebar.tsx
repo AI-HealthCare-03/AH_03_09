@@ -1,9 +1,9 @@
-import { Trash2 } from "lucide-react";
+import { HomeIcon, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useDeleteSession, useSessions } from "@/hooks/useSessions";
 import { useChatStore } from "@/store/chatStore";
 
 interface Props {
-  onProfileClick: () => void;
   onLogout: () => void;
 }
 
@@ -12,14 +12,17 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   timeStyle: "short",
 });
 
-export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
+export default function SessionSidebar({ onLogout }: Props) {
+  const navigate = useNavigate();
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const setCurrentSessionId = useChatStore((s) => s.setCurrentSessionId);
+  const setGuideId = useChatStore((s) => s.setGuideId);
   const { data: sessions, isLoading } = useSessions();
   const deleteMut = useDeleteSession();
 
   const handleNew = () => {
     setCurrentSessionId(null);
+    setGuideId(null);
   };
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
@@ -33,13 +36,21 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
 
   return (
     <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white md:flex">
-      <div className="border-b border-slate-200 p-4">
+      <div className="flex flex-col gap-2 border-b border-slate-200 p-4">
         <button
           type="button"
           onClick={handleNew}
           className="w-full rounded-md bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
         >
           + 새 대화
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate("/home")}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+        >
+          <HomeIcon className="size-4" />
+          홈으로
         </button>
       </div>
 
@@ -79,14 +90,7 @@ export default function SessionSidebar({ onProfileClick, onLogout }: Props) {
         )}
       </div>
 
-      <div className="space-y-1 border-t border-slate-200 p-3">
-        <button
-          type="button"
-          onClick={onProfileClick}
-          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-        >
-          내 정보
-        </button>
+      <div className="border-t border-slate-200 p-3">
         <button
           type="button"
           onClick={onLogout}

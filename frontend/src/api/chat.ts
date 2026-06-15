@@ -50,15 +50,25 @@ export const streamMessage = async (
   onDone: (messageId: number, title: string | null) => void,
   onError: (detail: string) => void,
   onDelay?: (detail: string) => void,
+  signal?: AbortSignal,
+  onAction?: (action: string) => void,
 ): Promise<void> => {
-  const res = await fetch(`/api/v1/chat/sessions/${sessionId}/messages/stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-    body: JSON.stringify({ content, guide_id: guideId ?? null }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api/v1/chat/sessions/${sessionId}/messages/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ content, guide_id: guideId ?? null }),
+      signal,
+    });
+  } catch (e) {
+    if ((e as DOMException).name === "AbortError") return;
+    onError("서버 연결에 실패했습니다.");
+    return;
+  }
 
   if (!res.ok || !res.body) {
     const STATUS_MESSAGES: Record<number, string> = {
@@ -76,34 +86,42 @@ export const streamMessage = async (
   let buffer = "";
   let streamCompleted = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const data = JSON.parse(line);
-        if (data.type === "chunk") {
-          onChunk(data.chunk);
-        } else if (data.type === "done") {
-          streamCompleted = true;
-          onDone(0, null);
-          return;
-        } else if (data.type === "error") {
-          onError(data.detail ?? "알 수 없는 오류가 발생했습니다.");
-          return;
-        } else if (data.type === "delay") {
-          onDelay?.(data.detail);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const data = JSON.parse(line);
+          if (data.type === "chunk") {
+            onChunk(data.chunk);
+          } else if (data.type === "done") {
+            streamCompleted = true;
+            onDone(0, null);
+            return;
+          } else if (data.type === "error") {
+            onError(data.detail ?? "알 수 없는 오류가 발생했습니다.");
+            return;
+          } else if (data.type === "delay") {
+            onDelay?.(data.detail);
+          } else if (data.type === "action") {
+            onAction?.(data.action);
+          }
+        } catch (e) {
+          console.warn("[stream] JSON 파싱 실패:", line, e);
         }
-      } catch (e) {
-        console.warn("[stream] JSON 파싱 실패:", line, e);
       }
     }
+  } catch (e) {
+    if ((e as DOMException).name === "AbortError") return;
+    onError("스트리밍 중 오류가 발생했습니다.");
+    return;
   }
 
   if (!streamCompleted) {

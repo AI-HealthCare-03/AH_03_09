@@ -5,7 +5,7 @@ import type { ChatMessageResponse } from "@/types/api";
 interface Props {
   message: ChatMessageResponse;
   onFeedback?: (messageId: number, feedback: "good" | "bad") => void;
-  feedbackGiven?: boolean;
+  feedbackGiven?: "good" | "bad" | null;
 }
 
 function formatTime(iso: string) {
@@ -75,22 +75,27 @@ export default function MessageBubble({ message, onFeedback, feedbackGiven }: Pr
 
         {!isUser && !isSafetyMessage && onFeedback && (
           <div className="flex gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={() => !feedbackGiven && onFeedback(message.id, "good")}
-              disabled={feedbackGiven}
-              className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400 disabled:cursor-default disabled:opacity-50"
-            >
-              {feedbackGiven ? "✓ 감사합니다" : "👍 도움됐어요"}
-            </button>
-            {!feedbackGiven && (
-              <button
-                type="button"
-                onClick={() => onFeedback(message.id, "bad")}
-                className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400"
-              >
-                👎 도움 안됐어요
-              </button>
+            {feedbackGiven ? (
+              <span className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-400">
+                {feedbackGiven === "good" ? "✓ 감사합니다" : "✓ 더 노력할게요"}
+              </span>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onFeedback(message.id, "good")}
+                  className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400"
+                >
+                  👍 도움됐어요
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onFeedback(message.id, "bad")}
+                  className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400"
+                >
+                  👎 도움 안됐어요
+                </button>
+              </>
             )}
           </div>
         )}

@@ -13,6 +13,7 @@ from app.core.db.sqlalchemy_client import get_async_session
 from app.core.redis_client import get_redis
 from app.models.chat import ChatMessage, ChatSession, MessageRole
 from app.models.drug_master import DrugMaster
+from app.models.guides import Guide
 from app.models.health_profiles import HealthProfile
 from app.models.users import User
 from app.repositories.chat_repository import ChatRepository
@@ -21,8 +22,8 @@ from app.services.rag import search_drug_by_query
 
 logger = logging.getLogger(__name__)
 
-RESPONSE_TIMEOUT_SECONDS = 60
-DELAY_WARNING_SECONDS = 10
+RESPONSE_TIMEOUT_SECONDS = 25
+DELAY_WARNING_SECONDS = 8
 
 _DANGER_KEYWORDS = [
     "자살",
@@ -37,7 +38,69 @@ _DANGER_KEYWORDS = [
     "목을 매",
     "뛰어내려",
 ]
-_INAPPROPRIATE_KEYWORDS = ["씨발", "개새끼", "병신", "ㅅㅂ", "ㅂㅅ", "좆"]
+_INAPPROPRIATE_KEYWORDS = [
+    # 기본 욕설
+    "씨발",
+    "시발",
+    "씨바",
+    "시바",
+    "씨팔",
+    "시팔",
+    # 개- 계열
+    "개새끼",
+    "개놈",
+    "개년",
+    "개쓰레기",
+    "개소리",
+    "개지랄",
+    # 병신 계열
+    "병신",
+    "벙신",
+    "찐따",
+    # 성기 관련
+    "좆",
+    "자지",
+    "보지",
+    # 초성체/축약
+    "ㅅㅂ",
+    "ㅂㅅ",
+    "ㅆㅂ",
+    "ㄲㅈ",
+    "ㅄ",
+    "ㅈㄹ",
+    # 미친 계열
+    "미친놈",
+    "미친년",
+    "미친새끼",
+    # 죽어/꺼져 계열
+    "뒤져",
+    "꺼져",
+    # 창녀 계열
+    "창녀",
+    "창년",
+    # 비하 표현
+    "지랄",
+    "새끼",
+    "닥쳐",
+    "바보",
+    "멍청이",
+    # 지능 비하
+    "머저리",
+    "얼간이",
+    "등신",
+    "돌대가리",
+    "저능아",
+    # 강도 표현 (욕설 강조어)
+    "존나",
+    "졸라",
+    # 인신공격
+    "인간쓰레기",
+    "찌질이",
+    "걸레",
+    # 복합 변형
+    "개같",
+    "좆같",
+]
 
 _DANGER_RESPONSE = (
     "지금 많이 힘드신 것 같아요. 혼자 감당하기 어려운 순간이라면 전문가의 도움을 받으시길 권합니다.\n\n"
@@ -170,23 +233,73 @@ class ChatService:
             logger.warning("[guide_context] 조회 실패 guide_id=%s detail=%s", guide_id, e.detail)
             return None
 
-    async def _resolve_drug_context(self, guide_context: dict | None, content: str) -> tuple[list[dict], list[dict]]:
-        """가이드 약품 데이터 + RAG 항상 병행 실행. 가이드 약품은 RAG 결과에서 제거."""
-        guide_drug_details = (guide_context or {}).get("drug_details") or []
-        drug_details = guide_drug_details or await self._fetch_drug_details(
-            (guide_context or {}).get("medications") or []
+    async def _get_all_user_guide_contexts(self, user_id: int) -> list[dict]:
+        """유저의 모든 가이드를 최신순으로 가져와 레이블이 붙은 컨텍스트 목록을 반환한다."""
+        result = await self.session.execute(
+            select(Guide).where(Guide.patient_id == str(user_id)).order_by(Guide.created_at.desc()).limit(10)
         )
+        rows = result.scalars().all()
+        guides: list[dict] = []
+        for idx, row in enumerate(rows, start=1):
+            data = row.guide_data or {}
+            medications: list[str] = []
+            drug_details: list[dict] = []
+            if data.get("medication_guide"):
+                for m in data["medication_guide"].get("medications", []):
+                    name = m.get("name")
+                    if not name:
+                        continue
+                    medications.append(name)
+                    se = m.get("side_effects", [])
+                    ca = m.get("cautions", [])
+                    drug_details.append(
+                        {
+                            "name": name,
+                            "dosage": m.get("dosage") or "",
+                            "side_effects": ", ".join(se) if isinstance(se, list) else (se or ""),
+                            "cautions": ", ".join(ca) if isinstance(ca, list) else (ca or ""),
+                        }
+                    )
+            codes = data.get("disease_codes") or []
+            names = data.get("disease_names") or []
+            disease_pairs = [(codes[i], names[i] if i < len(names) else "") for i in range(len(codes))]
+            lifestyle = data.get("lifestyle_guide")
+            tips = lifestyle.get("tips", []) if lifestyle else []
+            guides.append(
+                {
+                    "label": f"가이드 {idx}",
+                    "created_at": row.created_at.strftime("%Y-%m-%d") if row.created_at else "",
+                    "medications": medications,
+                    "schedule": data.get("schedule_table") or [],
+                    "key_instructions": tips,
+                    "disease_codes": [p[0] for p in disease_pairs],
+                    "disease_names": [p[1] for p in disease_pairs],
+                    "drug_details": drug_details,
+                }
+            )
+        return guides
+
+    async def _resolve_drug_context(self, guides: list[dict], content: str) -> tuple[list[dict], list[dict]]:
+        """전체 가이드 약품 데이터 + RAG 병행 실행. 가이드 약품은 RAG 결과에서 제거."""
+        guide_drug_details: list[dict] = []
+        for g in guides:
+            guide_drug_details.extend(g.get("drug_details") or [])
+
+        if not guide_drug_details:
+            all_meds = [m for g in guides for m in (g.get("medications") or [])]
+            guide_drug_details = await self._fetch_drug_details(all_meds)
+
         rag_results = await search_drug_by_query(self.session, content)
-        if drug_details and rag_results:
-            guide_names = {d["name"].lower() for d in drug_details}
+        if guide_drug_details and rag_results:
+            guide_names = {d["name"].lower() for d in guide_drug_details}
             rag_results = [
                 r
                 for r in rag_results
                 if not any(gn in r["name"].lower() or r["name"].lower() in gn for gn in guide_names)
             ]
-        return drug_details, rag_results
+        return guide_drug_details, rag_results
 
-    async def stream_message(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):
+    async def stream_message(self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None):  # noqa: C901
         session = await self.repo.get_session(session_id, user_id)
         if not session:
             yield json.dumps({"type": "error", "detail": "세션을 찾을 수 없습니다."}) + "\n"
@@ -206,8 +319,8 @@ class ChatService:
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
         health_context = await self._fetch_health_context(user_id)
-        guide_context = await self._get_guide_context(guide_id)
-        drug_details, rag_results = await self._resolve_drug_context(guide_context, content)
+        guides = await self._get_all_user_guide_contexts(user_id)
+        drug_details, rag_results = await self._resolve_drug_context(guides, content)
 
         redis = await get_redis()
         pubsub = redis.pubsub()
@@ -219,7 +332,7 @@ class ChatService:
                 "user_message": content,
                 "history": history_payload,
                 "health_profile": health_context,
-                "guide_context": guide_context,
+                "guides": guides or None,
                 "drug_details": drug_details or None,
                 "rag_results": rag_results or None,
             }
@@ -260,6 +373,8 @@ class ChatService:
             await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
             await self.repo.touch_session(session_id)
 
+        if not guides:
+            yield json.dumps({"type": "action", "action": "guide_prompt"}) + "\n"
         yield json.dumps({"type": "done", "content": complete}) + "\n"
 
     async def create_session(self, user_id: int, title: str = "새 대화") -> ChatSession:
@@ -294,8 +409,8 @@ class ChatService:
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
         health_context = await self._fetch_health_context(user_id)
-        guide_context = await self._get_guide_context(guide_id)
-        drug_details, rag_results = await self._resolve_drug_context(guide_context, content)
+        guides = await self._get_all_user_guide_contexts(user_id)
+        drug_details, rag_results = await self._resolve_drug_context(guides, content)
 
         redis = await get_redis()
         pubsub = redis.pubsub()
@@ -307,7 +422,7 @@ class ChatService:
                 "user_message": content,
                 "history": history_payload,
                 "health_profile": health_context,
-                "guide_context": guide_context,
+                "guides": guides or None,
                 "drug_details": drug_details or None,
                 "rag_results": rag_results or None,
             }
