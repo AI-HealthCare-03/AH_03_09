@@ -68,7 +68,16 @@ export function HealthProfileForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-6"
+        noValidate
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+            e.preventDefault();
+          }
+        }}
+      >
         {/* 기본 정보 */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -151,18 +160,32 @@ export function HealthProfileForm({
                 <Input
                   placeholder="예) 고혈압, 당뇨"
                   {...field}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
+                  }}
                   onChange={(e) => {
                     field.onChange(e);
                     const val = e.target.value;
-                    if (val.trim()) {
-                      const invalid = val.split(",").find((part) => validateHealthInput(part.trim()) !== null);
+                    // 쉼표가 포함된 경우만 검증 (쉼표 기준으로 완성된 단어들만)
+                    if (val.includes(",")) {
+                      const completedParts = val.split(",").slice(0, -1); // 마지막 입력 중인 부분 제외
+                      const invalid = completedParts.find((part) => part.trim() && validateHealthInput(part.trim()) !== null);
                       if (invalid) {
-                        form.setError("existingDiagnoses", {
-                          message: "적절하지 않은 표현이 포함되어 있습니다.",
-                        });
+                        form.setError("existingDiagnoses", { message: "적절하지 않은 표현이 포함되어 있습니다." });
                       } else {
                         form.clearErrors("existingDiagnoses");
                       }
+                    } else {
+                      form.clearErrors("existingDiagnoses");
+                    }
+                  }}
+                  onBlur={(e) => {
+                    field.onBlur();
+                    const val = e.target.value;
+                    if (!val.trim()) return;
+                    const invalid = val.split(",").find((part) => part.trim() && validateHealthInput(part.trim()) !== null);
+                    if (invalid) {
+                      form.setError("existingDiagnoses", { message: "적절하지 않은 표현이 포함되어 있습니다." });
                     } else {
                       form.clearErrors("existingDiagnoses");
                     }
