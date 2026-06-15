@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
+import { AGE_RANGE_OPTIONS, type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
 
 const GENDER_OPTIONS = [
   { value: "M", label: "남성" },
@@ -106,13 +106,24 @@ export function HealthProfileForm({
           />
           <FormField
             control={form.control}
-            name="birthDate"
+            name="ageRange"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>생년월일</FormLabel>
-                <FormControl>
-                  <Input type="date" max={new Date().toISOString().split("T")[0]} {...field} />
-                </FormControl>
+                <FormLabel>나이대</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="선택" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {AGE_RANGE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
