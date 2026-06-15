@@ -218,7 +218,15 @@ export default function MyDocuments() {
                     </thead>
                     <tbody className="divide-y">
                       {data.documents.map((doc) => (
-                        <tr key={doc.record_id} className="transition-colors hover:bg-muted/30">
+                        <tr
+                          key={doc.record_id}
+                          className="cursor-pointer transition-colors hover:bg-muted/50"
+                          onClick={() =>
+                            doc.ocr_status === "DONE"
+                              ? navigate(`/upload/result/${doc.record_id}`)
+                              : navigate(`/upload/processing/${doc.job_id}`)
+                          }
+                        >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
                               <p className="max-w-50 truncate font-medium">
@@ -287,12 +295,13 @@ export default function MyDocuments() {
                               variant="ghost"
                               size="sm"
                               className="-ml-3 text-destructive hover:text-destructive"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setDeleteTarget({
                                   id: doc.record_id,
                                   name: doc.original_filename,
-                                })
-                              }
+                                });
+                              }}
                             >
                               <Trash2Icon className="size-4" />
                             </Button>
