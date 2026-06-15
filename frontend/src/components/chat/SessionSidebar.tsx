@@ -1,4 +1,4 @@
-import { HomeIcon, Trash2 } from "lucide-react";
+import { HomeIcon, LogOutIcon, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDeleteSession, useSessions } from "@/hooks/useSessions";
 import { useChatStore } from "@/store/chatStore";
@@ -94,8 +94,9 @@ export default function SessionSidebar({ onLogout }: Props) {
         <button
           type="button"
           onClick={onLogout}
-          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 hover:text-destructive hover:bg-slate-50 [&>svg]:size-5"
         >
+          <LogOutIcon />
           로그아웃
         </button>
       </div>
