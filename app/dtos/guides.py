@@ -157,6 +157,7 @@ class GuideListItem(BaseModel):
     created_at: str
     guide_types: list[GuideType]
     medication_names: list[str] = Field(default_factory=list)
+    disease_names: list[str] = Field(default_factory=list)
 
 
 class GuideListResponse(BaseModel):

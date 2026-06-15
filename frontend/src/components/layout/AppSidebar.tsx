@@ -6,7 +6,6 @@ import {
   LogOutIcon,
   MessageCircleIcon,
   PanelLeftIcon,
-  PillIcon,
   ScanSearchIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -44,7 +43,6 @@ const mainNav = [
   { to: "/documents", label: "내 문서", icon: FileTextIcon },
   { to: "/health-guide", label: "건강 가이드", icon: BookOpenIcon },
   { to: "/health-profile", label: "내 건강정보", icon: HeartPulseIcon },
-  { to: "/pharmacy", label: "약국 재고", icon: PillIcon },
   { to: "/chat", label: "챗봇", icon: MessageCircleIcon },
 ];
 
