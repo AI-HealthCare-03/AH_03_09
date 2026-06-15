@@ -128,11 +128,10 @@ flowchart TD
         R7 -->|"DRUG_BAG / OTHER\n→ 질병코드 섹션 없음"| R_end["약물 전체 확인 완료\n→ 복약 가이드 생성 버튼 활성화\n※ 가이드 생성 조건: allMedsConfirmed = true && guide_job_id = null\n   질병코드 확인 여부는 무관\n   이미 가이드가 생성된 문서는 버튼 비활성(중복 방지)"]
         R7 -->|"PRESCRIPTION\n→ 질병코드 섹션 표시\n(코드 없으면 '없습니다' 메시지)"| R8["질병분류기호 섹션 표시\n(ICD-10 코드 · 질병명)\n※ 이 섹션 확인 여부는 가이드 생성에 영향 없음"]
 
-        R8 --> R9{"질병코드 수정 필요?\n(allDiseasesConfirmed = false일 때만 편집 버튼 활성)\n※ 질병코드는 가이드 생성 시 함께 전달되므로\n   정확도가 가이드 품질에 영향 — 검토 권장\n   단, 확인 버튼 클릭은 가이드 생성 버튼 활성화에 불필요"}
+        R8 --> R9{"질병코드 수정 필요?\n※ 전체 확인 버튼 없음 — 수정 기능만 유지\n   질병코드는 가이드 생성 시 함께 전달되므로\n   정확도가 가이드 품질에 영향 — 검토 권장"}
         R9 -->|"✏ 코드 직접 수정"| R9a["PATCH /disease-codes/:id { icd10_code }\n질병명 자동 갱신\nonError: '수정에 실패했습니다' 토스트"]
-        R9 -->|"이상 없음"| R10["'전체 확인' 버튼 클릭\n(가이드 생성 버튼 활성화에는 불필요,\n 검토 완료 표시 용도)\nPOST /disease-codes/confirm\nonError: '확인 처리에 실패했습니다' 토스트"]
-        R9a --> R10
-        R10 --> R_end
+        R9 -->|"수정 없음"| R_end
+        R9a --> R_end
     end
 
     %% ────────────────────────────────────────────────────────────────
@@ -142,7 +141,7 @@ flowchart TD
         direction TB
         C0{"복약 가이드 생성 버튼\n활성 조건:\nmedications.length > 0\n&& allMedsConfirmed = true\n&& guide_job_id = null"}
         C0 -->|"비활성\n(약물 없음 또는 미확인 약물 존재)"| C0a["버튼 disabled\n약물 1개 이상이면 🔵 안내 배너 표시\n→ allMedsConfirmed = true가 되는 순간 배너 소멸·버튼 활성화"]
-        C0 -->|"비활성\n(이미 가이드 생성됨\nguide_job_id 존재)"| C0b["'가이드 생성 완료' 버튼 disabled\n툴팁: '이미 생성된 가이드가 있습니다.\n건강 가이드 메뉴에서 확인해주세요.'\n(중복 생성 방지)"]
+        C0 -->|"이미 가이드 생성됨\n(guide_job_id 존재)"| C0b["'가이드 보기' 버튼 활성\n클릭 시 /health-guide?job_id={guide_job_id}로 이동\n(새로운 생성 없이 저장된 결과 표시)"]
         C0 -->|"활성 (모든 약물 확인 완료\n&& 가이드 미생성)"| C1["POST /ocr/jobs/:jobId/confirm { trigger_guide: true }"]
         C1 --> C2["서버가 해당 문서에서 데이터를 읽어 POST /guides/generate에 전달\n· medications: 약물명·용량·복약횟수·기간·복약시기 등 전체 정보\n· disease_codes + disease_names: 처방전이면 ICD-10 코드+질병명,\n  약봉투·기타면 빈 배열\n→ 가이드 생성 비동기 작업 등록\n→ guide_job_id를 ocr_documents에 저장 (중복 생성 방지용)"]
         C2 --> C3{"응답"}
@@ -156,11 +155,11 @@ flowchart TD
     %% ────────────────────────────────────────────────────────────────
     subgraph DOCS["⑥ 내 문서 관리 (/documents)"]
         direction TB
-        D1["문서 목록\n필터: 문서유형(전체·처방전·약봉투·기타)\n       처리상태(전체·대기·처리중·완료·실패)\n정렬: 최신순·오래된순\n페이지네이션: 10개씩"]
-        D1 --> D2{"문서 상태별 관리 버튼"}
-        D2 -->|"DONE"| D3["'결과보기'\n→ /upload/result/:recordId"]
-        D2 -->|"PENDING · PROCESSING"| D4["'처리현황'\n→ /upload/processing/:jobId"]
-        D2 -->|"FAILED"| D5["'재시도'\n→ /upload/processing/:jobId\n(에러 종류에 따라 버튼 분기:\n· PDF 해상도 초과 → 재업로드 버튼\n· 일반 오류 → 재추출 버튼)"]
+        D1["문서 목록\n필터: 문서유형(전체·처방전·약봉투·기타)\n       처리상태(전체·대기·처리중·완료·실패)\n정렬: 최신순·오래된순\n페이지네이션: 10개씩\n\n[행 전체 클릭 가능 — 삭제 버튼 제외]\n상태에 따라 자동 이동 (stopPropagation으로 삭제 버튼만 차단)"]
+        D1 --> D2{"문서 상태"}
+        D2 -->|"DONE\n(행 클릭 또는 결과보기 버튼)"| D3["→ /upload/result/:recordId"]
+        D2 -->|"PENDING · PROCESSING\n(행 클릭 또는 처리현황 버튼)"| D4["→ /upload/processing/:jobId"]
+        D2 -->|"FAILED\n(행 클릭 또는 재시도 버튼)"| D5["→ /upload/processing/:jobId\n(에러 종류에 따라 버튼 분기:\n· PDF 해상도 초과 → 재업로드 버튼\n· 일반 오류 → 재추출 버튼)"]
         D1 --> D6["'삭제' 버튼 클릭\n→ 삭제 확인 모달"]
         D6 -->|"삭제 진행 중\nESC · 배경 클릭"| D6a["모달 닫기 차단\n(deleting 상태 동안 비활성)"]
         D6 -->|"'삭제 확인' 클릭"| D7["DELETE /records/:id (소프트 삭제)\n30일 후 완전 삭제"]
