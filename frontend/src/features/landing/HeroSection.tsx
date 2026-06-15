@@ -64,8 +64,7 @@ export function HeroSection() {
                 animate="visible"
                 className="max-w-xl self-center text-base leading-relaxed text-muted-foreground sm:text-lg lg:self-start"
               >
-                처방받은 약이 어떤 약인지 몰라도 괜찮아요. AI가 약물 정보를 한눈에 정리하고,
-                맞춤 복약 및 생활 가이드와 AI 챗봇으로 건강을 도와드려요.
+                약 이름 하나하나 검색할 필요 없어요. 찍으면 언제, 어떻게 먹는지까지 한번에 알려드려요.
               </motion.p>,
               <motion.div
                 key="cta"
@@ -348,7 +347,7 @@ const FEATURES = [
   {
     icon: MessageCircleHeartIcon,
     title: "AI 건강 챗봇",
-    description: "약 복용, 부작용, 건강 궁금증을 한국어로 자연스럽게 물어보세요.",
+    description: "약 복용, 부작용, 건강 궁금증을 물어보세요.",
     accent: "from-success/15 to-success/0",
     iconBg: "bg-success/10 text-success",
     span: "",

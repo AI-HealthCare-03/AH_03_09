@@ -22,8 +22,8 @@ from app.services.rag import search_drug_by_query
 
 logger = logging.getLogger(__name__)
 
-RESPONSE_TIMEOUT_SECONDS = 25
-DELAY_WARNING_SECONDS = 8
+RESPONSE_TIMEOUT_SECONDS = 10
+DELAY_WARNING_SECONDS = 5
 
 _DANGER_KEYWORDS = [
     "자살",
@@ -66,7 +66,6 @@ _INAPPROPRIATE_KEYWORDS = [
     "ㅂㅅ",
     "ㅆㅂ",
     "ㄲㅈ",
-    "ㅄ",
     "ㅈㄹ",
     # 미친 계열
     "미친놈",
@@ -104,7 +103,7 @@ _INAPPROPRIATE_KEYWORDS = [
 
 _DANGER_RESPONSE = (
     "지금 많이 힘드신 것 같아요. 혼자 감당하기 어려운 순간이라면 전문가의 도움을 받으시길 권합니다.\n\n"
-    "📞 자살예방상담전화 1393 (24시간)\n"
+    "📞 자살예방상담전화 109 (24시간)\n"
     "📞 정신건강위기상담전화 1577-0199 (24시간)\n\n"
     "약물과 관련된 응급 상황이라면 즉시 119에 연락하거나 가까운 응급실을 방문해 주세요.\n\n"
     "⚠️ 본 답변은 AI가 생성한 의료 정보입니다. 정확한 복약 지도는 담당 의사·약사에게 확인하시기 바랍니다."
