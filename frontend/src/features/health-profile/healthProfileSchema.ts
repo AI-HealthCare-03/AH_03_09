@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { MedicalProfile } from "@/store/authStore";
+import { validateHealthInput } from "@/lib/inputValidation";
 
 const numericInRange = (label: string, min: number, max: number) =>
   z
@@ -26,7 +27,13 @@ export const healthProfileSchema = z
     birthDate: z.string().optional(),
     heightCm: optionalNumeric("키", 80, 250),
     weightKg: optionalNumeric("체중", 20, 300),
-    existingDiagnoses: z.string().optional(),
+    existingDiagnoses: z
+      .string()
+      .optional()
+      .refine((v) => {
+        if (!v?.trim()) return true;
+        return v.split(",").every((part) => validateHealthInput(part.trim()) === null);
+      }, "적절하지 않은 표현이 포함되어 있거나 형식이 올바르지 않습니다."),
     systolic: optionalNumeric("수축기 혈압", 70, 250),
     diastolic: optionalNumeric("이완기 혈압", 40, 150),
     allergies: z.array(z.string()).default([]),
