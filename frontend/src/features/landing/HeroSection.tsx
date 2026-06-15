@@ -30,9 +30,20 @@ export function HeroSection() {
           {/* 히어로 텍스트 */}
           <div className="flex flex-col gap-6 text-center lg:text-left">
             {[
+              <motion.span
+                key="badge"
+                custom={0}
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                className="inline-flex w-fit items-center gap-2 self-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary lg:self-start"
+              >
+                <PillIcon className="size-3.5" />
+                복약 관리 서비스 · Medi-Mate
+              </motion.span>,
               <motion.h1
                 key="title"
-                custom={0}
+                custom={1}
                 variants={fadeUp}
                 initial="hidden"
                 animate="visible"
@@ -44,7 +55,7 @@ export function HeroSection() {
               </motion.h1>,
               <motion.p
                 key="desc"
-                custom={1}
+                custom={2}
                 variants={fadeUp}
                 initial="hidden"
                 animate="visible"
@@ -54,7 +65,7 @@ export function HeroSection() {
               </motion.p>,
               <motion.div
                 key="cta"
-                custom={2}
+                custom={3}
                 variants={fadeUp}
                 initial="hidden"
                 animate="visible"
@@ -326,7 +337,7 @@ const FEATURES = [
   {
     icon: ShieldCheckIcon,
     title: "내 정보는 내가 관리",
-    description: "민감 정보는 본인 외에는 공개되지 않으며 언제든 삭제할 수 있어요.",
+    description: "개인정보는 본인만 볼 수 있고 언제든 삭제할 수 있어요.",
     accent: "from-warning/15 to-warning/0",
     iconBg: "bg-warning/10 text-warning",
     span: "",
@@ -334,7 +345,7 @@ const FEATURES = [
   {
     icon: BookOpenIcon,
     title: "맞춤형 복약 가이드",
-    description: "처방 내용과 건강정보를 바탕으로 복약·생활·식사·운동 가이드를 제공해요.",
+    description: "처방전을 바탕으로 복약·생활·식사·운동 가이드를 제공해요.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
