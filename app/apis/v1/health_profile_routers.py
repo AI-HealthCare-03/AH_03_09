@@ -26,6 +26,7 @@ async def update_health_profile(
     user: Annotated[User, Depends(get_request_user)],
     service: Annotated[HealthProfileService, Depends(HealthProfileService)],
 ) -> Response:
+    await service.get_or_create(user)  # 신규 유저는 프로필이 없으므로 먼저 생성
     result = await service.update(user, body)
     return Response(HealthProfileResponse.model_validate(result).model_dump(mode="json"))
 
