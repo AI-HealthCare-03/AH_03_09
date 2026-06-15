@@ -1,7 +1,7 @@
-from datetime import date, datetime
+from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Boolean, Date, ForeignKey, SmallInteger, String
+from sqlalchemy import BigInteger, Boolean, ForeignKey, SmallInteger, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -40,7 +40,7 @@ class HealthProfile(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     gender: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    age_range: Mapped[str | None] = mapped_column(String(20), nullable=True)
     height_cm: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     weight_kg: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     blood_pressure_systolic: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)

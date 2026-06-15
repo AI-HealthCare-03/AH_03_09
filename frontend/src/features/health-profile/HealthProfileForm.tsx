@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
+import { AGE_RANGE_OPTIONS, type HealthProfileFormValues, healthProfileSchema } from "./healthProfileSchema";
 
 const GENDER_OPTIONS = [
   { value: "M", label: "남성" },
@@ -106,13 +106,24 @@ export function HealthProfileForm({
           />
           <FormField
             control={form.control}
-            name="birthDate"
+            name="ageRange"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>생년월일</FormLabel>
-                <FormControl>
-                  <Input type="date" max={new Date().toISOString().split("T")[0]} {...field} />
-                </FormControl>
+                <FormLabel>나이대</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="선택" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {AGE_RANGE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -166,24 +177,24 @@ export function HealthProfileForm({
                   onChange={(e) => {
                     field.onChange(e);
                     const val = e.target.value;
-                    // 쉼표가 포함된 경우만 검증 (쉼표 기준으로 완성된 단어들만)
-                    if (val.includes(",")) {
-                      const completedParts = val.split(",").slice(0, -1); // 마지막 입력 중인 부분 제외
-                      const invalid = completedParts.find((part) => part.trim() && validateHealthInput(part.trim()) !== null);
-                      if (invalid) {
-                        form.setError("existingDiagnoses", { message: "적절하지 않은 표현이 포함되어 있습니다." });
-                      } else {
-                        form.clearErrors("existingDiagnoses");
-                      }
+                    if (!val.trim()) { form.clearErrors("existingDiagnoses"); return; }
+                    // 쉼표 기준 완성된 단어 즉시 검증
+                    const parts = val.split(",").map((p) => p.trim()).filter(Boolean);
+                    const completedParts = val.endsWith(",") ? parts : parts.slice(0, -1);
+                    const invalid = completedParts.find((p) => validateHealthInput(p) !== null);
+                    if (invalid) {
+                      form.setError("existingDiagnoses", { message: "적절하지 않은 표현이 포함되어 있습니다." });
                     } else {
                       form.clearErrors("existingDiagnoses");
                     }
                   }}
                   onBlur={(e) => {
                     field.onBlur();
+                    // blur 시 마지막 단어 포함 전체 검증
                     const val = e.target.value;
-                    if (!val.trim()) return;
-                    const invalid = val.split(",").find((part) => part.trim() && validateHealthInput(part.trim()) !== null);
+                    if (!val.trim()) { form.clearErrors("existingDiagnoses"); return; }
+                    const invalid = val.split(",").map((p) => p.trim()).filter(Boolean)
+                      .find((p) => validateHealthInput(p) !== null);
                     if (invalid) {
                       form.setError("existingDiagnoses", { message: "적절하지 않은 표현이 포함되어 있습니다." });
                     } else {

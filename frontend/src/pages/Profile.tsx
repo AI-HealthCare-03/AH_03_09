@@ -1,11 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  CakeIcon,
   CalendarIcon,
   LogOutIcon,
   MailIcon,
   MessageSquareIcon,
-  PhoneIcon,
   UserIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -81,7 +79,7 @@ export default function Profile() {
       <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="text-base">기본 정보</CardTitle>
-          <CardDescription>로그인한 카카오 계정 정보입니다.</CardDescription>
+          <CardDescription>카카오에서 제공된 기본 정보입니다. (닉네임·이메일·가입일)</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? <ProfileSkeleton /> : null}
@@ -238,14 +236,9 @@ export default function Profile() {
 function ProfileFields({ data }: { data: UserInfoResponse }) {
   return (
     <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-      <Field icon={UserIcon} label="이름" value={data.name} />
+      <Field icon={UserIcon} label="닉네임" value={data.name} />
       <Field icon={MailIcon} label="이메일" value={data.email} />
       <Field icon={MessageSquareIcon} label="카카오 ID" value={data.kakao_id} />
-      <Field icon={UserIcon} label="성별" value={formatGender(data.gender)} />
-      <Field icon={CakeIcon} label="나이대" value={data.age_range} />
-      <Field icon={CakeIcon} label="생년" value={data.birthyear} />
-      <Field icon={CakeIcon} label="생일" value={formatBirthday(data.birthday)} />
-      <Field icon={PhoneIcon} label="전화번호" value={data.phone_number} />
       <Field
         icon={CalendarIcon}
         label="가입일"
@@ -297,13 +290,3 @@ function ProfileSkeleton() {
   );
 }
 
-function formatGender(g: string | null): string | null {
-  if (g === "M" || g === "male") return "남성";
-  if (g === "F" || g === "female") return "여성";
-  return g;
-}
-
-function formatBirthday(b: string | null): string | null {
-  if (!b || b.length !== 4) return b;
-  return `${b.slice(0, 2)}월 ${b.slice(2, 4)}일`;
-}

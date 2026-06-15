@@ -11,10 +11,22 @@ const optionalNumeric = (label: string, min: number, max: number) =>
       return Number.isFinite(n) && n >= min && n <= max;
     }, `${label}은(는) ${min}~${max} 범위여야 합니다.`);
 
+export const AGE_RANGE_OPTIONS = [
+  { value: "10-19", label: "10대" },
+  { value: "20-29", label: "20대" },
+  { value: "30-39", label: "30대" },
+  { value: "40-49", label: "40대" },
+  { value: "50-59", label: "50대" },
+  { value: "60-69", label: "60대" },
+  { value: "70+", label: "70대 이상" },
+] as const;
+
+export type AgeRangeValue = (typeof AGE_RANGE_OPTIONS)[number]["value"];
+
 export const healthProfileSchema = z
   .object({
     gender: z.enum(["M", "F", "OTHER"]).optional(),
-    birthDate: z.string().optional(),
+    ageRange: z.string().optional(),
     heightCm: optionalNumeric("키", 80, 250),
     weightKg: optionalNumeric("체중", 20, 300),
     existingDiagnoses: z.string().optional(),
@@ -46,7 +58,7 @@ export function toMedicalProfile(values: HealthProfileFormValues): MedicalProfil
 
   return {
     ...(values.gender ? { gender: values.gender } : {}),
-    ...(values.birthDate ? { birthDate: values.birthDate } : {}),
+    ...(values.ageRange ? { ageRange: values.ageRange } : {}),
     heightCm: Number(values.heightCm),
     weightKg: Number(values.weightKg),
     ...(diagnoses ? { existingDiagnoses: diagnoses } : {}),
@@ -69,7 +81,7 @@ export function toMedicalProfile(values: HealthProfileFormValues): MedicalProfil
 export function fromMedicalProfile(profile: MedicalProfile | null): HealthProfileFormValues {
   return {
     gender: profile?.gender,
-    birthDate: profile?.birthDate ?? "",
+    ageRange: profile?.ageRange ?? "",
     heightCm: profile?.heightCm ? String(profile.heightCm) : "",
     weightKg: profile?.weightKg ? String(profile.weightKg) : "",
     existingDiagnoses: profile?.existingDiagnoses ?? "",
