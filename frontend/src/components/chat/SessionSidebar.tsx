@@ -1,8 +1,9 @@
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, LogOutIcon, PlusIcon, Trash2 } from "lucide-react";
+import { ArrowLeftIcon, LogOutIcon, PanelLeftIcon, PlusIcon, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDeleteSession, useSessions } from "@/hooks/useSessions";
 import { useChatStore } from "@/store/chatStore";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
   onLogout: () => void;
@@ -36,20 +37,10 @@ export default function SessionSidebar({ onLogout }: Props) {
 
   return (
     <aside className={`relative hidden flex-col border-r border-slate-200 bg-white transition-all duration-200 md:flex ${isOpen ? "w-64" : "w-12"}`}>
-      {/* 토글 버튼 — h-14 중앙 (top-7 = 28px) */}
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        className="absolute -right-3 top-7 z-10 grid size-6 place-items-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm hover:text-slate-600"
-        aria-label={isOpen ? "사이드바 닫기" : "사이드바 열기"}
-      >
-        {isOpen ? <ChevronLeftIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
-      </button>
-
       {isOpen ? (
         <>
-          {/* 로고 — AppSidebar 홈 버튼과 동일한 패턴 */}
-          <div className="flex h-14 items-center border-b border-slate-200 px-4">
+          {/* 헤더 — 로고 + PanelLeftIcon 토글 */}
+          <div className="flex h-14 items-center justify-between border-b border-slate-200 px-3">
             <button
               type="button"
               onClick={() => navigate("/home")}
@@ -61,11 +52,27 @@ export default function SessionSidebar({ onLogout }: Props) {
               </span>
               <span className="text-sm font-semibold text-slate-800">Medi-Mate</span>
             </button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="grid size-7 place-items-center rounded-md text-slate-500 hover:bg-slate-100"
+                    aria-label="사이드바 닫기"
+                  >
+                    <PanelLeftIcon className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>사이드바 닫기</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
+
           <div className="border-b border-slate-100 px-2 py-1">
             <button
               type="button"
-              onClick={() => navigate("/home")}
+              onClick={() => navigate(-1)}
               className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium hover:bg-slate-100 [&>svg]:size-5"
             >
               <ArrowLeftIcon />
@@ -117,7 +124,6 @@ export default function SessionSidebar({ onLogout }: Props) {
             )}
           </div>
 
-          {/* p-4 — InputComposer border-t p-4 와 동일 높이 */}
           <div className="border-t border-slate-200 p-4">
             <button
               type="button"
@@ -132,21 +138,29 @@ export default function SessionSidebar({ onLogout }: Props) {
       ) : (
         <>
           <div className="flex h-14 items-center justify-center border-b border-slate-200">
-            <button
-              type="button"
-              onClick={() => navigate("/home")}
-              className="grid size-7 shrink-0 place-items-center rounded-md bg-primary text-xs font-bold text-primary-foreground hover:opacity-80"
-              aria-label="홈으로"
-            >
-              M
-            </button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(true)}
+                    className="group/logo relative grid size-7 shrink-0 place-items-center rounded-md bg-primary text-xs font-bold text-primary-foreground"
+                    aria-label="사이드바 열기"
+                  >
+                    <span className="transition-opacity group-hover/logo:opacity-0">M</span>
+                    <PanelLeftIcon className="absolute size-4 opacity-0 transition-opacity group-hover/logo:opacity-100" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">사이드바 열기</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <div className="border-b border-slate-100 py-1 flex flex-col items-center gap-0.5">
             <button
               type="button"
-              onClick={() => navigate("/home")}
+              onClick={() => navigate(-1)}
               className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-              aria-label="홈으로"
+              aria-label="뒤로가기"
             >
               <ArrowLeftIcon className="size-4" />
             </button>

@@ -345,7 +345,7 @@ const FEATURES = [
   {
     icon: BookOpenIcon,
     title: "맞춤형 복약 가이드",
-    description: "처방전을 바탕으로 복약·생활·식사·운동 가이드를 제공해요.",
+    description: "처방전과 건강정보를 바탕으로 복약·생활·식사·운동 가이드를 제공해요.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
