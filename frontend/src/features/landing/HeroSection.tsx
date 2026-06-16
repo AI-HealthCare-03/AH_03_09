@@ -320,15 +320,15 @@ function MockFile({
 const FEATURES = [
   {
     icon: FileTextIcon,
-    title: "처방전·약봉투 자동 분석",
-    description: "처방전·약봉투를 업로드하면 약물 정보를 자동으로 추출하고 구조화합니다.",
+    title: "처방전·약봉투 분석",
+    description: "업로드하면, 약물 정보를 자동으로 추출하고 구조화합니다.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
   },
   {
     icon: MessageCircleHeartIcon,
-    title: "복약 상담 챗봇",
+    title: "챗봇 상담",
     description: "약 복용, 부작용, 건강 궁금증을 물어보세요.",
     accent: "from-success/15 to-success/0",
     iconBg: "bg-success/10 text-success",
@@ -336,8 +336,8 @@ const FEATURES = [
   },
   {
     icon: ShieldCheckIcon,
-    title: "내 정보는 내가 관리",
-    description: "개인정보는 본인만 볼 수 있고 언제든 삭제할 수 있어요.",
+    title: "개인정보 관리",
+    description: "내 정보는 안전하게 보호되며, 언제든 삭제할 수 있어요.",
     accent: "from-warning/15 to-warning/0",
     iconBg: "bg-warning/10 text-warning",
     span: "",
