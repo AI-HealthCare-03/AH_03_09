@@ -67,6 +67,7 @@ flowchart TD
         P3b -->|"'결과 확인하기' 클릭"| P3c["→ /upload/result/:recordId\n※ 결과 화면의 '새 업로드' 버튼으로\n   더 선명한 파일 재업로드 가능"]
         P2 -->|"FAILED\n(Clova API 장애 또는 파일 처리 불가)"| P4{"에러 종류 확인\n(API message 기반)"}
         P4 -->|"PDF 해상도 초과\n(PDF_RESOLUTION_EXCEEDED)"| P4a["❌ 'PDF 파일의 해상도가 너무 높아\n처리할 수 없습니다.\nJPG 또는 PNG로 촬영한 사진으로\n다시 업로드해 주세요.' 안내\n'재업로드' 버튼 → /upload\n(재추출 버튼 없음 — 같은 파일 재시도 불가)"]
+        P4 -->|"인식 불가 이미지\n(IMAGE_UNRECOGNIZABLE)\nQR코드·문서 아닌 이미지 등"| P4a
         P4 -->|"일반 오류\n(Clova API 장애·네트워크 오류 등)"| P4b{"재추출 가능?\n(reanalyze_count < 5)"}
         P4b -->|"가능"| P5b["❌ 'OCR 처리 중 오류가 발생했습니다.\nOCR 서비스의 일시적 오류일 수 있으니\n재시도해 주세요.' 안내\n'재추출' 버튼 클릭\n→ POST /records/:id/reanalyze\n→ 상태 PENDING으로 변경 + Redis PUBLISH\n→ ai_worker 재처리 (W1부터 동일 흐름)\n→ 재처리 후 또 FAILED 시 이 분기 반복\n(최대 5회까지)"]
         P5b --> W1
