@@ -183,9 +183,14 @@ class ChatService:
                     "primary_conditions": health_profile.primary_conditions,
                     "allergies": health_profile.allergies,
                     "current_medications": health_profile.current_medications,
-                    "lifestyle_exercise": health_profile.lifestyle_exercise,
+                    # "NONE" → 한글 레이블로 변환 (LLM이 "None"으로 잘못 응답하는 문제 방지)
+                    "lifestyle_exercise": {"REGULAR": "규칙적", "IRREGULAR": "비규칙적", "NONE": "안 함"}.get(
+                        health_profile.lifestyle_exercise or "NONE", "안 함"
+                    ),
                     "lifestyle_smoking": health_profile.lifestyle_smoking,
-                    "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+                    "lifestyle_alcohol": {"NONE": "안 함", "MODERATE": "가끔", "HEAVY": "자주"}.get(
+                        health_profile.lifestyle_alcohol or "NONE", "안 함"
+                    ),
                 }
             )
 
