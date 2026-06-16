@@ -196,7 +196,7 @@ async def process_ocr(payload: OcrTaskPayload, redis: aioredis.Redis) -> None:
 
         # 의미있는 한글 문자 수가 너무 적으면 인식 불가 이미지로 처리
         korean_char_count = sum(1 for c in ocr["raw_text"] if "가" <= c <= "힣")
-        if korean_char_count < 5:
+        if korean_char_count < 20:
             raise RuntimeError("IMAGE_UNRECOGNIZABLE")
 
         doc_type = payload.doc_type_hint or await classify_document(ocr["raw_text"])

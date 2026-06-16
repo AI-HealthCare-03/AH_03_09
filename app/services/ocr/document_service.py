@@ -304,7 +304,7 @@ class OcrDocumentService:
             )
 
         guide_job_id: str | None = None
-        if trigger_guide and doc.doc_type != "OTHER":
+        if trigger_guide:
             from app.dtos.guides import GenerateGuideRequest, GuideType, MedicationDetail
             from app.services.guides import GuideService
 
