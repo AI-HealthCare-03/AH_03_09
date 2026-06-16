@@ -183,9 +183,14 @@ class ChatService:
                     "primary_conditions": health_profile.primary_conditions,
                     "allergies": health_profile.allergies,
                     "current_medications": health_profile.current_medications,
-                    "lifestyle_exercise": health_profile.lifestyle_exercise,
+                    # "NONE"은 LLM에 전달하지 않음 (GPT가 "None"으로 잘못 응답하는 문제 방지)
+                    "lifestyle_exercise": health_profile.lifestyle_exercise
+                    if health_profile.lifestyle_exercise != "NONE"
+                    else None,
                     "lifestyle_smoking": health_profile.lifestyle_smoking,
-                    "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+                    "lifestyle_alcohol": health_profile.lifestyle_alcohol
+                    if health_profile.lifestyle_alcohol != "NONE"
+                    else None,
                 }
             )
 
