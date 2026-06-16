@@ -112,20 +112,25 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2.pem
           chmod 600 ~/.ssh/ec2.pem
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
       - name: EC2에 .env 전송
-        run: scp -i ~/.ssh/ec2.pem .deploy.env ubuntu@${{ secrets.EC2_HOST }}:~/project/.env
+        run: |
+          scp -i ~/.ssh/ec2.pem \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            .deploy.env ubuntu@${{ secrets.EC2_HOST }}:~/project/.env
 
       - name: EC2 컨테이너 업데이트
         run: |
-          # 배포할 서비스 목록 구성
           SERVICES=""
           [ "${{ needs.detect-changes.outputs.fastapi }}" = "true" ] && SERVICES="$SERVICES fastapi"
           [ "${{ needs.detect-changes.outputs.ai_worker }}" = "true" ] && SERVICES="$SERVICES ai-worker"
           [ "${{ needs.detect-changes.outputs.frontend }}" = "true" ] && SERVICES="$SERVICES frontend"
 
-          ssh -i ~/.ssh/ec2.pem ubuntu@${{ secrets.EC2_HOST }} << EOF
+          ssh -i ~/.ssh/ec2.pem \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ubuntu@${{ secrets.EC2_HOST }} << EOF
             cd project
             echo "${{ secrets.DOCKER_PAT }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             docker compose up -d --pull always --no-deps $SERVICES
