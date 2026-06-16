@@ -194,8 +194,8 @@ Medi-Mate는 처방전·약봉투 사진을 AI로 분석하여 복약 정보를 
 | 처방전 평균 신뢰도 | **88.38%** | n=13건 |
 | 약봉투 평균 신뢰도 | **85.86%** | n=7건 |
 
-> 상세 데이터 및 재현 방법 → [`docs/ocr/performance-report.md`](docs/ocr/performance-report.md)  
-> 전체 플로우차트 (상세) → [`docs/ocr/ocr_workflow.mmd`](docs/ocr/ocr_workflow.mmd)  
+> 상세 데이터 및 재현 방법 → [`docs/ocr/performance-report.md`](docs/ocr/performance-report.md)
+> 전체 플로우차트 (상세) → [`docs/ocr/ocr_workflow.mmd`](docs/ocr/ocr_workflow.mmd)
 > 발표용 간략 플로우차트 → [`docs/ocr/ocr_pipeline_simple.mmd`](docs/ocr/ocr_pipeline_simple.mmd)
 
 <!-- 📌 이미지 권장 위치 ⑥: ocr_pipeline_simple.mmd 렌더링 결과 이미지 -->
