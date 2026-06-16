@@ -65,12 +65,42 @@ async def _read_file(s3_key: str, s3_bucket: str) -> bytes:
     return await asyncio.to_thread(_get)
 
 
+_LOCAL_MOCK_OCR_TEXT = """처방전
+병원명: 서울내과의원  진료과: 내과
+처방일: 2024-03-15
+
+상병코드: J06.9  J30.4
+상병명: 급성 상기도감염  알레르기 비염
+
+약품명: 아세트아미노펜정 500mg
+1일 3회 1회 2정 식후 30분
+
+약품명: 세티리진염산염정 10mg
+1일 1회 1회 1정 취침 전
+
+약품명: 아목시실린캡슐 250mg
+1일 3회 1회 1캡슐 식후
+
+처방일수: 5일
+"""
+
+
 async def _call_clova_ocr(content: bytes, mime_type: str) -> dict:
     """Clova OCR API를 호출하고 파싱된 결과를 반환합니다.
+
+    CLOVA_OCR_INVOKE_URL 미설정 시 로컬 개발용 목업 텍스트를 반환합니다.
 
     Returns:
         {"raw_text": str, "confidence": float, "request_id": str}
     """
+    if not config.CLOVA_OCR_INVOKE_URL:
+        logger.warning("CLOVA_OCR_INVOKE_URL 미설정 — 로컬 목업 OCR 텍스트를 사용합니다.")
+        return {
+            "raw_text": _LOCAL_MOCK_OCR_TEXT,
+            "confidence": 0.99,
+            "request_id": "local-mock",
+        }
+
     content = _resize_image_if_needed(content, mime_type)
     fmt = _MIME_TO_FORMAT.get(mime_type, "jpeg")
     payload = {
