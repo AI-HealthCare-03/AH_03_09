@@ -357,4 +357,3 @@ function computeBmi(heightCm: number, weightKg: number) {
   if (v < 25) return { value, label: "과체중", accent: "text-yellow-600" };
   return { value, label: "비만", accent: "text-destructive" };
 }
-
