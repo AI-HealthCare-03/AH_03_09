@@ -413,9 +413,9 @@ export default function UploadResult() {
             <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
               <span>
-                <span className="font-medium">DB에서 확인되지 않은 약물</span>이 있습니다.
-                약물명 옆 ⚠ 표시된 항목은 OCR 원문 그대로 유지된 것이므로,
-                수정 버튼으로 약물명·성분명을 직접 확인해 주세요.
+                <span className="font-medium">⚠ 표시가 있는 약물은 약물명이 정확히 확인되지 않은 항목입니다.</span>{" "}
+                처방전과 비교하여 동일하면 <span className="font-medium">[전체 확인]</span>을 눌러 진행해 주세요.
+                다를 경우 연필 버튼으로 수정한 후 <span className="font-medium">[전체 확인]</span>을 눌러 주세요.
               </span>
             </div>
           )}

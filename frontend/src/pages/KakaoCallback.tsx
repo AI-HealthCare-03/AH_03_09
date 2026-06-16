@@ -27,8 +27,10 @@ export default function KakaoCallback() {
         setIsOnboarded(is_onboarded);
         navigate(is_onboarded ? "/home" : "/onboarding", { replace: true });
       })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "로그인 처리에 실패했습니다.");
+      .catch(() => {
+        // URL에 만료된 code가 남아 탭 재오픈 시 동일 에러가 반복되는 문제 방지
+        // 로그인 페이지로 이동해 재시도 유도
+        navigate("/login", { replace: true, state: { loginError: true } });
       });
   }, [searchParams, navigate, setAuthenticated, setIsOnboarded]);
 
