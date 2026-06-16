@@ -84,6 +84,7 @@ services:
     restart: always
     mem_limit: 4G
     volumes:
+      - ./ai_worker:/app/ai_worker
       - ocr_uploads:/tmp/ocr_uploads
     networks:
       - ws
