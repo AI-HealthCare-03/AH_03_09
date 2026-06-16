@@ -106,11 +106,19 @@ export default function HealthProfile() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">내 건강정보</h1>
-        <p className="text-sm text-muted-foreground">
-          입력하신 정보는 AI 가이드와 챗봇 답변의 정확도를 높이는 데 사용됩니다.
-        </p>
+      <header className="flex items-start justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">내 건강정보</h1>
+          <p className="text-sm text-muted-foreground">
+            입력하신 정보는 AI 가이드와 챗봇 답변의 정확도를 높이는 데 사용됩니다.
+          </p>
+        </div>
+        {!showForm && mergedProfile !== null && (
+          <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <PencilIcon className="size-4" />
+            수정
+          </Button>
+        )}
       </header>
 
       {showGuideBanner && (
@@ -148,13 +156,13 @@ export default function HealthProfile() {
           </CardContent>
         </Card>
       ) : (
-        <ProfileView profile={mergedProfile} onEdit={() => setEditing(true)} />
+        <ProfileView profile={mergedProfile} />
       )}
     </div>
   );
 }
 
-function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () => void }) {
+function ProfileView({ profile }: { profile: MedicalProfile }) {
   const bmi = computeBmi(profile.heightCm, profile.weightKg);
   const diagnoses = profile.existingDiagnoses
     ?.split(",")
@@ -191,15 +199,9 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
       </div>
 
       <Card className="rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div className="space-y-1">
-            <CardTitle className="text-base">건강 상태</CardTitle>
-            <CardDescription>기저질환, 혈압, 알레르기, 복용 약물을 확인해 보세요.</CardDescription>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-            <PencilIcon className="size-4" />
-            수정
-          </Button>
+        <CardHeader>
+          <CardTitle className="text-base">건강 상태</CardTitle>
+          <CardDescription>기저질환, 혈압, 알레르기, 복용 약물을 확인해 보세요.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <Row icon={StethoscopeIcon} label="기저질환">

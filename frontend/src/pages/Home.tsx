@@ -1,3 +1,4 @@
+// Home page
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangleIcon, ArrowRightIcon, HeartPulseIcon } from "lucide-react";
 import { BookOpenIcon, MessageCircleIcon, ScanSearchIcon } from "lucide-react";
