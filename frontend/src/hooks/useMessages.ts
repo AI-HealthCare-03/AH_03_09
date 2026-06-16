@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchMessages, sendMessage, streamMessage } from "@/api/chat";
 import { SESSIONS_KEY } from "@/hooks/useSessions";
@@ -37,11 +37,24 @@ export function useStreamMessage() {
   const [error, setError] = useState<string | null>(null);
   const [delayMessage, setDelayMessage] = useState<string | null>(null);
   const [actionCard, setActionCard] = useState<string | null>(null);
+  const [interrupted, setInterrupted] = useState<{ sessionId: string; content: string; guideId?: string | null } | null>(null);
   const lastParamsRef = useRef({ sessionId: "", content: "", guideId: null as string | null | undefined });
   const abortRef = useRef<AbortController | null>(null);
+  const isPendingRef = useRef(false);
+
+  useEffect(() => {
+    isPendingRef.current = isPending;
+  }, [isPending]);
 
   const cancel = useCallback(() => {
     if (abortRef.current) {
+      if (isPendingRef.current) {
+        setInterrupted({
+          sessionId: lastParamsRef.current.sessionId,
+          content: lastParamsRef.current.content,
+          guideId: lastParamsRef.current.guideId,
+        });
+      }
       abortRef.current.abort();
       abortRef.current = null;
     }
@@ -53,6 +66,8 @@ export function useStreamMessage() {
 
   const dismissAction = useCallback(() => setActionCard(null), []);
 
+  const clearInterrupted = useCallback(() => setInterrupted(null), []);
+
   const mutate = async ({ sessionId, content, guideId }: { sessionId: string; content: string; guideId?: string | null }) => {
     if (abortRef.current) {
       abortRef.current.abort();
@@ -63,6 +78,7 @@ export function useStreamMessage() {
     lastParamsRef.current.sessionId = sessionId;
     lastParamsRef.current.content = content;
     lastParamsRef.current.guideId = guideId;
+    setInterrupted(null);
     setIsPending(true);
     setStreamingContent("");
     setError(null);
@@ -103,5 +119,5 @@ export function useStreamMessage() {
     }
   };
 
-  return { mutate, retry, cancel, dismissAction, streamingContent, isPending, error, delayMessage, actionCard };
+  return { mutate, retry, cancel, dismissAction, clearInterrupted, streamingContent, isPending, error, delayMessage, actionCard, interrupted };
 }

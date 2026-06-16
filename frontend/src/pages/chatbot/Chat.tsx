@@ -244,6 +244,31 @@ export default function Chat() {
                 ))}
 
 
+                {streamMut.interrupted?.sessionId === currentSessionId &&
+                  !streamMut.isPending &&
+                  !streamMut.streamingContent && (
+                    <div className="mx-auto w-full max-w-2xl rounded-xl border border-primary/30 bg-primary/5 p-4">
+                      <p className="text-sm font-medium text-slate-700">이전에 질문한 내용을 다시 시도할까요?</p>
+                      <p className="mt-1 truncate text-sm text-slate-400">"{streamMut.interrupted.content}"</p>
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSubmit(streamMut.interrupted!.content)}
+                          className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                        >
+                          다시 시도
+                        </button>
+                        <button
+                          type="button"
+                          onClick={streamMut.clearInterrupted}
+                          className="rounded-lg border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                 {optimisticUserMsg && (
                   <MessageBubble
                     message={{
