@@ -304,7 +304,10 @@ def _build_user_info(health_profile: dict) -> list[str]:
     birthyear = health_profile.get("birthyear")
     user_info: list[str] = []
     if gender:
-        user_info.append("남성" if gender == "male" else "여성")
+        if gender in ("M", "male"):
+            user_info.append("남성")
+        elif gender in ("F", "female"):
+            user_info.append("여성")
     if age_range:
         user_info.append(f"{age_range}대")
     elif birthyear:
