@@ -3,7 +3,6 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import ChatLayout from "@/components/layout/ChatLayout";
 import Chat from "@/pages/chatbot/Chat";
-import GuideDemo from "@/pages/GuideDemo";
 import GuideHistory from "@/pages/GuideHistory";
 import HealthGuide from "@/pages/HealthGuide";
 import HealthProfile from "@/pages/HealthProfile";
@@ -55,7 +54,5 @@ export const router = createBrowserRouter([
     ],
   },
 
-  { path: "/guide-demo", element: <GuideDemo /> },
-  { path: "/health-guide-test", element: <HealthGuide /> },
   { path: "*", element: <NotFound /> },
 ]);
