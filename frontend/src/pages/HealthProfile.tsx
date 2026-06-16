@@ -163,6 +163,12 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+          <PencilIcon className="size-4" />
+          수정
+        </Button>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           icon={UserIcon}
@@ -191,15 +197,9 @@ function ProfileView({ profile, onEdit }: { profile: MedicalProfile; onEdit: () 
       </div>
 
       <Card className="rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div className="space-y-1">
-            <CardTitle className="text-base">건강 상태</CardTitle>
-            <CardDescription>기저질환, 혈압, 알레르기, 복용 약물을 확인해 보세요.</CardDescription>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-            <PencilIcon className="size-4" />
-            수정
-          </Button>
+        <CardHeader>
+          <CardTitle className="text-base">건강 상태</CardTitle>
+          <CardDescription>기저질환, 혈압, 알레르기, 복용 약물을 확인해 보세요.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <Row icon={StethoscopeIcon} label="기저질환">
