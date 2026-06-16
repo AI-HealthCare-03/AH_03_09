@@ -67,6 +67,11 @@ export default function Onboarding() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-slate-50 px-4 py-10">
       <div className="w-full max-w-lg space-y-6">
+        <div className="flex justify-start">
+          <Button variant="ghost" size="sm" className="text-slate-500" onClick={() => navigate("/")}>
+            ← 처음으로
+          </Button>
+        </div>
         <header className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
             AI 건강 도우미
