@@ -321,7 +321,7 @@ const FEATURES = [
   {
     icon: FileTextIcon,
     title: "처방전·약봉투 분석",
-    description: "업로드하면, 약물 정보를 자동으로 추출하고 구조화합니다.",
+    description: "처방전이나 약봉투를 업로드하면 약물 정보를 한눈에 정리해 드려요.",
     accent: "from-primary/15 to-primary/0",
     iconBg: "bg-primary/10 text-primary",
     span: "sm:col-span-2",
