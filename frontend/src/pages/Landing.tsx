@@ -4,7 +4,8 @@ import { useAuthStore } from "@/store/authStore";
 
 export default function Landing() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  if (isAuthenticated) {
+  const isOnboarded = useAuthStore((s) => s.isOnboarded);
+  if (isAuthenticated && isOnboarded) {
     return <Navigate to="/home" replace />;
   }
   return <HeroSection />;
