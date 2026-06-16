@@ -44,6 +44,11 @@ export default function Chat() {
 
   const [noGuideMode, setNoGuideMode] = useState(false);
 
+  // 챗봇 페이지 진입 시 항상 빈 화면으로 시작
+  useEffect(() => {
+    setCurrentSessionId(null);
+  }, []);
+
   const { data: guideListData } = useQuery({
     queryKey: ["guides"],
     queryFn: getGuideList,
