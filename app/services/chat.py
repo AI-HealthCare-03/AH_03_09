@@ -24,8 +24,8 @@ from app.services.rag import search_drug_by_query
 
 logger = logging.getLogger(__name__)
 
-RESPONSE_TIMEOUT_SECONDS = 30
-DELAY_WARNING_SECONDS = 5
+RESPONSE_TIMEOUT_SECONDS = 25
+DELAY_WARNING_SECONDS = 12
 
 _EXERCISE_MAP = {"REGULAR": "규칙적", "IRREGULAR": "비규칙적", "NONE": "안 함"}
 _ALCOHOL_MAP = {"NONE": "안 함", "MODERATE": "가끔", "HEAVY": "자주"}
@@ -402,7 +402,9 @@ class ChatService:
                 async for redis_msg in pubsub.listen():
                     if not delay_sent and not full_response and (time.monotonic() - start_time) > DELAY_WARNING_SECONDS:
                         yield (
-                            json.dumps({"type": "delay", "detail": "AI 응답이 지연되고 있습니다. 잠시만 기다려주세요."})
+                            json.dumps(
+                                {"type": "delay", "detail": "조금만 더 기다려주세요. AI가 답변을 준비하고 있습니다."}
+                            )
                             + "\n"
                         )
                         delay_sent = True
