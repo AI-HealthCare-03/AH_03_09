@@ -65,11 +65,19 @@ export default function Chat() {
   });
   const guides = guideListData?.items ?? [];
   const selectedGuide = guideId ? guides.find((g) => g.guide_id === guideId) : null;
+  const drugPrefix = selectedGuide?.medication_names[0]
+    ? `${selectedGuide.medication_names[0]}은`
+    : "처방받은 약은";
   const sideEffectQuestion =
     selectedGuide && selectedGuide.medication_names.length === 1
       ? `${selectedGuide.medication_names[0]}의 부작용이 있나요?`
       : "처방받은 약들의 부작용을 알려주세요";
-  const SUGGESTED_QUESTIONS = [sideEffectQuestion, ...BASE_QUESTIONS];
+  const SUGGESTED_QUESTIONS = [
+    sideEffectQuestion,
+    `${drugPrefix} 공복에 먹어도 되나요?`,
+    `${drugPrefix} 술을 마셔도 되나요?`,
+    `${drugPrefix} 임의로 끊어도 될까요?`,
+  ];
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
