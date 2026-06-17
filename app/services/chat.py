@@ -24,7 +24,7 @@ from app.services.rag import search_drug_by_query
 
 logger = logging.getLogger(__name__)
 
-RESPONSE_TIMEOUT_SECONDS = 10
+RESPONSE_TIMEOUT_SECONDS = 30
 DELAY_WARNING_SECONDS = 5
 
 _EXERCISE_MAP = {"REGULAR": "규칙적", "IRREGULAR": "비규칙적", "NONE": "안 함"}
