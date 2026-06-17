@@ -1,6 +1,6 @@
 # OCR 성능 보고서
 
-**작성일:** 2026-06-01
+**작성일:** 2026-06-17
 **대상 REQ:** REQ-OCR-024, REQ-OCR-030
 **관련 평가 항목:** 3-1 (모델 품질 개선), 3-2 (비동기 처리), 3-3 (결과 일관성), 5-1 (P95 Latency), 5-5 (비동기 리소스 효율)
 
@@ -89,7 +89,7 @@ Redis pub/sub 도입으로 **API 응답 시간을 ~95% 단축**하였으며,
 
 > **처리 시간이 비동기 백그라운드에서 소요되는 이유:**
 > - Clova OCR API 네트워크 왕복: 500–2,500ms (이미지 크기, 서버 부하 의존)
-> - GPT-4o-mini 파싱 API: 300–1,200ms
+> - GPT-4o-mini 파싱 API: 300–1,200ms (발표 시점 GPT-4o로 교체 예정)
 > - 규칙 기반 분류(정규식)로 GPT 호출을 최소화하여 비용 및 지연 절감
 
 ### 3.1 최솟값 47ms의 의미
@@ -140,7 +140,7 @@ GPT 파싱은 `temperature=0`으로 설정되어 있어 동일 입력에 대해 
 ```python
 # ai_worker/tasks/ocr_parser.py
 resp = await client.chat.completions.create(
-    model=config.OPENAI_MODEL,
+    model=config.OPENAI_MODEL,  # 현재 gpt-4o-mini (개발 환경), 발표 시점에 gpt-4o로 교체 예정
     ...
     temperature=0,  # 결정론적 출력 보장
 )
@@ -169,7 +169,7 @@ GPT 호출을 최소화하기 위해 키워드 점수 기반 규칙 분류를 1�
 
 ```
 규칙 분류 성공 (처방전/약봉투 키워드 점수 우세) → GPT 호출 없음
-규칙 분류 실패 (동점/미달) → GPT-4o-mini 분류 (약 300ms, ~$0.0001/건)
+규칙 분류 실패 (동점/미달) → GPT-4o-mini 분류 (약 300ms, ~$0.0001/건) ※ 발표 시점 GPT-4o로 교체 예정
 ```
 
 ### 6.2 PII 마스킹 (REQ-OCR-022)
@@ -201,10 +201,19 @@ raw_text
   → GPT-4o-mini 파싱 (temperature=0)
 ```
 
-### 6.4 약물명 정규화 (pg_trgm 매칭)
+### 6.4 약물명 정규화 (LIKE 다단계 매칭)
 
-OCR된 약물명을 식약처 drug_master DB와 pg_trgm word_similarity > 0.6 기준으로 매칭하여
-오타·단위 표기 차이(mg → 밀리그램)를 자동 정규화합니다.
+OCR된 약물명을 식약처 drug_master DB와 LIKE 다단계 우선순위 매칭으로 정규화합니다.
+단위 표기 제거(`_normalize_drug_name`) 후 아래 순서로 매칭을 시도합니다.
+
+```
+1순위: 기본 약품명(용량 제거) 전체 포함 LIKE 매칭
+2순위: 전방일치 LIKE 매칭
+3순위: 후방일치 LIKE 매칭
+→ 결과가 여러 건이면 이름 길이가 짧은 것 우선 선택
+```
+
+> pg_trgm word_similarity 방식은 한글 처방전 환경에서 전혀 다른 약물이 강제 매칭되는 문제가 발생해 제거하였습니다.
 
 ---
 
