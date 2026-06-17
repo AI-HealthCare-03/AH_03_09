@@ -6,9 +6,11 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
+from openai import AsyncOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import config as app_config
 from app.core.db.sqlalchemy_client import get_async_session
 from app.core.redis_client import get_redis
 from app.models.chat import ChatMessage, ChatSession, MessageRole
@@ -24,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 RESPONSE_TIMEOUT_SECONDS = 10
 DELAY_WARNING_SECONDS = 5
+
+_EXERCISE_MAP = {"REGULAR": "규칙적", "IRREGULAR": "비규칙적", "NONE": "안 함"}
+_ALCOHOL_MAP = {"NONE": "안 함", "MODERATE": "가끔", "HEAVY": "자주"}
 
 _DANGER_KEYWORDS = [
     "자살",
@@ -125,6 +130,36 @@ _PRESET_RESPONSES = {
     "inappropriate": _INAPPROPRIATE_RESPONSE,
 }
 
+_openai_client: AsyncOpenAI | None = None
+
+
+def _get_openai_client() -> AsyncOpenAI:
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = AsyncOpenAI(api_key=app_config.OPENAI_API_KEY)
+    return _openai_client
+
+
+async def _generate_title(content: str) -> str:
+    try:
+        resp = await _get_openai_client().chat.completions.create(
+            model=app_config.OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "사용자 메시지를 보고 대화 제목을 한국어로 15자 이내로 만들어라. 제목만 반환하고 따옴표나 설명은 붙이지 마라.",
+                },
+                {"role": "user", "content": content},
+            ],
+            max_tokens=30,
+            temperature=0.3,
+        )
+        title = (resp.choices[0].message.content or "").strip()
+        return title[:20] if title else "새 대화"
+    except Exception:
+        logger.warning("[title_gen] 제목 생성 실패")
+        return "새 대화"
+
 
 class ChatService:
     def __init__(self, session: Annotated[AsyncSession, Depends(get_async_session)]) -> None:
@@ -183,9 +218,9 @@ class ChatService:
                     "primary_conditions": health_profile.primary_conditions,
                     "allergies": health_profile.allergies,
                     "current_medications": health_profile.current_medications,
-                    "lifestyle_exercise": health_profile.lifestyle_exercise,
+                    "lifestyle_exercise": _EXERCISE_MAP.get(health_profile.lifestyle_exercise, "안 함"),
                     "lifestyle_smoking": health_profile.lifestyle_smoking,
-                    "lifestyle_alcohol": health_profile.lifestyle_alcohol,
+                    "lifestyle_alcohol": _ALCOHOL_MAP.get(health_profile.lifestyle_alcohol, "안 함"),
                 }
             )
 
@@ -315,6 +350,7 @@ class ChatService:
         await self.repo.create_message(session_id, MessageRole.USER, content)
 
         history = await self.repo.get_messages(session_id, limit=20)
+        is_first_message = len(history) == 1
         history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
 
         health_context = await self._fetch_health_context(user_id)
@@ -390,6 +426,11 @@ class ChatService:
             await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
             await self.repo.touch_session(session_id)
 
+        if is_first_message and complete:
+            title = await _generate_title(content)
+            await self.repo.update_title(session_id, title)
+            yield json.dumps({"type": "title", "title": title}) + "\n"
+
         if not guides:
             yield json.dumps({"type": "action", "action": "guide_prompt"}) + "\n"
         yield json.dumps({"type": "done", "content": complete}) + "\n"
@@ -406,45 +447,10 @@ class ChatService:
             return None
         return await self.repo.get_messages(session_id)
 
-    async def send_message_sync(
-        self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None
-    ) -> tuple[ChatMessage, ChatMessage]:
-        """Swagger 테스트용 REST 래퍼: WebSocket과 동일한 흐름이지만 모든 스트림을 모아 한 번에 반환."""
-        session = await self.repo.get_session(session_id, user_id)
-        if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
-
-        preset = _PRESET_RESPONSES.get(_check_content(content))
-        if preset:
-            user_msg = await self.repo.create_message(session_id, MessageRole.USER, content)
-            assistant_msg = await self.repo.create_message(session_id, MessageRole.ASSISTANT, preset)
-            return user_msg, assistant_msg
-
-        user_msg = await self.repo.create_message(session_id, MessageRole.USER, content)
-
-        history = await self.repo.get_messages(session_id, limit=20)
-        history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
-
-        health_context = await self._fetch_health_context(user_id)
-        guides = await self._get_all_user_guide_contexts(user_id)
-        drug_details, rag_results = await self._resolve_drug_context(guides, content)
-
+    async def _collect_redis_stream(self, session_id: UUID | str) -> tuple[str, str | None]:
         redis = await get_redis()
         pubsub = redis.pubsub()
         await pubsub.subscribe(f"chat:stream:{session_id}")
-
-        task_payload = json.dumps(
-            {
-                "session_id": str(session_id),
-                "user_message": content,
-                "history": history_payload,
-                "health_profile": health_context,
-                "guides": guides or None,
-                "drug_details": drug_details or None,
-                "rag_results": rag_results or None,
-            }
-        )
-        await redis.publish(f"chat:request:{session_id}", task_payload)
 
         full_response: list[str] = []
         error_detail: str | None = None
@@ -466,12 +472,56 @@ class ChatService:
             await pubsub.unsubscribe(f"chat:stream:{session_id}")
             await pubsub.aclose()
 
+        return "".join(full_response), error_detail
+
+    async def send_message_sync(
+        self, session_id: UUID | str, user_id: int, content: str, guide_id: str | None = None
+    ) -> tuple[ChatMessage, ChatMessage]:
+        """Swagger 테스트용 REST 래퍼: WebSocket과 동일한 흐름이지만 모든 스트림을 모아 한 번에 반환."""
+        session = await self.repo.get_session(session_id, user_id)
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
+
+        preset = _PRESET_RESPONSES.get(_check_content(content))
+        if preset:
+            user_msg = await self.repo.create_message(session_id, MessageRole.USER, content)
+            assistant_msg = await self.repo.create_message(session_id, MessageRole.ASSISTANT, preset)
+            return user_msg, assistant_msg
+
+        user_msg = await self.repo.create_message(session_id, MessageRole.USER, content)
+
+        history = await self.repo.get_messages(session_id, limit=20)
+        is_first_message = len(history) == 1
+        history_payload = [{"role": m.role, "content": m.content} for m in history[:-1]]
+
+        health_context = await self._fetch_health_context(user_id)
+        guides = await self._get_all_user_guide_contexts(user_id)
+        drug_details, rag_results = await self._resolve_drug_context(guides, content)
+
+        redis = await get_redis()
+        task_payload = json.dumps(
+            {
+                "session_id": str(session_id),
+                "user_message": content,
+                "history": history_payload,
+                "health_profile": health_context,
+                "guides": guides or None,
+                "drug_details": drug_details or None,
+                "rag_results": rag_results or None,
+            }
+        )
+        await redis.publish(f"chat:request:{session_id}", task_payload)
+
+        complete, error_detail = await self._collect_redis_stream(session_id)
+
         if error_detail:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI 응답 실패: {error_detail}")
 
-        complete = "".join(full_response)
         if not complete:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI 응답 실패: 빈 응답")
         assistant_msg = await self.repo.create_message(session_id, MessageRole.ASSISTANT, complete)
         await self.repo.touch_session(session_id)
+        if is_first_message:
+            title = await _generate_title(content)
+            await self.repo.update_title(session_id, title)
         return user_msg, assistant_msg

@@ -184,10 +184,14 @@ export default function Chat() {
                                 className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
                               >
                                 <p className="text-sm font-medium text-slate-700">
-                                  {guide.disease_names.length > 0
-                                    ? guide.disease_names.join(", ")
-                                    : guide.medication_names.length > 0
-                                      ? guide.medication_names.join(", ")
+                                  {guide.medication_names.length > 0
+                                    ? guide.medication_names.length === 1
+                                      ? guide.medication_names[0]
+                                      : `${guide.medication_names[0]} 외 ${guide.medication_names.length - 1}개`
+                                    : guide.disease_names.length > 0
+                                      ? guide.disease_names.length === 1
+                                        ? guide.disease_names[0]
+                                        : `${guide.disease_names[0]} 외 ${guide.disease_names.length - 1}개`
                                       : "건강 가이드"}
                                 </p>
                                 <p className="mt-0.5 text-xs text-slate-400">
