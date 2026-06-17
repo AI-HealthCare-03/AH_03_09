@@ -294,6 +294,8 @@ class ChatService:
                             "cautions": ", ".join(ca) if isinstance(ca, list) else (ca or ""),
                         }
                     )
+            if not medications:
+                medications = [n for n in (data.get("medication_names") or []) if n]
             codes = data.get("disease_codes") or []
             names = data.get("disease_names") or []
             disease_pairs = [(codes[i], names[i] if i < len(names) else "") for i in range(len(codes))]
