@@ -43,11 +43,21 @@ export default function Chat() {
   } = useChat();
 
   const [noGuideMode, setNoGuideMode] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   // 챗봇 페이지 진입 시 항상 빈 화면으로 시작
   useEffect(() => {
     setCurrentSessionId(null);
   }, []);
+
+  // 가이드 선택 후 대기 중인 질문 자동 전송
+  useEffect(() => {
+    if (pendingQuestion && guideId) {
+      const q = pendingQuestion;
+      setPendingQuestion(null);
+      handleSubmit(q);
+    }
+  }, [guideId]);
 
   const { data: guideListData } = useQuery({
     queryKey: ["guides"],
@@ -55,11 +65,19 @@ export default function Chat() {
   });
   const guides = guideListData?.items ?? [];
   const selectedGuide = guideId ? guides.find((g) => g.guide_id === guideId) : null;
+  const drugPrefix = selectedGuide?.medication_names[0]
+    ? `${selectedGuide.medication_names[0]}은`
+    : "처방받은 약은";
   const sideEffectQuestion =
     selectedGuide && selectedGuide.medication_names.length === 1
       ? `${selectedGuide.medication_names[0]}의 부작용이 있나요?`
       : "처방받은 약들의 부작용을 알려주세요";
-  const SUGGESTED_QUESTIONS = [sideEffectQuestion, ...BASE_QUESTIONS];
+  const SUGGESTED_QUESTIONS = [
+    sideEffectQuestion,
+    `${drugPrefix} 공복에 먹어도 되나요?`,
+    `${drugPrefix} 술을 마셔도 되나요?`,
+    `${drugPrefix} 임의로 끊어도 될까요?`,
+  ];
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -248,6 +266,50 @@ export default function Chat() {
                 ))}
 
 
+                {pendingQuestion && !guideId && (
+                  <div className="mx-auto w-full max-w-2xl rounded-xl border border-primary/30 bg-primary/5 p-4">
+                    <p className="text-sm font-medium text-slate-700">어떤 건강 가이드를 기준으로 답변드릴까요?</p>
+                    <p className="mt-1 truncate text-sm text-slate-400">"{pendingQuestion}"</p>
+                    <div className="mt-3 flex flex-col gap-2">
+                      {guides.map((guide) => (
+                        <button
+                          key={guide.guide_id}
+                          type="button"
+                          onClick={() => setGuideId(guide.guide_id)}
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                        >
+                          <p className="text-sm font-medium text-slate-700">
+                            {guide.medication_names.length > 0
+                              ? guide.medication_names.length === 1
+                                ? guide.medication_names[0]
+                                : `${guide.medication_names[0]} 외 ${guide.medication_names.length - 1}개`
+                              : guide.disease_names.length > 0
+                                ? guide.disease_names.length === 1
+                                  ? guide.disease_names[0]
+                                  : `${guide.disease_names[0]} 외 ${guide.disease_names.length - 1}개`
+                                : "건강 가이드"}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {new Date(guide.created_at).toLocaleDateString("ko-KR")}
+                          </p>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNoGuideMode(true);
+                          const q = pendingQuestion;
+                          setPendingQuestion(null);
+                          handleSubmit(q);
+                        }}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        가이드 없이 계속
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {streamMut.interrupted?.sessionId === currentSessionId &&
                   !streamMut.isPending &&
                   !streamMut.streamingContent && (
@@ -356,7 +418,13 @@ export default function Chat() {
               </button>
             </div>
           )}
-          <InputComposer onSubmit={handleSubmit} disabled={busy} />
+          <InputComposer onSubmit={(content) => {
+            if (!guideId && guides.length > 0 && !noGuideMode) {
+              setPendingQuestion(content);
+              return;
+            }
+            handleSubmit(content);
+          }} disabled={busy} />
         </main>
       </div>
     </div>

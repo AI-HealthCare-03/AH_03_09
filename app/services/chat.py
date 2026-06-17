@@ -218,9 +218,9 @@ class ChatService:
                     "primary_conditions": health_profile.primary_conditions,
                     "allergies": health_profile.allergies,
                     "current_medications": health_profile.current_medications,
-                    "lifestyle_exercise": _EXERCISE_MAP.get(health_profile.lifestyle_exercise or "NONE", "안 함"),
+                    "lifestyle_exercise": _EXERCISE_MAP.get(health_profile.lifestyle_exercise, "안 함"),
                     "lifestyle_smoking": health_profile.lifestyle_smoking,
-                    "lifestyle_alcohol": _ALCOHOL_MAP.get(health_profile.lifestyle_alcohol or "NONE", "안 함"),
+                    "lifestyle_alcohol": _ALCOHOL_MAP.get(health_profile.lifestyle_alcohol, "안 함"),
                 }
             )
 
@@ -294,6 +294,8 @@ class ChatService:
                             "cautions": ", ".join(ca) if isinstance(ca, list) else (ca or ""),
                         }
                     )
+            if not medications:
+                medications = [n for n in (data.get("medication_names") or []) if n]
             codes = data.get("disease_codes") or []
             names = data.get("disease_names") or []
             disease_pairs = [(codes[i], names[i] if i < len(names) else "") for i in range(len(codes))]
