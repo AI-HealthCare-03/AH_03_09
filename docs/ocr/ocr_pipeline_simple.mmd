@@ -2,30 +2,31 @@ flowchart LR
     %% OCR 파이프라인 — 발표용 간략 버전
 
     A(["📱 파일 업로드\n(JPG·PNG·PDF)"])
-    B["FastAPI\n유효성 검사\n· 형식/크기/중복"]
+    B["FastAPI\n유효성 검사"]
     C[("PostgreSQL\n문서 저장")]
     D[["Redis\nPUBLISH"]]
-    E(["즉시 202 반환\n← P95 < 500ms"])
+    E(["즉시 202 반환\nP95 < 300ms"])
 
-    F["ai_worker\n① 이미지 리사이즈\n② Clova OCR API"]
-    G["문서 유형 분류\n처방전 / 약봉투 / 기타"]
-    H["GPT-4o-mini 파싱\n약물명·용량·복약횟수\n· ICD-10 질병코드"]
-    I["drug_master 매칭\n식약처 43,143건\n(pg_trgm ILIKE)"]
-    J[("결과 저장\nocr_results\nmedications\ndisease_codes")]
+    F["이미지 전처리\n+ Clova OCR"]
+    H["문서 유형 분류\n처방전 / 약봉투 / 기타"]
+    J["GPT-4o 파싱\n약물명·용량·ICD-10"]
+    K["drug_master 매칭\n식약처 43,143건"]
+    L[("결과 저장")]
 
-    K(["📋 결과 확인\n· 약물 인라인 편집\n· 전체 확인"])
-    L(["💊 복약 가이드 생성\nLLM 비동기 처리"])
-    M(["🤖 챗봇 상담\nRAG + 건강정보 컨텍스트"])
+    M(["📋 결과 확인\n· 약물 편집 가능"])
+    N(["💊 복약 가이드 생성"])
+    O(["🤖 챗봇 상담"])
 
     A --> B --> C --> D --> E
-    D --> F
-    F --> G --> H --> I --> J
-    J --> K --> L & M
+    D --> F --> H
+    H -->|"처방전·약봉투"| J --> K --> L --> M
+    H -->|"기타"| M
+    M --> N & O
 
     style A fill:#4F46E5,color:#fff
     style E fill:#059669,color:#fff
     style F fill:#D97706,color:#fff
-    style J fill:#0891B2,color:#fff
-    style K fill:#4F46E5,color:#fff
-    style L fill:#7C3AED,color:#fff
-    style M fill:#7C3AED,color:#fff
+    style L fill:#0891B2,color:#fff
+    style M fill:#4F46E5,color:#fff
+    style N fill:#7C3AED,color:#fff
+    style O fill:#7C3AED,color:#fff

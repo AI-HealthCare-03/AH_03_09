@@ -19,7 +19,7 @@
 | v7 | (현재) | 2026-06-01 | `ocr_parser.py` | 약봉투 time_of_day 오파싱 수정 — frequency 추론 금지 |
 | v8 | (현재) | 2026-06-04 | `ocr_parser.py` | 사용자 수정 이력(ocr_corrections) 기반 패턴 분석 → 프롬프트 개선 구조 도입 |
 | v9 | `d7c2686` | 2026-06-05 | `ocr_parser.py` | 복약안내문·복약정보지 OCR 특이사항 섹션 추가, ※ 반복 복용 지시문 timing 순서 매핑 규칙 |
-| v10 | (현재) | 2026-06-05 | `ocr_task.py`, `ocr_parser.py` | 재분석 시 ocr_corrections 이전 수정 이력 → GPT few-shot 힌트 자동 주입 |
+| v10 | `4a08100` | 2026-06-05 | `ocr_task.py`, `ocr_parser.py` | 재분석 시 ocr_corrections 이전 수정 이력 → GPT few-shot 힌트 자동 주입 (**이후 제거됨, 아래 참고**) |
 | v11 | (현재) | 2026-06-05 | `ocr_parser.py`, `ocr_task.py` | 약봉투 disease_codes 추출 버그 수정 — 처방전 전용으로 제한 |
 
 ---
@@ -247,6 +247,11 @@ GPT 유저 메시지에 few-shot 힌트 섹션 삽입:
 - 동일 문서 재분석 시 이전에 사용자가 수정한 패턴을 GPT가 참고해 동일 오류 재발 방지
 - corrections가 없으면(초회 분석 또는 수정 이력 없음) 기존 프롬프트와 동일하게 동작
 - 수집된 corrections 데이터가 실제 GPT 입력에 자동 반영되는 end-to-end 피드백 루프 완성
+
+> ⚠️ **v10 제거 (커밋 `38c01f6`, 2026-06-09):**
+> 분석 결과 화면에서 재추출 버튼이 제거되면서 수정 이력이 재분석에 활용될 진입점이 없어짐.
+> `_fetch_corrections`, `_build_corrections_hint`, `parse_medications_and_diseases`의 `corrections` 파라미터 모두 제거.
+> `ocr_corrections` 테이블 기록은 유지되며, 수정 패턴 분석을 통한 수동 프롬프트 개선(v8 구조)은 계속 유효.
 
 ---
 
