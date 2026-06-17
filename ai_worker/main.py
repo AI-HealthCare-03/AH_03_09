@@ -61,6 +61,8 @@ async def main() -> None:
 
     logger.info("AI Worker started — listening for chat/ocr/guide tasks")
 
+    _chat_tasks: dict[str, asyncio.Task] = {}
+
     async for message in pubsub.listen():
         if message["type"] != "pmessage":
             continue
@@ -72,7 +74,14 @@ async def main() -> None:
             data = json.loads(raw)
             if channel.startswith("chat:"):
                 payload = ChatTaskPayload.model_validate(data)
-                asyncio.create_task(process_chat(payload, redis_client))
+                session_id = str(payload.session_id)
+                existing = _chat_tasks.get(session_id)
+                if existing and not existing.done():
+                    existing.cancel()
+                    logger.info("Cancelled previous chat task for session=%s", session_id)
+                task = asyncio.create_task(process_chat(payload, redis_client))
+                _chat_tasks[session_id] = task
+                task.add_done_callback(lambda _t, sid=session_id: _chat_tasks.pop(sid, None))
             elif channel.startswith("ocr:"):
                 payload = OcrTaskPayload.model_validate(data)
                 asyncio.create_task(process_ocr(payload, redis_client))
