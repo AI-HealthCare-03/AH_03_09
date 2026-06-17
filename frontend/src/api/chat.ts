@@ -85,6 +85,7 @@ export const streamMessage = async (
   const decoder = new TextDecoder();
   let buffer = "";
   let streamCompleted = false;
+  let capturedTitle: string | null = null;
 
   try {
     while (true) {
@@ -101,9 +102,11 @@ export const streamMessage = async (
           const data = JSON.parse(line);
           if (data.type === "chunk") {
             onChunk(data.chunk);
+          } else if (data.type === "title") {
+            capturedTitle = data.title;
           } else if (data.type === "done") {
             streamCompleted = true;
-            onDone(0, null);
+            onDone(0, capturedTitle);
             return;
           } else if (data.type === "error") {
             onError(data.detail ?? "알 수 없는 오류가 발생했습니다.");

@@ -1263,6 +1263,8 @@ class GuideService:
             med_guide = data.get("medication_guide") or {}
             medications = med_guide.get("medications") or []
             medication_names = [m.get("name", "") for m in medications if m.get("name")]
+            if not medication_names:
+                medication_names = [n for n in (data.get("medication_names") or []) if n]
             disease_names = data.get("disease_names") or []
             items.append(
                 GuideListItem(
