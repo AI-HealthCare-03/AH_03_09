@@ -400,7 +400,8 @@ export default function UploadResult() {
                 variant="outline"
                 size="sm"
                 onClick={() => setAddModalOpen(true)}
-                disabled={isLocked || editingId !== null}
+                disabled={isLocked || editingId !== null || doc?.doc_type === "OTHER"}
+                title={doc?.doc_type === "OTHER" ? "기타 문서는 약물 추가가 불가합니다. 문서 유형을 변경해 주세요." : undefined}
               >
                 <PlusIcon className="mr-1 size-3.5" />
                 약물 추가

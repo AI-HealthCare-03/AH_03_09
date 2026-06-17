@@ -12,8 +12,8 @@ class HealthProfileRepository:
         result = await self.session.execute(select(HealthProfile).where(HealthProfile.user_id == user_id))
         return result.scalar_one_or_none()
 
-    async def create(self, user_id: int, gender: str | None = None, birth_date=None) -> HealthProfile:
-        profile = HealthProfile(user_id=user_id, gender=gender, birth_date=birth_date)
+    async def create(self, user_id: int, gender: str | None = None) -> HealthProfile:
+        profile = HealthProfile(user_id=user_id, gender=gender)
         self.session.add(profile)
         await self.session.commit()
         await self.session.refresh(profile)
