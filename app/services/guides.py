@@ -345,7 +345,7 @@ async def _make_easy_summary_llm(
 
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {
                 "role": "system",
@@ -782,7 +782,7 @@ async def _make_exercise_guide_with_llm(
 """
 
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "당신은 환자 친화적인 운동 가이드를 작성하는 의료 AI입니다."},
             {"role": "user", "content": prompt},
@@ -854,7 +854,7 @@ async def _make_diet_guide_with_llm(
 """
 
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "당신은 환자 친화적인 식사 가이드를 작성하는 의료 AI입니다."},
             {"role": "user", "content": prompt},
@@ -926,7 +926,7 @@ async def _make_lifestyle_guide_with_llm(
 """
 
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {
                 "role": "system",
